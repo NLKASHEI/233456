@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.1';
+const JMZQ_VERSION = '1.0.2';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -54,6 +54,31 @@ async function api_getWorldbookNames() {
 
 async function api_getCharWorldbooks() {
   return runInParent('TavernHelper.getCharWorldbookNames("current")');
+}
+
+// 解析目标世界书名称：当前绑定优先 → 全部世界书搜索 → 硬编码兜底
+async function api_resolveWorldbookName() {
+  return runInParent(`(async () => {
+    const JIQIU = ${JSON.stringify(WORLDBOOK_NAME)};
+    // 1. 从当前角色绑定的世界书中精确匹配
+    try {
+      const bound = await TavernHelper.getCharWorldbookNames("current");
+      if (Array.isArray(bound)) {
+        const match = bound.find(n => n === JIQIU);
+        if (match) return match;
+      }
+    } catch(e) {}
+    // 2. 从全部世界书列表中精确搜索
+    try {
+      const all = await TavernHelper.getWorldbookNames();
+      if (Array.isArray(all)) {
+        const match = all.find(n => n === JIQIU);
+        if (match) return match;
+      }
+    } catch(e) {}
+    // 3. 硬编码兜底
+    return JIQIU;
+  })()`);
 }
 
 async function api_getWorldbook(name) {
@@ -1891,7 +1916,7 @@ function isManagedEntry(name) {
   return MANAGED_ENTRIES.has(name);
 }
 
-async function applyToWorldbook(enableSet) {
+async function applyToWorldbook(enableSet, wbName) {
   const enableSetJSON    = JSON.stringify([...enableSet]);
   const managedSetJSON   = JSON.stringify([...MANAGED_ENTRIES]);
   const isManagedStr     = isManagedEntry.toString();
@@ -1904,8 +1929,7 @@ async function applyToWorldbook(enableSet) {
     if (typeof TavernHelper === 'undefined')
       throw new Error('TavernHelper is not defined — 请确认 TavernHelper 扩展已安装并启用');
 
-    var names = await TavernHelper.getCharWorldbookNames("current");
-    var wbName = (Array.isArray(names) && names.length > 0) ? names[0] : ${JSON.stringify(WORLDBOOK_NAME)};
+    var wbName = ${JSON.stringify(wbName)};
     var entries;
     try { entries = await TavernHelper.getWorldbook(wbName); } catch(e) {
       throw new Error('无法获取世界书 "' + wbName + '": ' + (e.message || String(e)));
@@ -1972,7 +1996,9 @@ async function autoSwitch() {
       const enableSet = buildEnableSet(sd);
       console.log('[JMZQ] 应启用', enableSet.size, '条:', [...enableSet].slice(0, 10));
 
-      const result = await applyToWorldbook(enableSet);
+      const wbName = await api_resolveWorldbookName();
+      console.log('[JMZQ] 目标世界书:', wbName);
+      const result = await applyToWorldbook(enableSet, wbName);
       const logSummary = result.log.map(l =>
         l.wbName + ' ▲' + l.enabled.length + ' ▼' + l.disabled.length
       ).join(' | ');
@@ -2067,8 +2093,7 @@ function refreshUI() {
 
 async function checkWorldbookCount() {
   try {
-    const names = await runInParent('TavernHelper.getCharWorldbookNames("current")');
-    const wbName = (Array.isArray(names) && names.length > 0) ? names[0] : WORLDBOOK_NAME;
+    const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
     const EXPECTED = 326;
