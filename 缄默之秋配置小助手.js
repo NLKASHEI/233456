@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.6/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.7/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.6';
+const JMZQ_VERSION = '1.0.7';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -1996,13 +1996,15 @@ const MANAGED_ENTRIES = new Set([
   '世界观-秩序期的北非','世界观-爆发后的北非',
 ]);
 
-async function applyToWorldbook(enableSet, wbName) {
+async function applyToWorldbook(enableSet, wbName, nat) {
   const enableSetJSON    = JSON.stringify([...enableSet]);
   const managedSetJSON   = JSON.stringify([...MANAGED_ENTRIES]);
+  const natStr           = nat ? JSON.stringify(nat) : 'null';
 
   return runInParent(`(async () => {
     var enableSet       = new Set(${enableSetJSON});
     var MANAGED_ENTRIES = new Set(${managedSetJSON});
+    var nat             = ${natStr};
 
     if (typeof TavernHelper === 'undefined')
       throw new Error('TavernHelper is not defined — 请确认 TavernHelper 扩展已安装并启用');
@@ -2033,6 +2035,24 @@ async function applyToWorldbook(enableSet, wbName) {
       if (dirty) {
         changed = true;
         (should ? enabled_list : disabled_list).push(entryName);
+      }
+    }
+
+    // 基础信息自动开关：匹配所有 */角色/*/基础信息，当前国籍开、其余关
+    if (nat) {
+      var prefix = nat + '/角色/';
+      for (var j = 0; j < entries.length; j++) {
+        var entry = entries[j];
+        var name = entry.name || '';
+        var idx = name.indexOf('/角色/');
+        if (idx === -1) continue;
+        if (!name.endsWith('/基础信息')) continue;
+        var shouldEnable = name.startsWith(prefix);
+        if (entry.enabled !== shouldEnable) {
+          entry.enabled = shouldEnable;
+          changed = true;
+          (shouldEnable ? enabled_list : disabled_list).push(name);
+        }
       }
     }
 
@@ -2076,7 +2096,7 @@ async function autoSwitch() {
 
       const wbName = await api_resolveWorldbookName();
       console.log('[JMZQ] 目标世界书:', wbName);
-      const result = await applyToWorldbook(enableSet, wbName);
+      const result = await applyToWorldbook(enableSet, wbName, sd.衍生状态?.nationality);
       const logSummary = result.log.map(l =>
         l.wbName + ' ▲' + l.enabled.length + ' ▼' + l.disabled.length
       ).join(' | ');
