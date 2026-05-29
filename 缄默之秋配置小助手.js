@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.4/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.3';
+const JMZQ_VERSION = '1.0.4';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -47,37 +47,65 @@ function runInParent(fnString) {
   });
 }
 
-// ═══════════════ API 封装（均在父页面上下文执行） ═══════════════
-async function api_getWorldbookNames() {
-  return runInParent('TavernHelper.getWorldbookNames()');
-}
+// ═══════════════ 世界书名称解析 ═══════════════
+// TavernHelper 已挂载在 iframe window 上，读取操作直接调用即可，无需 runInParent 注入父页面
 
-async function api_getCharWorldbooks() {
-  return runInParent('TavernHelper.getCharWorldbookNames("current")');
+// 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
+// 对象 {primary, additional}、数组、或字符串，统一提取为字符串数组
+function _jmzqNormalizeNameList(raw, callerLabel) {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object') {
+    const names = [];
+    function collect(v) {
+      if (typeof v === 'string') { names.push(v); return; }
+      if (Array.isArray(v)) { v.forEach(collect); return; }
+      if (v && typeof v === 'object') { Object.values(v).forEach(collect); }
+    }
+    collect(raw);
+    console.warn('[JMZQ] ' + callerLabel + ' 返回了非数组对象，已递归提取值:', names);
+    return names;
+  }
+  if (typeof raw === 'string' && raw) {
+    console.warn('[JMZQ] ' + callerLabel + ' 返回了字符串，已包装为数组:', raw);
+    return [raw];
+  }
+  console.warn('[JMZQ] ' + callerLabel + ' 返回类型异常 (type=' + typeof raw + ')，值:', raw);
+  return [];
 }
 
 // 解析目标世界书名称：当前绑定优先 → 全部世界书搜索 → 硬编码兜底
+// 直接调用 iframe 上的 TavernHelper，不通过 runInParent
 async function api_resolveWorldbookName() {
-  return runInParent(`(async () => {
-    const JIQIU = ${JSON.stringify(WORLDBOOK_NAME)};
-    // 1. 从当前角色绑定的世界书中精确匹配
-    // getCharWorldbookNames 返回 { primary: string|null, additional: string[] }，不是数组
-    try {
-      const bound = TavernHelper.getCharWorldbookNames("current");
-      if (bound && bound.primary === JIQIU) return bound.primary;
-      if (bound && Array.isArray(bound.additional) && bound.additional.includes(JIQIU)) return JIQIU;
-    } catch(e) {}
-    // 2. 从全部世界书列表中精确搜索（兜底）
-    try {
-      const all = TavernHelper.getWorldbookNames();
-      if (Array.isArray(all)) {
-        const match = all.find(n => n === JIQIU);
-        if (match) return match;
-      }
-    } catch(e) {}
-    // 3. 硬编码兜底
-    return JIQIU;
-  })()`);
+  // 1. 从当前角色绑定的世界书中精确匹配
+  try {
+    const raw = TavernHelper.getCharWorldbookNames('current');
+    const bound = _jmzqNormalizeNameList(raw, 'getCharWorldbookNames');
+    const hit = bound.find(n => n === WORLDBOOK_NAME);
+    if (hit) {
+      console.log('[JMZQ] 自动定位角色世界书:', hit);
+      return hit;
+    }
+    console.warn('[JMZQ] 当前角色绑定的世界书中未找到 "' + WORLDBOOK_NAME + '"，已绑定列表:', bound);
+  } catch(e) {
+    console.warn('[JMZQ] getCharWorldbookNames 失败:', e.message);
+  }
+
+  // 2. 从全部世界书列表中精确搜索（兜底）
+  try {
+    const raw = TavernHelper.getWorldbookNames();
+    const all = _jmzqNormalizeNameList(raw, 'getWorldbookNames');
+    const hit = all.find(n => n === WORLDBOOK_NAME);
+    if (hit) {
+      console.warn('[JMZQ] 角色未绑定，从全局世界书找到:', hit, '（建议在角色卡绑定该世界书）');
+      return hit;
+    }
+  } catch(e) {
+    console.warn('[JMZQ] getWorldbookNames 失败:', e.message);
+  }
+
+  // 3. 硬编码兜底
+  console.warn('[JMZQ] 自动检测失败，使用硬编码名称:', WORLDBOOK_NAME);
+  return WORLDBOOK_NAME;
 }
 
 async function api_getWorldbook(name) {
