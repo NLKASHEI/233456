@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.4/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.4';
+const JMZQ_VERSION = '1.0.5';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -1939,19 +1939,13 @@ const MANAGED_ENTRIES = new Set([
   '世界观-秩序期的北非','世界观-爆发后的北非',
 ]);
 
-function isManagedEntry(name) {
-  return MANAGED_ENTRIES.has(name);
-}
-
 async function applyToWorldbook(enableSet, wbName) {
   const enableSetJSON    = JSON.stringify([...enableSet]);
   const managedSetJSON   = JSON.stringify([...MANAGED_ENTRIES]);
-  const isManagedStr     = isManagedEntry.toString();
 
   return runInParent(`(async () => {
     var enableSet       = new Set(${enableSetJSON});
     var MANAGED_ENTRIES = new Set(${managedSetJSON});
-    var isManagedEntry  = ${isManagedStr};
 
     if (typeof TavernHelper === 'undefined')
       throw new Error('TavernHelper is not defined — 请确认 TavernHelper 扩展已安装并启用');
@@ -1972,7 +1966,7 @@ async function applyToWorldbook(enableSet, wbName) {
     for (var i = 0; i < entries.length; i++) {
       var e = entries[i];
       var entryName = e.name || '';
-      if (!isManagedEntry(entryName)) continue;
+      if (!MANAGED_ENTRIES.has(entryName)) continue;
 
       var should = enableSet.has(entryName);
       var dirty  = false;
