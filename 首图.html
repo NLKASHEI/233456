@@ -1,0 +1,791 @@
+```html
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"  content="width=device-width, initial-scale=1.0">
+    <title>▓▒░ 绝█望▒预#告$ ░▒▓</title>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;700;900&display=swap');
+
+        :root {
+            --bg-color: #000000;
+            --card-bg: radial-gradient(circle at 50% 0%, rgba(50, 0, 0, 0.85), rgba(0, 0, 0, 0.98));
+            --border-color-1: #ff0000;
+            --border-color-2: #00FF00;
+            --primary-text: #f0f0f0;
+            --secondary-text: #999999;
+            --accent-color: #ff0000;
+            --highlight-color: #00FF00;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--primary-text);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        /* 全屏动态粒子背景 */
+        #particle-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* --------------------------
+           电脑桌面弹窗
+        -------------------------- */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 1;
+            transition: opacity 0.5s ease;
+        }
+        .popup-window {
+            background: #111;
+            border: 2px solid #ff0000;
+            border-radius: 4px;
+            width: 90%;
+            max-width: 450px;
+            padding: 25px;
+            box-shadow: 0 0 30px #ff0000;
+            text-align: center;
+            animation: popupFade 0.6s ease;
+        }
+        @keyframes popupFade {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .popup-title {
+            font-size: 1.5em;
+            color: #ff0000;
+            font-weight: 900;
+            margin-bottom: 15px;
+            animation: warn 1s infinite alternate;
+        }
+        .popup-text {
+            font-size: 1.1em;
+            color: #ccc;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        .popup-btn {
+            background: #222;
+            border: 1px solid #ff0000;
+            color: #ff0000;
+            padding: 10px 25px;
+            font-size: 1em;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: 0.3s;
+        }
+        .popup-btn:hover {
+            background: #ff0000;
+            color: #000;
+        }
+
+        /* --------------------------
+           美化版：24小时倒计时（响应式）
+        -------------------------- */
+        .countdown-box {
+            width: 100%;
+            max-width: 700px;
+            text-align: center;
+            margin-bottom: 15px;
+            z-index: 2;
+            padding: 0 10px;
+        }
+        .countdown {
+            font-size: clamp(1.4em, 7vw, 2.8em);
+            font-weight: 900;
+            color: #ff0000;
+            text-shadow: 0 0 20px #ff0000, 0 0 40px #ff0000;
+            letter-spacing: clamp(2px, 0.8vw, 6px);
+            animation: warn 0.7s infinite alternate;
+            font-family: 'Courier New', monospace;
+            background: linear-gradient(90deg, #000, #220000, #000);
+            padding: 10px clamp(8px, 3vw, 25px);
+            border-radius: 8px;
+            border: 1px solid #ff0000;
+            display: inline-block;
+            position: relative;
+            white-space: nowrap;
+        }
+        /* 倒计时生化符号装饰 */
+        .countdown::before {
+            content: "▓▒░";
+            color: #00FF00;
+            margin-right: 0.4em;
+            animation: blink 1s infinite alternate;
+        }
+        .countdown::after {
+            content: "░▒▓";
+            color: #00FF00;
+            margin-left: 0.4em;
+            animation: blink 1s infinite alternate;
+        }
+        .countdown-label {
+            font-size: clamp(0.8em, 2.5vw, 1.1em);
+            color: #999;
+            margin-top: 8px;
+            font-family: monospace;
+        }
+
+        .info-card {
+            background: var(--card-bg);
+            border-radius: 6px;
+            padding: 35px;
+            max-width: 700px;
+            width: 100%;
+            position: relative;
+            z-index: 1;
+            overflow: hidden;
+            border: 1px solid #ff0000;
+            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
+            transition: transform 0.2s ease-out;
+            animation: fadeIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .info-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border-radius: 6px;
+            padding: 2px;
+            background: conic-gradient(from var(--angle), var(--border-color-1), var(--border-color-2), var(--border-color-1));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            animation: spin 3.5s linear infinite;
+            pointer-events: none;
+        }
+
+        @property --angle {
+          syntax: '<angle>';
+          initial-value: 0deg;
+          inherits: false;
+        }
+
+        @keyframes spin { to { --angle: 360deg; } }
+
+        /* 绿色乱码闪烁 */
+        .glitch {
+            color: #00FF00;
+            font-family: monospace;
+            animation: blink 1s infinite alternate;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.2; }
+            100% { opacity: 1; }
+        }
+
+        /* 血红绝望闪烁 */
+        .warning-blink {
+            color: #ff0000;
+            font-weight: 700;
+            animation: warn 0.7s infinite alternate;
+        }
+        @keyframes warn {
+            0% { text-shadow: 0 0 8px #ff0000; }
+            100% { text-shadow: 0 0 20px #ff0000; }
+        }
+
+        .doom-greeting {
+            text-align: center;
+            font-size: 1.4em;
+            color: #ff0000;
+            margin-bottom: 25px;
+            font-weight: 400;
+            min-height: 30px;
+            transition: opacity 0.4s ease-in-out;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2.1em;
+            color: #fff;
+            margin-top: 0;
+            margin-bottom: 30px;
+            font-weight: 900;
+            letter-spacing: 2px;
+        }
+
+        .section {
+            margin-bottom: 28px;
+            padding-left: 18px;
+            border-left: 2px solid #ff0000;
+            position: relative;
+        }
+
+        .section h3 {
+            font-size: 1.3em;
+            color: #dddddd;
+            margin: 0 0 12px 0;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+        }
+
+        .section p, .section ul {
+            margin: 0;
+            padding: 0;
+            font-size: 1.05em;
+            line-height: 1.9;
+            color: var(--secondary-text);
+        }
+
+        .section ul { list-style-type: none; }
+        .section strong { color: var(--highlight-color); font-weight: 700; }
+
+        .footer {
+            margin-top: 35px;
+            text-align: center;
+            font-size: 1.15em;
+            color: #777777;
+        }
+
+        .author {
+            margin-top: 25px;
+            text-align: right;
+            font-size: 1em;
+            color: #666666;
+        }
+        .author strong { color: var(--highlight-color); }
+
+        .icon {
+            display: inline-block;
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            opacity: 0.9;
+        }
+
+        .icon-warning { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff0000"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>'); }
+        .icon-virus { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff0000"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>'); }
+        .icon-time { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff0000"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13h-1v5l4.2 2.5.8-1.2-3.8-2.3V7z"/></svg>'); }
+        .icon-monitor { background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ff0000"><path d="M20 3H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4v2h8v-2h4c1.1 0 2-.9 2-2V5c0 1.1-.9-2-2-2z"/></svg>'); }
+
+        @media (max-width: 600px) {
+            body { padding: 5px; }
+            .info-card { padding: 18px; }
+            h1 { font-size: 1.7em; }
+            .section h3 { font-size: 1.1em; }
+            .section p, .section ul { font-size: 0.95em; line-height: 1.7; }
+            .doom-greeting { font-size: 1.1em; }
+            .popup-window { padding: 18px; }
+        }
+
+        @media (max-width: 380px) {
+            .countdown::before, .countdown::after { content: none; }
+        }
+
+        /* ===== 雪花屏效果 ===== */
+        #snow-canvas {
+            position: fixed;
+            inset: 0;
+            z-index: 10001;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.05s;
+            mix-blend-mode: screen;
+        }
+        #snow-canvas.active {
+            opacity: 1;
+        }
+
+        /* ===== 彩蛋：作者的话 ===== */
+        .easter-egg-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.8s ease;
+        }
+        .easter-egg-overlay.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .easter-egg-text {
+            font-size: clamp(1.6em, 6vw, 3.2em);
+            font-weight: 900;
+            color: #00FF00;
+            text-align: center;
+            line-height: 1.6;
+            text-shadow: 0 0 20px #00FF00, 0 0 60px #00FF00;
+            animation: easterGlow 1.5s ease-in-out infinite alternate;
+            padding: 0 20px;
+        }
+        .easter-egg-sub {
+            font-size: clamp(0.9em, 2.5vw, 1.3em);
+            color: #ff0000;
+            margin-top: 30px;
+            font-weight: 700;
+            text-shadow: 0 0 15px #ff0000;
+            animation: warn 0.7s infinite alternate;
+        }
+        .easter-egg-hint {
+            margin-top: 50px;
+            font-size: 0.85em;
+            color: #444;
+            animation: blink 2s infinite alternate;
+        }
+        @keyframes easterGlow {
+            0% { text-shadow: 0 0 15px #00FF00, 0 0 40px #00FF00; }
+            100% { text-shadow: 0 0 30px #00FF00, 0 0 80px #00FF00, 0 0 120px #00FF00; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+
+    <!-- 雪花屏画布 -->
+    <canvas id="snow-canvas"></canvas>
+
+    <!-- 彩蛋：倒计时结束后的作者留言 -->
+    <div class="easter-egg-overlay" id="easterEgg">
+        <div class="easter-egg-text">你为什么还在这里？！<br>快去玩啊！！</div>
+        <div class="easter-egg-sub">—— 末日已经到了 ——</div>
+        <div class="easter-egg-hint">[ 点击任意位置继续等待死亡 ]</div>
+    </div>
+
+    <!-- 新增：电脑弹窗 -->
+    <div class="popup-overlay" id="popup">
+        <div class="popup-window">
+            <div class="popup-title">⚠️ 系 统 警 告 ⚠️</div>
+            <div class="popup-text">
+                <span class="glitch corrupted" data-rate="0.3">COVID-30</span><br>
+                您收到一封来自 <span class="warning-blink">未知渠道</span> 的末日警告<br>
+                非官方加密信息，已自动拦截解密
+            </div>
+            <button class="popup-btn" id="closePopup">查 看 详 情</button>
+        </div>
+    </div>
+
+    <!-- 美化版倒计时 -->
+    <div class="countdown-box">
+        <div class="countdown" id="countdown">23:59:59</div>
+        <div class="countdown-label"><span class="glitch corrupted" data-rate="0.25" id="countdown-label">COVID-30爆发倒计时</span></div>
+    </div>
+
+    <div class="info-card" id="info-card">
+        <div class="doom-greeting glitch" id="greeting-text"></div>
+        <h1><span class="glitch corrupted" data-rate="0.3">绝望</span> <span class="warning-blink corrupted" data-rate="0.25">预告</span></h1>
+
+        <div class="section">
+            <h3><span class="icon icon-warning"></span><span class="glitch corrupted" data-rate="0.25">信号</span></h3>
+            <p class="corrupted" data-rate="0.3">时间：<strong class="warning-blink">爆发前24小时</strong>，官方全面漠视，亡灵已潜入人间</p>
+        </div>
+
+        <div class="section">
+            <h3><span class="icon icon-virus"></span><span class="glitch corrupted" data-rate="0.35">COVID-30</span></h3>
+            <p class="corrupted" data-rate="0.35"><strong>COVID-30</strong>，肾上腺素疯狂飙升，彻底丧失理智，<strong class="warning-blink">无差别杀戮、撕咬</strong>，接触即感染，无药可解，永不逆转</p>
+        </div>
+
+        <div class="section">
+            <h3><span class="icon icon-time"></span><span class="glitch corrupted" data-rate="0.25">倒计时</span></h3>
+            <p class="corrupted" data-rate="0.3">潜伏期已到尽头，24小时后<strong class="warning-blink">全面爆发</strong>，文明毁灭，无人得救，无人幸存</p>
+        </div>
+
+        <div class="section">
+            <h3><span class="icon icon-monitor"></span><span class="glitch corrupted" data-rate="0.3">绝望告诫</span></h3>
+            <ul>
+                <li><span class="glitch corrupted" data-rate="0.3">远离一切活物</span><br><span class="corrupted" data-rate="0.35">亲人、陌生人，全是杀戮机器</span></li>
+                <li><span class="glitch corrupted" data-rate="0.3">感染者无救</span><br><span class="corrupted" data-rate="0.35">逃，跑，藏，没有任何救赎</span></li>
+                <li><span class="glitch corrupted" data-rate="0.3">放弃希望</span><br><span class="corrupted" data-rate="0.35">官方已沦陷，世界已终结</span></li>
+                <li><span class="glitch corrupted" data-rate="0.3">末日降临</span><br><span class="corrupted" data-rate="0.35">你是知情者，也是将死者</span></li>
+            </ul>
+        </div>
+
+        <div class="author">
+            <strong class="glitch corrupted" data-rate="0.35">匿名·绝望散播者</strong>
+        </div>
+
+        <div class="footer">
+            <p>欢迎来到<span class="warning-blink">地狱</span>，这里没有救援</p>
+            <p>Discord类脑社区<span class="warning-blink">NLKASHEI</span>制作    欢迎游玩</p>
+        </div>
+    </div>
+
+    <script>
+        // ==============================================
+        // 乱码引擎：替换式文字腐败（非插入式）
+        // 乱码符号替换正常字符，如"末日"→"末█"
+        // 多字可被少量乱码替换，如"全面漠视"→"%^&"
+        // ==============================================
+        const GLITCH_POOL = '█▒░%^&*$#@!◆■□▓▀▄▌▐●∞◇';
+
+        function corruptText(text, rate) {
+            const keep = ' ，。、：；！？·—\n「」《》（）0123456789:';
+            let out = '';
+            let i = 0;
+            while (i < text.length) {
+                // 结构性字符永远保留
+                if (keep.includes(text[i])) { out += text[i]; i++; continue; }
+                if (Math.random() < rate) {
+                    // 决定替换多少个连续字符
+                    const r = Math.random();
+                    let eat;
+                    if (r > 0.75) eat = Math.floor(Math.random() * 5) + 2;  // 2-6字→1-2乱码
+                    else if (r > 0.45) eat = 2;                              // 2字→1乱码
+                    else eat = 1;                                            // 1字→1乱码
+                    // 跳过结构性字符
+                    let consumed = 0;
+                    while (consumed < eat && i < text.length && !keep.includes(text[i])) {
+                        i++; consumed++;
+                    }
+                    // 输出更少的乱码字符替代被替换的文本
+                    const gLen = consumed <= 1 ? 1 : (Math.random() < 0.4 ? 1 : 2);
+                    for (let g = 0; g < gLen; g++) {
+                        out += GLITCH_POOL[Math.floor(Math.random() * GLITCH_POOL.length)];
+                    }
+                } else {
+                    out += text[i]; i++;
+                }
+            }
+            return out;
+        }
+
+        // 保存原始文本并应用腐败（遍历文本节点，保留HTML结构）
+        function applyCorruption() {
+            document.querySelectorAll('.corrupted').forEach(el => {
+                const rate = parseFloat(el.dataset.rate || 0.55);
+                const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+                const nodes = [];
+                while (walker.nextNode()) nodes.push(walker.currentNode);
+                nodes.forEach(node => {
+                    if (!node._original) node._original = node.textContent;
+                    node.textContent = corruptText(node._original, rate);
+                });
+            });
+        }
+
+        // 初始应用 + 每2.5秒刷新乱码（动态抖动效果）
+        setTimeout(applyCorruption, 100);
+        setInterval(applyCorruption, 2500);
+
+        // ==============================================
+        // 关闭弹窗
+        // ==============================================
+        const popup = document.getElementById('popup');
+        const closePopup = document.getElementById('closePopup');
+        closePopup.addEventListener('click', () => {
+            popup.style.opacity = 0;
+            setTimeout(() => {
+                popup.style.display = 'none';
+            }, 500);
+        });
+
+        // ==============================================
+        // 1. 24小时实时倒计时（每秒递减）
+        // ==============================================
+        let totalSeconds = 24 * 60 * 60;
+        const countdownEl = document.getElementById('countdown');
+        const countdownLabel = document.getElementById('countdown-label');
+        let easterEggTriggered = false;
+
+        function updateCountdown() {
+            if (totalSeconds <= 0) {
+                countdownEl.textContent = "00:00:00";
+                countdownEl.style.animation = 'none';
+                countdownEl.style.color = '#00FF00';
+                countdownEl.style.textShadow = '0 0 20px #00FF00, 0 0 40px #00FF00';
+                countdownLabel.textContent = 'COVID-30 已爆发';
+                countdownLabel.style.color = '#ff0000';
+                if (!easterEggTriggered) {
+                    easterEggTriggered = true;
+                    triggerEasterEgg();
+                }
+                return;
+            }
+            const hours = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+            const minutes = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+            const seconds = String(totalSeconds % 60).padStart(2, '0');
+            countdownEl.textContent = `${hours}:${minutes}:${seconds}`;
+            totalSeconds--;
+        }
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+
+        // ==============================================
+        // 2. 绝望文字轮播（动态腐败）
+        // ==============================================
+        const greetingElement = document.getElementById('greeting-text');
+        const greetings = [
+            'COVID-30来临',
+            '接触即感染，无人得救',
+            '官方漠视，全员陪葬',
+            '杀戮·失控·毁灭',
+            '24小时后，世界消失'
+        ];
+        let currentGreetingIndex = 0;
+
+        function changeGreeting() {
+            greetingElement.style.opacity = 0;
+            setTimeout(() => {
+                currentGreetingIndex = (currentGreetingIndex + 1) % greetings.length;
+                greetingElement.textContent = corruptText(greetings[currentGreetingIndex], 0.3);
+                greetingElement.style.opacity = 1;
+            }, 350);
+        }
+        greetingElement.textContent = corruptText(greetings[0], 0.3);
+        setInterval(changeGreeting, 3800);
+
+        // ==============================================
+        // 3. 动态生化血红粒子背景
+        // ==============================================
+        const canvas = document.getElementById('particle-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function setupCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        setupCanvas();
+        window.addEventListener('resize', setupCanvas);
+
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                radius: Math.random() * 1.8,
+                color: `hsla(0, 100%, 45%, ${Math.random() * 0.6})`,
+                speedX: Math.random() * 0.25 - 0.12,
+                speedY: Math.random() * 0.25 - 0.12,
+                life: 1
+            };
+        }
+        for (let i = 0; i < 130; i++) particles.push(createParticle());
+
+        function loop() {
+            requestAnimationFrame(loop);
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.globalCompositeOperation = 'lighter';
+
+            particles.forEach((p, index) => {
+                p.x += p.speedX;
+                p.y += p.speedY;
+                p.life -= 0.0025;
+                if (p.life <= 0) {
+                    particles.splice(index, 1, createParticle());
+                    return;
+                }
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.fill();
+            });
+        }
+        loop();
+
+        // ==============================================
+        // 4. 鼠标倾斜交互
+        // ==============================================
+        const card = document.getElementById('info-card');
+        const sensitivity = 18;
+
+        card.addEventListener('mousemove', (e) => {
+            const { clientX, clientY } = e;
+            const { left, top, width, height } = card.getBoundingClientRect();
+            const x = clientX - left;
+            const y = clientY - top;
+            const rotateY = sensitivity * ((x - width / 2) / width);
+            const rotateX = -sensitivity * ((y - height / 2) / height);
+            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        });
+
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg)';
+        });
+
+        // ==============================================
+        // 5. 间歇雪花屏效果
+        // ==============================================
+        const snowCanvas = document.getElementById('snow-canvas');
+        const snowCtx = snowCanvas.getContext('2d');
+
+        function resizeSnow() {
+            // 用低分辨率保证噪点感+性能
+            snowCanvas.width = Math.ceil(window.innerWidth / 3);
+            snowCanvas.height = Math.ceil(window.innerHeight / 3);
+            snowCanvas.style.width = '100vw';
+            snowCanvas.style.height = '100vh';
+            snowCanvas.style.imageRendering = 'pixelated';
+        }
+        resizeSnow();
+        window.addEventListener('resize', resizeSnow);
+
+        function drawSnow() {
+            const w = snowCanvas.width;
+            const h = snowCanvas.height;
+            const imgData = snowCtx.createImageData(w, h);
+            const data = imgData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const v = Math.random() * 255;
+                // 偶尔出现彩色噪点（红/绿偏移）
+                const colorShift = Math.random();
+                if (colorShift < 0.08) {
+                    // 红色噪点
+                    data[i] = v * 1.2;
+                    data[i + 1] = v * 0.3;
+                    data[i + 2] = v * 0.2;
+                } else if (colorShift < 0.14) {
+                    // 绿色噪点
+                    data[i] = v * 0.2;
+                    data[i + 1] = v * 1.2;
+                    data[i + 2] = v * 0.3;
+                } else {
+                    // 灰白噪点
+                    data[i] = v;
+                    data[i + 1] = v;
+                    data[i + 2] = v;
+                }
+                data[i + 3] = Math.random() * 120 + 40; // 半透明
+            }
+            snowCtx.putImageData(imgData, 0, 0);
+
+            // 随机叠加几条水平亮线（模拟信号干扰条）
+            const barCount = Math.floor(Math.random() * 4) + 1;
+            for (let b = 0; b < barCount; b++) {
+                const y = Math.floor(Math.random() * h);
+                const barH = Math.floor(Math.random() * 3) + 1;
+                snowCtx.fillStyle = `rgba(255,255,255,${0.1 + Math.random() * 0.2})`;
+                snowCtx.fillRect(0, y, w, barH);
+            }
+        }
+
+        let snowActive = false;
+        let snowRafId = null;
+
+        function snowLoop() {
+            if (!snowActive) return;
+            drawSnow();
+            snowRafId = requestAnimationFrame(snowLoop);
+        }
+
+        function triggerSnowGlitch() {
+            // 随机持续时间：80ms ~ 350ms
+            const duration = 80 + Math.random() * 270;
+            snowActive = true;
+            snowCanvas.classList.add('active');
+            snowLoop();
+
+            setTimeout(() => {
+                snowActive = false;
+                snowCanvas.classList.remove('active');
+                if (snowRafId) cancelAnimationFrame(snowRafId);
+                snowCtx.clearRect(0, 0, snowCanvas.width, snowCanvas.height);
+            }, duration);
+
+            // 下一轮随机间隔 2.5 ~ 7秒
+            const nextDelay = 2500 + Math.random() * 4500;
+            setTimeout(triggerSnowGlitch, nextDelay + duration);
+        }
+        // 首次延迟1.5秒触发
+        setTimeout(triggerSnowGlitch, 1500);
+
+        // ==============================================
+        // 6. 彩蛋：倒计时结束后触发
+        // ==============================================
+        function triggerEasterEgg() {
+            // 先触发一段持续1.5秒的雪花屏
+            snowActive = true;
+            snowCanvas.classList.add('active');
+            snowLoop();
+
+            setTimeout(() => {
+                snowActive = false;
+                snowCanvas.classList.remove('active');
+                if (snowRafId) cancelAnimationFrame(snowRafId);
+                snowCtx.clearRect(0, 0, snowCanvas.width, snowCanvas.height);
+
+                // 显示彩蛋覆盖层
+                const easterEgg = document.getElementById('easterEgg');
+                easterEgg.classList.add('show');
+
+                // 点击关闭彩蛋
+                easterEgg.addEventListener('click', () => {
+                    easterEgg.classList.remove('show');
+                });
+            }, 1500);
+        }
+
+        async function switchToSecondGreeting() {
+            if (typeof getChatMessages !== 'undefined' && typeof setChatMessage !== 'undefined') {
+                try {
+                    const msgs = await getChatMessages(0, { include_swipe: true });
+                    if (msgs && msgs[0] && msgs[0].swipes && msgs[0].swipes.length > 1) {
+                        const targetSwipeContent = msgs[0].swipes[1];
+                        setChatMessage(targetSwipeContent, 0, {
+                            swipe_id: 1,
+                            refresh: 'display_and_render_current'
+                        });
+                    } else {
+                        alert('当前未检测到第二个开场白。请确保你已配置了 Alternate Greetings 选项。');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('跳转失败，请查看控制台报错。');
+                }
+            } else if (typeof triggerSlash !== 'undefined') {
+                triggerSlash('/send 点击创建角色');
+            } else {
+                alert('当前环境未检测到助手指令。');
+            }
+        }
+    </script>
+
+    <div style="text-align:center; margin-top:25px; z-index:2; position:relative;">
+        <span class="warning-blink" onclick="switchToSecondGreeting()" style="display:inline-block; color:#ff0000; font-weight:900; font-size:clamp(1.1em, 3vw, 1.4em); cursor:pointer; letter-spacing:2px; text-decoration:underline; text-decoration-style:dashed; text-underline-offset:5px; padding:4px 10px; border:1px dashed rgba(255,0,0,0.4); border-radius:4px; transition:all 0.3s ease;">点击创建角色</span>
+    </div>
+</body>
+</html>
+```

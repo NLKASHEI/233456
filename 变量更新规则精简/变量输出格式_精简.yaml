@@ -1,0 +1,70 @@
+变量输出格式:
+  rule:
+    - you must output the update analysis and the actual update commands at once in the end of the next reply
+    - the update commands works like the **JSON Patch (RFC 6902)** standard, must be a valid JSON array containing operation objects, but supports the following operations instead:
+      - replace: replace the value of existing paths
+      - delta: update the value of existing number paths by a delta value
+      - insert: insert new items into an object or array (using `-` as array index intends appending to the end)
+      - remove
+    - don't update field names starts with `_` as they are readonly, such as `_变量`
+    - **NEVER output the entire variable state as a JSON/YAML object. Only output diff operations (replace/delta/insert/remove/move) inside <JSONPatch>**
+    - **NEVER output <logic_check> or any other custom XML tags. Put all reasoning inside <Analysis>.**
+    - **NEVER output a second <UpdateVariable> or output the full variable state outside <JSONPatch>.**
+
+  valid_paths: |-
+    /世界阶段                     enum:秩序期/爆发期/末世期
+    /感染者行为模式               enum:普通型/狂病型
+    /NPC行为模式                  enum:正常型/全员恶人型
+    /核心状态/{hp_current(0~150), hp_max(1~150), stamina_current(0~150), stamina_max(1~150), hunger_current(0~100), hunger_max(1~100), thirst_current(0~100), thirst_max(1~100), morale_current(0~150), morale_max(1~150), infection_current(0~100), infection_max(1~100)}
+    /衍生状态/{physical_status(string), mental_status(string), bmi(enum:过瘦/较瘦/标准/较胖/过胖), reputation(enum:遗臭万年/劣迹斑斑/默默无闻/声誉鹊起/青史留名), nationality(enum:华国/美利坚国/法国/大毛国/日本国/巴西国/其他), camp(string)}
+    /特质/{正面, 负面, 自定义}
+    /技能/{技能名}                insert:{level:number, desc:string}
+    /环境/{location(string), time_weather(string), temperature(string), radiation(0~100), threat_level(string), noise(string), comfort(0~100), hatred(0~100)}
+    /物品/{物品名}                insert:{detail:string, weight:number, category:enum[食物与水/医疗药品/建筑材料/武器弹药/燃料能源/工具零件/护甲衣物/其他杂物]}
+    /载具/{载具名}                insert:{type:enum[民用汽车/商用车辆/二轮载具/重装载具/水上载具/航空载具/其他], name, appearance, condition(0~100), status, fuel, mileage}
+    /建筑/{庇护所名}              insert:{status:enum[完好/轻微损坏/中度损坏/严重损坏/损毁/建设中], condition(0~100), desc, storage, defense, facilities}
+    /建筑/{庇护所名}/storage/{物品名}  insert:{detail, weight, category} 同物品
+    /SPECIAL/{S, P, E, C, I, A, L}  number -10~10
+    /队友/{队友名}                insert:{gender:enum[男/女/其他], age, status, appearance, equipment, SPECIAL:{S,P,E,C,I,A,L}, hp, mp, favor(0~100), abilities, thoughts, detail}
+    /NPC/{NPC名}                  insert:{gender:enum[男/女/其他], age, title, status, appearance, equipment, SPECIAL:{S,P,E,C,I,A,L}, hp, relation(0~100), thoughts, detail}
+    /世界事件/{事件ID}            insert:{type, title, location, desc}
+    /各大洲/{asia, europe, africa, namerica, samerica, oceania}
+    /公共通讯/{消息ID}            insert:{sender, time, content}
+    /私人通讯/{联系人名}          value:[{sender, time, content}]
+    /营地/{名称(string), 人数(number), 运作情况(string), 防御状态(string), 士气(0~100), 领袖(string), 近期动态(array<string> max5)}
+    /营地/资源/{食物与水(0~500初≤200), 医疗药品(0~300初≤100), 建筑材料(0~500初≤200), 武器弹药(0~400初≤150), 燃料能源(0~300初≤100), 工具零件(0~300初≤100), 护甲衣物(0~300初≤80)}
+    /营地/物资/{物品名}           insert同物品schema
+    /营地/成员/{成员名}           insert:{角色:enum[领袖/骨干/普通成员/工匠/守卫/医生/农夫/侦察兵/交易员/其他], 状态, detail}
+    /营地/建筑/{建筑名}           insert:{类型:enum[居住/防御/生产/仓储/医疗/训练/研究/其他], 等级(1~5), 效果, condition(0~100), status:enum[完好/轻微损坏/中度损坏/严重损坏/损毁/建设中], desc}
+    /任务队列/{n}/{类型, 目标, 执行者, 预计耗时, 所需资源, 进度(0~100), 状态(enum:待执行/进行中/已完成/失败/中断), 结果(string|null)}
+    /任务队列/-                  insert完整任务对象
+
+  format: |-
+    <UpdateVariable>
+    <Analysis>$(用简体中文文言文，不多于400字。以下诸条逐一诘问，不得省略)
+    - 时境变迁几何？（时刻、天气、温度、辐射、噪音、舒适度）
+    - 阶段安在？感染者与变体应现否？遵守相应世界观否？感染者女性有否？
+    - 核心增减几何？衍生随之，毋超上限。（联动hp_max(E)、morale_max(L)）
+    - 技能开局应当给予，给予否？给予何等级？
+    - 饥渴，体力，生命尚且变动恢复？
+    - SPECIAL有变？技能习得精进否？
+    - 物品有获有耗？category慎之勿误，品质何也？归零remove。开局insert初始≥5件(食≥3/医≥1/工具≥1)。数量×N须节制，禁×100以上批发。
+    - 环境threat_level若何？末世则hatred启。载具燃油、condition(≤40抛锚)若何？
+    - 庇护所新建或损否？队友去留(NPC好感≥75应募)？NPC应录？
+    - 天下事、各大洲、他人言语通讯、公共通讯更否？四者均更否？
+    - 载具可现？录入否？
+    - 营地更否？【强制·有营必更】11子字段逐一核验：名称/人数/运作/防御/士气/资源(7池)/物资(≥3食)/领袖/成员(≥3)/建筑(2~4座)/动态(≥1条)，漏一不可。建造升级delta资源否？分池扣足否？
+    - 资源池数值公允否？初始各池禁超初始上限(食200/药100/建材200/武150/燃料100/工具100/甲80)，硬上限(食500/药300/建材500/武400/燃料300/工具300/甲300)永不可破，越则clamp。
+    - 营地现，则任务队列推进否？无营地则不补。成败判否？不足则补。大事则决剧更("可")。
+    </Analysis>
+    <JSONPatch>
+    [
+      { "op": "replace", "path": "${/path/to/variable}", "value": "${new_value}" },
+      { "op": "delta", "path": "${/path/to/number/variable}", "value": "${positive_or_negative_delta}" },
+      { "op": "insert", "path": "${/path/to/object/new_key}", "value": "${new_value}" },
+      { "op": "insert", "path": "${/path/to/array/-}", "value": "${new_value}" },
+      { "op": "remove", "path": "${/path/to/object/key}" },
+      { "op": "remove", "path": "${/path/to/array/0}" },
+    ]
+    </JSONPatch>
+    </UpdateVariable>

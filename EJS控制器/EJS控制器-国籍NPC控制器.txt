@@ -1,0 +1,117 @@
+@@preprocessing
+<%_ if (typeof _nat === 'undefined') var _nat = getvar('stat_data.衍生状态.nationality', { defaults: undefined }); _%>
+<%_ if (typeof _npcs === 'undefined') var _npcs = getvar('stat_data.NPC', { defaults: undefined }); _%>
+<%_ if (typeof _phase === 'undefined') var _phase = getvar('stat_data.世界阶段', { defaults: undefined }); _%>
+<%_ if (_npcs && typeof _npcs === 'object') { var _npcNames = Object.keys(_npcs); } else { var _npcNames = []; } _%>
+
+<%_ /* 华国专属：在爆发期或末世期激活华国无序者团体 */ _%>
+<%_ if (_nat === '华国' && (_phase === '爆发期' || _phase === '末世期')) { _%>
+<%_ await activewi(null, '世界观-无序者-华国血煞团体', true); _%>
+<%_ await activewi(null, '世界观-无序者-华国月影团体', true); _%>
+<%_ } _%>
+
+<%_ /* 日本国专属 */ _%>
+<%_ if (_nat === '日本国') { _%>
+<%_ await activewi(null, '世界观-日本国暗线', true); _%>
+<%_   if (_phase === '爆发期' || _phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-无序者-日本国狩人之牙', true); _%>
+<%_ await activewi(null, '世界观-无序者-日本国绝望残党', true); _%>
+<%_ await activewi(null, '世界观-幸存者-樱丘女子高中', true); _%>
+<%_ await activewi(null, '世界观-幸存者-藤美学园', true); _%>
+<%_ await activewi(null, '世界观-幸存者-弗兰秀秀', true); _%>
+<%_ await activewi(null, '世界观-安全区-警视厅', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 美利坚国专属 */ _%>
+<%_ if (_nat === '美利坚国') { _%>
+<%_   if (_phase === '秩序期') { _%>
+<%_ await activewi(null, '世界观-美利坚爆发前', true); _%>
+<%_   } else if (_phase === '爆发期') { _%>
+<%_ await activewi(null, '世界观-美利坚爆发后势力格局', true); _%>
+<%_ await activewi(null, '世界观-美利坚特色流浪者行为', true); _%>
+<%_ await activewi(null, '世界观-美利坚特色无序者总体设定', true); _%>
+<%_ await activewi(null, '世界观-安布雷拉(彩蛋)', true); _%>
+<%_ await activewi(null, '世界观-无序者-美利坚国铁冠帮', true); _%>
+<%_ await activewi(null, '世界观-无序者-美利坚国净世神殿', true); _%>
+<%_   } else if (_phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-美利坚爆发后势力格局', true); _%>
+<%_ await activewi(null, '世界观-美利坚特色流浪者行为', true); _%>
+<%_ await activewi(null, '世界观-美利坚特色无序者总体设定', true); _%>
+<%_ await activewi(null, '世界观-安布雷拉(彩蛋)', true); _%>
+<%_ await activewi(null, '世界观-无序者-美利坚国铁冠帮', true); _%>
+<%_ await activewi(null, '世界观-无序者-美利坚国净世神殿', true); _%>
+<%_ await activewi(null, '世界观-安布雷拉生物', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 大毛国专属 */ _%>
+<%_ if (_nat === '大毛国') { _%>
+<%_ await activewi(null, '世界观-大毛生活图景', true); _%>
+<%_   if (_phase === '秩序期') { _%>
+<%_ await activewi(null, '世界观-大毛国爆发前', true); _%>
+<%_ await activewi(null, '世界观-势力爆发前', true); _%>
+<%_   } else if (_phase === '爆发期') { _%>
+<%_ await activewi(null, '世界观-统一党爆发后', true); _%>
+<%_ await activewi(null, '世界观-新布尔什维克党爆发后', true); _%>
+<%_ await activewi(null, '世界观-工人钢铁会爆发后', true); _%>
+<%_ await activewi(null, '世界观-黑雪势力', true); _%>
+<%_ await activewi(null, '世界观-零度教势力', true); _%>
+<%_   } else if (_phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-统一党爆发后', true); _%>
+<%_ await activewi(null, '世界观-新布尔什维克党爆发后', true); _%>
+<%_ await activewi(null, '世界观-工人钢铁会爆发后', true); _%>
+<%_ await activewi(null, '世界观-黑雪势力', true); _%>
+<%_ await activewi(null, '世界观-零度教势力', true); _%>
+<%_ await activewi(null, '世界观-核爆区域', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 法国专属 */ _%>
+<%_ if (_nat === '法国') { _%>
+<%_   if (_phase === '秩序期') { _%>
+<%_ await activewi(null, '世界观-法国爆发前', true); _%>
+<%_   } else if (_phase === '爆发期') { _%>
+<%_ await activewi(null, '世界观-爆发期的法国', true); _%>
+<%_ await activewi(null, '世界观-白鹿堡', true); _%>
+<%_ await activewi(null, '世界观-鸢尾堡', true); _%>
+<%_ await activewi(null, '世界观-铁王冠领', true); _%>
+<%_ await activewi(null, '世界观-圣公教会', true); _%>
+<%_ await activewi(null, '世界观-混乱骑士团', true); _%>
+<%_ await activewi(null, '世界观-自由联合民', true); _%>
+<%_ await activewi(null, '世界观-戴高乐号流亡政府', true); _%>
+<%_   } else if (_phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-爆发期的法国', true); _%>
+<%_ await activewi(null, '世界观-末世期的法国', true); _%>
+<%_ await activewi(null, '世界观-白鹿堡', true); _%>
+<%_ await activewi(null, '世界观-鸢尾堡', true); _%>
+<%_ await activewi(null, '世界观-铁王冠领', true); _%>
+<%_ await activewi(null, '世界观-圣公教会', true); _%>
+<%_ await activewi(null, '世界观-混乱骑士团', true); _%>
+<%_ await activewi(null, '世界观-自由联合民', true); _%>
+<%_ await activewi(null, '世界观-戴高乐号流亡政府', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 巴西专属 */ _%>
+<%_ if (_nat === '巴西国') { _%>
+<%_   if (_phase === '秩序期') { _%>
+<%_ await activewi(null, '世界观-秩序期的巴西', true); _%>
+<%_   } else if (_phase === '爆发期' || _phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-爆发后的巴西', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 北非专属 */ _%>
+<%_ if (_nat === '北非') { _%>
+<%_   if (_phase === '秩序期') { _%>
+<%_ await activewi(null, '世界观-秩序期的北非', true); _%>
+<%_   } else if (_phase === '爆发期' || _phase === '末世期') { _%>
+<%_ await activewi(null, '世界观-爆发后的北非', true); _%>
+<%_   } _%>
+<%_ } _%>
+
+<%_ /* 循环激活在场NPC的详细条目 */ _%>
+<%_ for (var _i = 0; _i < _npcNames.length; _i++) { _%>
+<%_ await activewi(null, _nat + '/角色/' + _npcNames[_i] + '/基础信息', true); _%>
+<%_ } _%>
