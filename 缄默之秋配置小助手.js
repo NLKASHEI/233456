@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.2/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.2';
+const JMZQ_VERSION = '1.0.3';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -61,16 +61,15 @@ async function api_resolveWorldbookName() {
   return runInParent(`(async () => {
     const JIQIU = ${JSON.stringify(WORLDBOOK_NAME)};
     // 1. 从当前角色绑定的世界书中精确匹配
+    // getCharWorldbookNames 返回 { primary: string|null, additional: string[] }，不是数组
     try {
-      const bound = await TavernHelper.getCharWorldbookNames("current");
-      if (Array.isArray(bound)) {
-        const match = bound.find(n => n === JIQIU);
-        if (match) return match;
-      }
+      const bound = TavernHelper.getCharWorldbookNames("current");
+      if (bound && bound.primary === JIQIU) return bound.primary;
+      if (bound && Array.isArray(bound.additional) && bound.additional.includes(JIQIU)) return JIQIU;
     } catch(e) {}
-    // 2. 从全部世界书列表中精确搜索
+    // 2. 从全部世界书列表中精确搜索（兜底）
     try {
-      const all = await TavernHelper.getWorldbookNames();
+      const all = TavernHelper.getWorldbookNames();
       if (Array.isArray(all)) {
         const match = all.find(n => n === JIQIU);
         if (match) return match;
