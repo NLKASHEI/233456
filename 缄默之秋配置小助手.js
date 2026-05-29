@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.5/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.6/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.5';
+const JMZQ_VERSION = '1.0.6';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -50,6 +50,8 @@ function runInParent(fnString) {
 // ═══════════════ 世界书名称解析 ═══════════════
 // TavernHelper 已挂载在 iframe window 上，读取操作直接调用即可，无需 runInParent 注入父页面
 
+let _jmzqManualWbName = null;  // 用户手动选择的世界书名（自动检测失败后的兜底）
+
 // 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
 // 对象 {primary, additional}、数组、或字符串，统一提取为字符串数组
 function _jmzqNormalizeNameList(raw, callerLabel) {
@@ -73,9 +75,12 @@ function _jmzqNormalizeNameList(raw, callerLabel) {
   return [];
 }
 
-// 解析目标世界书名称：当前绑定优先 → 全部世界书搜索 → 硬编码兜底
+// 解析目标世界书名称：用户手动选择 → 角色绑定 → 全局搜索 → 硬编码兜底
 // 直接调用 iframe 上的 TavernHelper，不通过 runInParent
 async function api_resolveWorldbookName() {
+  // 0. 用户手动选择优先
+  if (_jmzqManualWbName) return _jmzqManualWbName;
+
   // 1. 从当前角色绑定的世界书中精确匹配
   try {
     const raw = TavernHelper.getCharWorldbookNames('current');
@@ -83,6 +88,7 @@ async function api_resolveWorldbookName() {
     const hit = bound.find(n => n === WORLDBOOK_NAME);
     if (hit) {
       console.log('[JMZQ] 自动定位角色世界书:', hit);
+      _jmzqOnWbResolved(hit);
       return hit;
     }
     console.warn('[JMZQ] 当前角色绑定的世界书中未找到 "' + WORLDBOOK_NAME + '"，已绑定列表:', bound);
@@ -97,15 +103,53 @@ async function api_resolveWorldbookName() {
     const hit = all.find(n => n === WORLDBOOK_NAME);
     if (hit) {
       console.warn('[JMZQ] 角色未绑定，从全局世界书找到:', hit, '（建议在角色卡绑定该世界书）');
+      _jmzqOnWbResolved(hit);
       return hit;
     }
   } catch(e) {
     console.warn('[JMZQ] getWorldbookNames 失败:', e.message);
   }
 
-  // 3. 硬编码兜底
+  // 3. 自动检测失败 → 展示手动选择面板
+  _jmzqOnWbNotFound();
   console.warn('[JMZQ] 自动检测失败，使用硬编码名称:', WORLDBOOK_NAME);
   return WORLDBOOK_NAME;
+}
+
+// 填充世界书下拉列表（始终可见，初始化/面板打开时调用）
+function _jmzqPopulateWbSelect() {
+  if (!manualWbSelect) return;
+  const saved = manualWbSelect.value;  // 记住当前选中值，避免重建后丢失
+  try {
+    const raw = TavernHelper.getWorldbookNames();
+    const all = _jmzqNormalizeNameList(raw, 'getWorldbookNames');
+    manualWbSelect.innerHTML = all.map(n =>
+      '<option value="' + n.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;') + '">' + n + '</option>'
+    ).join('');
+  } catch(e) {
+    manualWbSelect.innerHTML = '<option value="">-- 加载失败 --</option>';
+  }
+  // 恢复之前的值（如果新列表中还有的话）
+  if (saved && [...manualWbSelect.options].some(o => o.value === saved)) manualWbSelect.value = saved;
+  else if (_jmzqManualWbName && [...manualWbSelect.options].some(o => o.value === _jmzqManualWbName)) manualWbSelect.value = _jmzqManualWbName;
+}
+
+// 世界书自动检测成功 → 更新下拉选中值、恢复绿色标签
+function _jmzqOnWbResolved(name) {
+  if (manualWbSelect && name) {
+    if ([...manualWbSelect.options].some(o => o.value === name)) manualWbSelect.value = name;
+    else { manualWbSelect.appendChild(p.document.createElement('option')); manualWbSelect.lastChild.value = name; manualWbSelect.lastChild.textContent = name; manualWbSelect.value = name; }
+  }
+  if (manualWbLabel) { manualWbLabel.textContent = '当前世界书'; manualWbLabel.style.color = '#4ade80'; }
+  if (statusText) { statusText.textContent = name; statusText.style.color = '#4ade80'; }
+  if (bubble) bubble.classList.remove('warn');
+}
+
+// 世界书自动检测失败 → 爆红光、标签变红警告
+function _jmzqOnWbNotFound() {
+  if (manualWbLabel) { manualWbLabel.textContent = '自动检测失败，请手动选择'; manualWbLabel.style.color = '#e74c3c'; }
+  if (statusText) { statusText.textContent = '世界书尚未选择'; statusText.style.color = '#e74c3c'; }
+  if (bubble) bubble.classList.add('warn');
 }
 
 async function api_getWorldbook(name) {
@@ -357,6 +401,8 @@ CSS.textContent = `
     .jmzq-panel .status-dot { width: 8px; height: 8px; }
     .jmzq-panel select { padding: 7px 28px 7px 10px; font-size: 12px; }
     .jmzq-config-status { padding: 8px 10px !important; font-size: 12px; margin-bottom: 8px; }
+    #jmzq-manual-wb select { font-size: 11px; padding: 6px 24px 6px 8px; }
+    #jmzq-manual-wb .jmzq-btn.xs { padding: 5px 10px !important; font-size: 11px; white-space: nowrap; }
   }
   .jmzq-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
   .jmzq-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
@@ -429,6 +475,13 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <span id="jmzq-status-text">已就绪，等待消息触发…</span>
         </div>
         <div id="jmzq-stat-tags" class="jmzq-kv"></div>
+        <div id="jmzq-manual-wb" style="margin-top:8px;">
+          <div style="font-size:11px;color:#c0a880;margin-bottom:4px;" id="jmzq-manual-wb-label">切换世界书</div>
+          <div style="display:flex;gap:6px;">
+            <select class="jmzq-mvu-select" id="jmzq-manual-wb-select" style="flex:1;font-size:12px;"></select>
+            <button class="jmzq-btn xs" id="jmzq-manual-wb-apply">切换</button>
+          </div>
+        </div>
       </div>
       <div class="jmzq-section">
         <div class="jmzq-section-title">提示词模板</div>
@@ -608,6 +661,10 @@ const panel = p.document.getElementById('jmzq-panel');
 const statusDot = p.document.getElementById('jmzq-status-dot');
 const statusText = p.document.getElementById('jmzq-status-text');
 const statTags = p.document.getElementById('jmzq-stat-tags');
+const manualWbDiv = p.document.getElementById('jmzq-manual-wb');
+const manualWbLabel = p.document.getElementById('jmzq-manual-wb-label');
+const manualWbSelect = p.document.getElementById('jmzq-manual-wb-select');
+const manualWbApply = p.document.getElementById('jmzq-manual-wb-apply');
 const refreshBtn = p.document.getElementById('jmzq-refresh');
 const configStatus = p.document.getElementById('jmzq-config-status');
 const backendCode = p.document.getElementById('jmzq-backend-code');
@@ -1678,12 +1735,12 @@ bubble.addEventListener('click', () => {
     panel.style.left = left + 'px';
     panel.style.top = top + 'px';
     panel.style.display = 'flex';
-    checkConfig(); refreshMvuSectionVisibility(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate();
+    _jmzqPopulateWbSelect(); checkConfig(); refreshMvuSectionVisibility(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate();
   }
 });
 
 // 面板获得鼠标时自动刷新（用户可能中途手动改了设置）
-panel.addEventListener('mouseenter', () => { checkConfig(); refreshMvuConfigStatus(); refreshUI(); updateBackendCode(); checkWorldbookCount(); checkEjsTemplate(); });
+panel.addEventListener('mouseenter', () => { _jmzqPopulateWbSelect(); checkConfig(); refreshMvuConfigStatus(); refreshUI(); updateBackendCode(); checkWorldbookCount(); checkEjsTemplate(); });
 
 // --- 工具：获取触摸/鼠标坐标 ---
 function getXY(e) {
@@ -2134,6 +2191,17 @@ async function checkWorldbookCount() {
 // --- 事件绑定 ---
 refreshBtn.addEventListener('click', async () => { checkConfig(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
 
+manualWbApply.addEventListener('click', () => {
+  const name = manualWbSelect.value;
+  if (!name) { showToast('请先选择世界书'); return; }
+  _jmzqManualWbName = name;
+  if (manualWbLabel) { manualWbLabel.textContent = '当前世界书（手动选择）'; manualWbLabel.style.color = '#4ade80'; }
+  if (statusText) { statusText.textContent = name; statusText.style.color = '#4ade80'; }
+  if (bubble) bubble.classList.remove('warn');
+  showToast('已切换: ' + name);
+  autoSwitch();
+});
+
 mvuUpdateMode.addEventListener('change', () => {
   mvuExtraPanel.style.display = mvuUpdateMode.value === '额外模型解析' ? '' : 'none';
   refreshModelSourceVisibility();
@@ -2369,6 +2437,7 @@ ewcSyncMvuDom().catch(() => {});
   }
 })();
 
+_jmzqPopulateWbSelect();
 checkConfig();
 // 每5秒自动检测一次配置（模型切换后呼吸灯自动跟上，无需打开面板）
 setInterval(() => { checkConfig(); updateBackendCode(); }, 5000);
