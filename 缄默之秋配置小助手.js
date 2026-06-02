@@ -54,27 +54,6 @@ let _jmzqManualWbName = null;  // 用户手动选择的世界书名（自动检�
 
 // 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
 // 对象 {primary, additional}、数组、或字符串，统一提取为字符串数组
-function _jmzqNormalizeNameList(raw, callerLabel) {
-  if (Array.isArray(raw)) return raw;
-  if (raw && typeof raw === 'object') {
-    const names = [];
-    function collect(v) {
-      if (typeof v === 'string') { names.push(v); return; }
-      if (Array.isArray(v)) { v.forEach(collect); return; }
-      if (v && typeof v === 'object') { Object.values(v).forEach(collect); }
-    }
-    collect(raw);
-    console.warn('[JMZQ] ' + callerLabel + ' 返回了非数组对象，已递归提取值:', names);
-    return names;
-  }
-  if (typeof raw === 'string' && raw) {
-    console.warn('[JMZQ] ' + callerLabel + ' 返回了字符串，已包装为数组:', raw);
-    return [raw];
-  }
-  console.warn('[JMZQ] ' + callerLabel + ' 返回类型异常 (type=' + typeof raw + ')，值:', raw);
-  return [];
-}
-
 // 解析目标世界书名称：用户手动选择 → 角色绑定 → 全局搜索 → 硬编码兜底
 // 直接调用 iframe 上的 TavernHelper，不通过 runInParent
 async function api_resolveWorldbookName() {
@@ -82,29 +61,25 @@ async function api_resolveWorldbookName() {
   if (_jmzqManualWbName) return _jmzqManualWbName;
 
   // 1. 从当前角色绑定的世界书中精确匹配
+  //    getCharWorldbookNames 返回 { primary: string|null, additional: string[] }
   try {
     const raw = TavernHelper.getCharWorldbookNames('current');
-    const bound = _jmzqNormalizeNameList(raw, 'getCharWorldbookNames');
-    const hit = bound.find(n => n === WORLDBOOK_NAME);
-    if (hit) {
-      console.log('[JMZQ] 自动定位角色世界书:', hit);
-      _jmzqOnWbResolved(hit);
-      return hit;
+    if (raw && (raw.primary === WORLDBOOK_NAME || (raw.additional && raw.additional.includes(WORLDBOOK_NAME)))) {
+      console.log('[JMZQ] 自动定位角色世界书:', WORLDBOOK_NAME);
+      _jmzqOnWbResolved(WORLDBOOK_NAME);
+      return WORLDBOOK_NAME;
     }
-    console.warn('[JMZQ] 当前角色绑定的世界书中未找到 "' + WORLDBOOK_NAME + '"，已绑定列表:', bound);
   } catch(e) {
     console.warn('[JMZQ] getCharWorldbookNames 失败:', e.message);
   }
 
   // 2. 从全部世界书列表中精确搜索（兜底）
   try {
-    const raw = TavernHelper.getWorldbookNames();
-    const all = _jmzqNormalizeNameList(raw, 'getWorldbookNames');
-    const hit = all.find(n => n === WORLDBOOK_NAME);
-    if (hit) {
-      console.warn('[JMZQ] 角色未绑定，从全局世界书找到:', hit, '（建议在角色卡绑定该世界书）');
-      _jmzqOnWbResolved(hit);
-      return hit;
+    const all = TavernHelper.getWorldbookNames();  // 返回 string[]
+    if (Array.isArray(all) && all.includes(WORLDBOOK_NAME)) {
+      console.warn('[JMZQ] 角色未绑定，从全局世界书找到:', WORLDBOOK_NAME, '（建议在角色卡绑定该世界书）');
+      _jmzqOnWbResolved(WORLDBOOK_NAME);
+      return WORLDBOOK_NAME;
     }
   } catch(e) {
     console.warn('[JMZQ] getWorldbookNames 失败:', e.message);
@@ -121,8 +96,7 @@ function _jmzqPopulateWbSelect() {
   if (!manualWbSelect) return;
   const saved = manualWbSelect.value;  // 记住当前选中值，避免重建后丢失
   try {
-    const raw = TavernHelper.getWorldbookNames();
-    const all = _jmzqNormalizeNameList(raw, 'getWorldbookNames');
+    const all = TavernHelper.getWorldbookNames();  // 返回 string[]
     manualWbSelect.innerHTML = all.map(n =>
       '<option value="' + n.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;') + '">' + n + '</option>'
     ).join('');
@@ -463,7 +437,10 @@ p.document.body.insertAdjacentHTML('beforeend', `
   <div id="jmzq-panel" class="jmzq-panel" style="display:none; left: 110px; top: 35vh;">
     <div class="jmzq-header" id="jmzq-drag">
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
-      <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
+        <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
+      </div>
     </div>
     <div class="jmzq-body">
       <div class="jmzq-config-status" id="jmzq-config-status">配置运行正常</div>
@@ -1737,6 +1714,22 @@ bubble.addEventListener('click', () => {
     panel.style.display = 'flex';
     _jmzqPopulateWbSelect(); checkConfig(); refreshMvuSectionVisibility(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate();
   }
+});
+
+// 关闭按钮
+const closeBtn = p.document.getElementById('jmzq-close');
+closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; });
+
+// 点击面板外部关闭（用 mousedown 避免与 bubble click 冲突）
+p.document.addEventListener('mousedown', (e) => {
+  if (panel.style.display === 'none') return;
+  if (panel.contains(e.target) || bubble.contains(e.target)) return;
+  panel.style.display = 'none';
+});
+p.document.addEventListener('touchstart', (e) => {
+  if (panel.style.display === 'none') return;
+  if (panel.contains(e.target) || bubble.contains(e.target)) return;
+  panel.style.display = 'none';
 });
 
 // 面板获得鼠标时自动刷新（用户可能中途手动改了设置）
