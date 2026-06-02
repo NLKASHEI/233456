@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.8/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.9/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.8';
+const JMZQ_VERSION = '1.0.9';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -65,29 +65,25 @@ async function api_resolveWorldbookName() {
   try {
     const raw = TavernHelper.getCharWorldbookNames('current');
     if (raw && (raw.primary === WORLDBOOK_NAME || (raw.additional && raw.additional.includes(WORLDBOOK_NAME)))) {
-      console.log('[JMZQ] 自动定位角色世界书:', WORLDBOOK_NAME);
       _jmzqOnWbResolved(WORLDBOOK_NAME);
       return WORLDBOOK_NAME;
     }
   } catch(e) {
-    console.warn('[JMZQ] getCharWorldbookNames 失败:', e.message);
+    // 静默处理
   }
 
   // 2. 从全部世界书列表中精确搜索（兜底）
   try {
     const all = TavernHelper.getWorldbookNames();  // 返回 string[]
     if (Array.isArray(all) && all.includes(WORLDBOOK_NAME)) {
-      console.warn('[JMZQ] 角色未绑定，从全局世界书找到:', WORLDBOOK_NAME, '（建议在角色卡绑定该世界书）');
       _jmzqOnWbResolved(WORLDBOOK_NAME);
       return WORLDBOOK_NAME;
     }
   } catch(e) {
-    console.warn('[JMZQ] getWorldbookNames 失败:', e.message);
   }
 
   // 3. 自动检测失败 → 展示手动选择面板
   _jmzqOnWbNotFound();
-  console.warn('[JMZQ] 自动检测失败，使用硬编码名称:', WORLDBOOK_NAME);
   return WORLDBOOK_NAME;
 }
 
@@ -2072,29 +2068,22 @@ async function autoSwitch() {
   }
 
   _runningPromise = (async () => {
-    console.log('[JMZQ] autoSwitch 触发');
     bubble && bubble.classList.add('running');
     try {
       if (typeof p.Mvu === 'undefined') throw new Error('Mvu 不可用');
 
       const sd = readStatData();
       if (!sd) {
-        console.warn('[JMZQ] 未找到有效 stat_data，跳过世界书切换');
         p._jmzqLastResult = { time: Date.now(), ok: true, stat: {}, want: [], totalChanged: 0, log: [] };
         return;
       }
 
       const enableSet = buildEnableSet(sd);
-      console.log('[JMZQ] 应启用', enableSet.size, '条:', [...enableSet].slice(0, 10));
-
       const wbName = await api_resolveWorldbookName();
-      console.log('[JMZQ] 目标世界书:', wbName);
       const result = await applyToWorldbook(enableSet, wbName, sd.衍生状态?.nationality);
       const logSummary = result.log.map(l =>
         l.wbName + ' ▲' + l.enabled.length + ' ▼' + l.disabled.length
       ).join(' | ');
-      console.log('[JMZQ] 完成 changed=' + result.totalChanged + (logSummary ? '  ' + logSummary : ''));
-
       p._jmzqLastResult = {
         time: Date.now(), ok: true,
         stat: {
@@ -2150,10 +2139,10 @@ const ALL_EVENTS = [...CRITICAL_EVENTS, ...SECONDARY_EVENTS];
 
 if (typeof eventOn === 'function') {
   for (const evt of CRITICAL_EVENTS) {
-    try { eventOn(evt, onCriticalEvent); console.log('[JMZQ] 注册关键事件:', evt); } catch(e) {}
+    try { eventOn(evt, onCriticalEvent); } catch(e) {}
   }
   for (const evt of SECONDARY_EVENTS) {
-    try { eventOn(evt, onSecondaryEvent); console.log('[JMZQ] 注册次要事件:', evt); } catch(e) {}
+    try { eventOn(evt, onSecondaryEvent); } catch(e) {}
   }
   p._jmzqCleanup = function() {
     if (typeof eventOff === 'function') {
@@ -2162,7 +2151,6 @@ if (typeof eventOn === 'function') {
     }
   };
 } else {
-  console.warn('[JMZQ] eventOn 不可用，将仅支持手动触发');
 }
 
 function refreshUI() {
