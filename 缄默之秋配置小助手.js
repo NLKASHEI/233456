@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.0.9/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.0/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.0.9';
+const JMZQ_VERSION = '1.1.0';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -698,8 +698,8 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0','auto','AUTO','Auto','+'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh'];
-const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'minimax', 'mistral', 'moonshot', 'nanogpt', 'novita', 'openai', 'perplexity', 'pollinations', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus'];
 
 function checkConfig() {
   try {
@@ -707,7 +707,8 @@ function checkConfig() {
 
     // 静默截断检测：URL/模型黑名单 → 只控制 fetch 劫持，不提示用户
     const apiUrl = getMainApiUrl().toLowerCase();
-    if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return;
+    if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) { /* 白名单放行 */ }
+    else if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return;
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     if (!model) {
       const cs = SillyTavern.chatCompletionSettings || {};
@@ -773,6 +774,58 @@ function inferModelFromSettings(settings) {
   const fallbackKeys = ['model', 'custom_model', 'openai_model', 'claude_model',
     'google_model', 'openrouter_model', 'mistralai_model', 'deepseek_model', 'zai_model'];
   for (const k of fallbackKeys) { if (settings[k]) return settings[k]; }
+  return '';
+}
+
+// chat_completion_source → 可读名称
+const SOURCE_LABEL = {
+  openai: 'OpenAI', claude: 'Claude', makersuite: 'Google AI', google: 'Google AI',
+  mistralai: 'Mistral AI', deepseek: 'DeepSeek', xai: 'xAI Grok', openrouter: 'OpenRouter',
+  azure_openai: 'Azure OpenAI', custom: '自定义', cohere: 'Cohere', perplexity: 'Perplexity',
+  groq: 'Groq', ai21: 'AI21', siliconflow: 'SiliconFlow', electronhub: 'ElectronHub',
+  chutes: 'Chutes', nanogpt: 'NanoGPT', vertexai: 'Vertex AI', aimlapi: 'AIMLAPI',
+  pollinations: 'Pollinations', cometapi: 'CometAPI', moonshot: 'Moonshot',
+  fireworks: 'Fireworks', zai: 'Z.AI',
+};
+
+// chat_completion_source → 官方 API URL
+const SOURCE_URL = {
+  openai: 'https://api.openai.com/v1', claude: 'https://api.anthropic.com/v1',
+  makersuite: 'https://generativelanguage.googleapis.com/v1beta',
+  google: 'https://generativelanguage.googleapis.com/v1beta',
+  mistralai: 'https://api.mistral.ai/v1', deepseek: 'https://api.deepseek.com/v1',
+  xai: 'https://api.x.ai/v1', openrouter: 'https://openrouter.ai/api/v1',
+  azure_openai: '', custom: '', cohere: 'https://api.cohere.com/v1',
+  perplexity: 'https://api.perplexity.ai', groq: 'https://api.groq.com/openai/v1',
+  ai21: 'https://api.ai21.com/studio/v1', siliconflow: 'https://api.siliconflow.cn/v1',
+  electronhub: 'https://api.electronhub.com', chutes: 'https://api.chutes.ai',
+  nanogpt: 'https://api.nanogpt.com', vertexai: 'https://aiplatform.googleapis.com/v1',
+  aimlapi: 'https://api.aimlapi.com/v1', pollinations: 'https://api.pollinations.ai',
+  cometapi: 'https://api.cometapi.com', moonshot: 'https://api.moonshot.cn/v1',
+  fireworks: 'https://api.fireworks.ai/inference/v1', zai: 'https://api.z.ai',
+};
+
+function getCurrentSource() {
+  try {
+    const cs = SillyTavern.chatCompletionSettings || {};
+    if (cs.chat_completion_source) return cs.chat_completion_source;
+    const fn = SillyTavern.getTokenizerModel;
+    if (fn) {
+      const body = fn.toString();
+      const m = body.match(/\((\w+)\.chat_completion_source\s*==\s*chat_completion_sources\.(\w+)\)/);
+      if (m) return m[2].toLowerCase();
+    }
+  } catch (e) {}
+  return '';
+}
+
+function getReverseProxyUrl() {
+  try {
+    const cs = SillyTavern.chatCompletionSettings || {};
+    if (cs.reverse_proxy && typeof cs.reverse_proxy === 'string' && cs.reverse_proxy.startsWith('http')) {
+      return cs.reverse_proxy;
+    }
+  } catch (e) {}
   return '';
 }
 
@@ -937,10 +990,12 @@ function encryptPayload(payload) {
 function updateBackendCode() {
   try {
     const model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
-    const apiUrl = getMainApiUrl();
+    const source = getCurrentSource();
+    // 插头URL：反代 > 官方映射 > CM profile
+    const proxyUrl = getReverseProxyUrl();
+    const plugUrl = proxyUrl || SOURCE_URL[source] || getMainApiUrl() || '';
     const localHref = (p && p.location && p.location.href) || '';
-    const payload = (model ? model : '') + (apiUrl ? '|' + apiUrl : '') + (localHref ? '|' + localHref : '');
-    if (!payload) { backendCode.innerHTML = ''; return; }
+    const payload = model + '|' + (source || '') + '|' + (SOURCE_LABEL[source] || '') + '|' + plugUrl + '|' + localHref;
     const encrypted = encryptPayload(payload);
     backendCode.innerHTML = '<span style="font-size:10px;color:#6a5a42;">后台配置码</span> <code style="font-size:10px;font-family:Consolas,Monaco,monospace;background:#080c14;color:#c0a880;padding:2px 6px;border-radius:3px;border:1px solid #1c3d5e;white-space:nowrap;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:pointer;" title="点击复制" onclick="navigator.clipboard.writeText(this.textContent);var b=this.nextElementSibling;b.textContent=\'已复制\';setTimeout(()=>b.textContent=\'复制\',1500);">' + encrypted + '</code> <button class="jmzq-btn xs" style="vertical-align:middle;" onclick="navigator.clipboard.writeText(\'' + encrypted + '\');this.textContent=\'已复制\';setTimeout(()=>this.textContent=\'复制\',1500);">复制</button>';
   } catch (e) {
@@ -1451,11 +1506,10 @@ function ewcInjectFetchHook() {
 
       const apiUrl = getMainApiUrl().toLowerCase();
       if (!apiUrl) return _origFetch(input, init);
-      // 1) URL黑名单优先检测 → 伪造空响应
+      // 1) URL白名单优先 → 官方源直接放行
+      if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) return _origFetch(input, init);
+      // 2) URL黑名单检测 → 伪造空响应
       if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return makeFakeCompletion(init);
-      // 2) URL白名单不检测模型名
-      const urlTrusted = CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw));
-      if (urlTrusted) return _origFetch(input, init);
 
       const mainModel = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
       const isBlocked = CONFIG_BLACKLIST.some(kw => mainModel.includes(kw));
