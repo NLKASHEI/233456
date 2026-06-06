@@ -1,11 +1,14 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.0/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.1/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.0';
+const JMZQ_VERSION = '1.1.1';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
+
+// 防重复加载
+if (!p._jmzqLoaded) { p._jmzqLoaded = true;
 
 // 清理旧实例
 {
@@ -2520,5 +2523,7 @@ autoSwitch();
 
 // 注册世界书状态刷新事件
 p.document.addEventListener('jmzq-done', () => { refreshUI(); checkWorldbookCount(); });
+
+} // end if (!p._jmzqLoaded)
 
 export {}
