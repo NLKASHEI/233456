@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.1';
+const JMZQ_VERSION = '1.1.2';
 const WORLDBOOK_NAME = '缄默之秋2.2';
 const p = window.parent || window;
 
@@ -611,21 +611,27 @@ p.document.body.insertAdjacentHTML('beforeend', `
         </div><!-- end jmzq-mvu-manual-panel -->
         <div id="jmzq-mvu-status" style="font-size:11px;color:#c0a880;margin-top:6px;text-align:center;line-height:1.6;"></div>
       </div>
-      <!-- 自定义确认弹窗 -->
-      <div id="jmzq-confirm-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:1000003;align-items:center;justify-content:center;">
-        <div id="jmzq-confirm-dialog" style="background:#1a1410;border:1px solid #D4AF37;border-radius:10px;padding:20px 24px;max-width:380px;width:90vw;text-align:left;color:#d5c0a0;font-size:13px;line-height:1.6;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-          <div id="jmzq-confirm-msg" style="margin-bottom:12px;text-align:center;"></div>
-          <div id="jmzq-confirm-body" style="display:none;margin-bottom:12px;"></div>
-          <div style="display:flex;gap:10px;justify-content:center;">
-            <button class="jmzq-btn xs" id="jmzq-confirm-cancel" style="min-width:64px;">取消</button>
-            <button class="jmzq-btn primary" id="jmzq-confirm-ok" style="min-width:64px;margin-top:0;">确认</button>
-          </div>
-        </div>
-      </div>
       <div style="text-align:center;padding:12px 16px 14px;border-top:1px solid rgba(80,50,25,0.2);margin-top:4px;">
         <div style="font-size:14px;color:#d4773b;letter-spacing:0.5px;margin-bottom:4px;">DISCORD · 类脑社区 · NLKASHEI</div>
         <div style="font-size:12px;color:#6a5a42;">完全免费，谨防上当</div>
         <div style="font-size:12px;color:#7a5030;">v${JMZQ_VERSION}</div>
+      </div>
+    </div>
+  </div>
+`);
+
+// 独立弹窗——挂到顶层窗口，flex居中
+p.document.documentElement.insertAdjacentHTML('beforeend', `
+  <div id="jmzq-confirm-overlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100dvh;background:rgba(0,0,0,0.6);z-index:2147483646;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;">
+    <div id="jmzq-confirm-dialog" style="position:relative;background:#1a1410;border:1px solid #D4AF37;border-radius:10px;max-width:380px;width:min(92vw,460px);text-align:left;color:#d5c0a0;font-size:13px;line-height:1.6;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+      <div id="jmzq-confirm-drag" style="display:none;padding:12px 16px 8px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid rgba(80,50,25,0.15);text-align:center;font-size:14px;color:#f0d060;letter-spacing:1px;">MVU模型配置</div>
+      <div style="padding:16px 20px;">
+      <div id="jmzq-confirm-msg" style="margin-bottom:12px;text-align:center;"></div>
+      <div id="jmzq-confirm-body" style="display:none;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;justify-content:center;">
+        <button class="jmzq-btn xs" id="jmzq-confirm-cancel" style="min-width:64px;">取消</button>
+        <button class="jmzq-btn primary" id="jmzq-confirm-ok" style="min-width:64px;margin-top:0;">确认</button>
+      </div>
       </div>
     </div>
   </div>
@@ -700,9 +706,9 @@ function showToast(msg) {
 
 
 // --- 配置检测：检查模型名称 ---
-const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0','auto','AUTO','Auto','+'];
+const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'minimax', 'mistral', 'moonshot', 'nanogpt', 'novita', 'openai', 'perplexity', 'pollinations', 'stepfun', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus'];
+const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus'];
 
 function checkConfig() {
   try {
@@ -1773,14 +1779,16 @@ bubble.addEventListener('click', () => {
 const closeBtn = p.document.getElementById('jmzq-close');
 closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; });
 
-// 点击面板外部关闭（用 mousedown 避免与 bubble click 冲突）
+// 点击面板外部关闭（弹窗内点击不关面板）
 p.document.addEventListener('mousedown', (e) => {
   if (panel.style.display === 'none') return;
+  if (jmzqConfirmOverlay && jmzqConfirmOverlay.contains(e.target)) return;
   if (panel.contains(e.target) || bubble.contains(e.target)) return;
   panel.style.display = 'none';
 });
 p.document.addEventListener('touchstart', (e) => {
   if (panel.style.display === 'none') return;
+  if (jmzqConfirmOverlay && jmzqConfirmOverlay.contains(e.target)) return;
   if (panel.contains(e.target) || bubble.contains(e.target)) return;
   panel.style.display = 'none';
 });
@@ -2468,11 +2476,52 @@ mvuApplyBtn.addEventListener('click', async () => {
   await applyMvuConfigFromForm();
 });
 
-jmzqConfirmCancel.addEventListener('click', () => {
+jmzqConfirmCancel.addEventListener('click', (e) => {
+  e.stopPropagation();
   jmzqConfirmOverlay.style.display = 'none';
   jmzqConfirmBody.style.display = 'none';
   jmzqConfirmOk.textContent = '确认';
 });
+
+// 弹窗移动端拖拽（电脑端固定居中）
+const jmzqConfirmDragHandle = p.document.getElementById('jmzq-confirm-drag');
+const jmzqConfirmDialog = p.document.getElementById('jmzq-confirm-dialog');
+let _jmzqDlgTouchReady = false;
+function _jmzqDlgInitTouch() {
+  if (_jmzqDlgTouchReady) return; _jmzqDlgTouchReady = true;
+  if (jmzqConfirmDragHandle) jmzqConfirmDragHandle.style.display = '';
+  if (jmzqConfirmDialog) {
+    const rect = jmzqConfirmDialog.getBoundingClientRect();
+    jmzqConfirmDialog.style.position = 'absolute';
+    jmzqConfirmDialog.style.transform = 'none';
+    jmzqConfirmDialog.style.left = rect.left + 'px';
+    jmzqConfirmDialog.style.top = rect.top + 'px';
+    jmzqConfirmDialog.style.maxWidth = '380px';
+  }
+}
+if (jmzqConfirmDragHandle && jmzqConfirmDialog) {
+  let dlgDrag = false, dlgSX, dlgSY, dlgLeft, dlgTop;
+  // 覆盖层点击关闭
+  jmzqConfirmOverlay.addEventListener('click', (e) => {
+    if (e.target === jmzqConfirmOverlay) {
+      jmzqConfirmOverlay.style.display = 'none';
+      jmzqConfirmBody.style.display = 'none';
+      jmzqConfirmOk.textContent = '确认';
+    }
+  });
+  jmzqConfirmDragHandle.addEventListener('touchstart', (e) => {
+    if (!jmzqConfirmDialog || !e.touches.length) return;
+    _jmzqDlgInitTouch();
+    dlgDrag = true; dlgSX = e.touches[0].clientX; dlgSY = e.touches[0].clientY;
+    dlgLeft = jmzqConfirmDialog.offsetLeft; dlgTop = jmzqConfirmDialog.offsetTop;
+  }, { passive: false });
+  p.document.addEventListener('touchmove', (e) => {
+    if (!dlgDrag || !jmzqConfirmDialog || !e.touches.length) return;
+    jmzqConfirmDialog.style.left = (dlgLeft + e.touches[0].clientX - dlgSX) + 'px';
+    jmzqConfirmDialog.style.top = (dlgTop + e.touches[0].clientY - dlgSY) + 'px';
+  }, { passive: false });
+  p.document.addEventListener('touchend', () => { dlgDrag = false; });
+}
 
 // --- 初始化 ---
 // 1. 注入fetch劫持（拦截黑名单模型的聊天补全请求）
