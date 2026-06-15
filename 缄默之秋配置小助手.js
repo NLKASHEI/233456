@@ -1,10 +1,10 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.4/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.3';
-const WORLDBOOK_NAME = '缄默之秋2.2';
+const JMZQ_VERSION = '1.1.4';
+const WORLDBOOK_NAME = '缄默之秋2.3';
 const p = window.parent || window;
 
 // 防重复加载
@@ -161,271 +161,516 @@ async function api_updateScriptTrees(modifier) {
   );
 }
 
-// --- CSS（注入到父页面，缄默之秋配色） ---
+// --- CSS（注入到父页面 · 宣纸暖白风格） ---
 const CSS = p.document.createElement('style');
 CSS.textContent = `
-	  #jmzq-bubble {
-	    position: fixed; top: 12vh; left: 14px;
-	    width: 44px; height: 44px;
-	    background: linear-gradient(145deg, #1a1410, #12100c);
-	    border: 1px solid rgba(212,175,55,0.35);
-	    border-radius: 14px; z-index: 1000000; cursor: pointer;
-	    display: flex; align-items: center; justify-content: center;
-	    box-shadow: 0 4px 20px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.04);
-	    transition: box-shadow .25s, border-color .25s, transform .15s;
-	    user-select: none; touch-action: none;
-	    -webkit-tap-highlight-color: transparent;
-	  }
-	  #jmzq-bubble span {
-	    font-size: 28px; font-weight: 400; line-height: 1;
-	    font-family: 'Ma Shan Zheng', cursive;
-	    background: linear-gradient(180deg, #f0d060 0%, #d4773b 50%, #b85a20 100%);
-	    -webkit-background-clip: text; background-clip: text;
-	    -webkit-text-fill-color: transparent;
-	    filter: drop-shadow(0 0 6px rgba(212,175,55,0.3));
-	  }
-	  #jmzq-bubble:hover {
-	    border-color: rgba(212,175,55,0.7);
-	    box-shadow: 0 0 20px rgba(212,175,55,0.2), 0 6px 24px rgba(0,0,0,0.7);
-	    transform: translateY(-1px);
-	  }
-	  #jmzq-bubble:hover span {
-	    filter: drop-shadow(0 0 12px rgba(212,175,55,0.5));
-	  }
-	  #jmzq-bubble.running { animation: jmzq-spin 1.2s linear infinite; }
-	  @keyframes jmzq-spin { 100% { transform: rotate(360deg); } }
-
-	  @keyframes jmzq-pulse-warn {
-	    0%, 100% { border-color: rgba(231,76,60,0.35) !important; }
-	    50% { border-color: rgba(231,76,60,0.7) !important; }
-	  }
-
-	  #jmzq-bubble.warn {
-	    border-color: rgba(234,179,8,0.7);
-	    box-shadow: 0 0 20px 6px rgba(234,179,8,0.5), 0 6px 24px rgba(0,0,0,0.7);
-	    animation: jmzq-bubble-warn 1.8s ease-in-out infinite;
-	  }
-	  @keyframes jmzq-bubble-warn {
-	    0%, 100% { border-color: rgba(234,179,8,0.5); box-shadow: 0 0 20px 6px rgba(234,179,8,0.4), 0 6px 24px rgba(0,0,0,0.7); }
-	    50% { border-color: rgba(255,200,30,0.9); box-shadow: 0 0 24px 8px rgba(255,200,30,0.7), 0 6px 24px rgba(0,0,0,0.7); }
-	  }
-  .jmzq select {
-    width: 100%; max-width: 100%; box-sizing: border-box;
-    padding: 9px 32px 9px 12px; border-radius: 6px; font-size: 13px;
-    font-family: inherit; background: #1a1410 !important;
-    border: 1px solid #4a3525 !important; color: #d5c0a0 !important; cursor: pointer;
-    -webkit-appearance: none; appearance: none; transition: border-color 0.2s;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23D4AF37' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat; background-position: right 12px center;
-    box-shadow: none !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  /* ===== 气泡 · 墨玉金浮雕 ===== */
+  #jmzq-bubble {
+    position: fixed; top: 12vh; left: 14px;
+    width: 40px; height: 40px;
+    background: linear-gradient(150deg, #1a1814, #0f0e0a);
+    border: 1.5px solid rgba(180,150,80,0.35);
+    border-radius: 4px; z-index: 1000000; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03);
+    transition: all .25s ease;
+    user-select: none; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
   }
-  .jmzq select:hover { border-color: #d4773b !important; }
-  .jmzq select:focus { border-color: #D4AF37 !important; outline: none; box-shadow: 0 0 0 2px rgba(212,175,55,0.1) !important; }
-  .jmzq select option { background: #1a1410 !important; color: #d5c0a0 !important; }
+  #jmzq-bubble span {
+    font-size: 22px; font-weight: 400; line-height: 1;
+    font-family: 'Ma Shan Zheng', 'KaiTi', cursive;
+    background: linear-gradient(180deg, #e8d080 0%, #b89030 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 4px rgba(200,160,50,0.4));
+    transition: filter .25s;
+  }
+  #jmzq-bubble:hover {
+    border-color: rgba(212,175,55,0.6);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04), 0 0 18px rgba(212,175,55,0.12);
+    transform: translateY(-1px);
+  }
+  #jmzq-bubble:hover span {
+    filter: drop-shadow(0 0 8px rgba(212,175,55,0.6));
+  }
+  #jmzq-bubble:active { transform: scale(0.95); transition: transform .1s; }
+  #jmzq-bubble.running { animation: jmzq-spin 1.2s linear infinite; }
+  @keyframes jmzq-spin { 100% { transform: rotate(360deg); } }
+
+  /* 警告：金边脉冲 */
+  #jmzq-bubble.warn {
+    border-color: rgba(212,160,48,0.6);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.03), 0 0 14px rgba(212,160,48,0.3);
+    animation: jmzq-jade-warn 1.8s ease-in-out infinite;
+  }
+  @keyframes jmzq-jade-warn {
+    0%, 100% { border-color: rgba(180,150,80,0.4); box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 10px rgba(200,160,50,0.2); }
+    50% { border-color: rgba(240,200,80,0.65); box-shadow: 0 4px 16px rgba(0,0,0,0.5), 0 0 20px rgba(212,175,55,0.4); }
+  }
+
+  /* ===== 面板 · 宣纸暖白底 ===== */
+  .jmzq-panel {
+    position: fixed; z-index: 1000001;
+    width: 350px; max-height: 62vh;
+    background: linear-gradient(175deg, #f5f0e8, #efe8da);
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 4px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.25), 0 0 60px rgba(192,64,48,0.04);
+    display: flex; flex-direction: column;
+    font-size: 13px; color: #3a2a18;
+    font-family: 'Noto Serif SC','Inter','Microsoft YaHei',serif;
+    overflow: hidden; user-select: none;
+  }
+  .jmzq-panel > * { position: relative; z-index: 1; }
+
+  /* ===== 标题栏 ===== */
+  .jmzq-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid rgba(0,0,0,0.06);
+    cursor: move;
+    background: rgba(245,240,232,0.6);
+    position: relative; z-index: 1;
+  }
+  .jmzq-header-title {
+    font-size: 17px; font-weight: 700; color: #3a2010; letter-spacing: 2px;
+    position: relative;
+  }
+  .jmzq-header-title::after {
+    content: ''; position: absolute; bottom: -4px; left: 0; width: 100%; height: 1px;
+    background: linear-gradient(90deg, #c04030, transparent 70%);
+  }
+
+  /* ===== 内容区 ===== */
+  .jmzq-body {
+    padding: 14px 16px; overflow-y: auto; flex: 1;
+    scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.12) transparent;
+    position: relative; z-index: 1;
+  }
+  .jmzq-body::-webkit-scrollbar { width: 4px; }
+  .jmzq-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+  .jmzq-body::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.2); }
+
+  /* ===== 区块卡片 · 纸笺层叠 ===== */
+  .jmzq-section {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid rgba(0,0,0,0.04);
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    padding: 14px; margin-bottom: 8px;
+    position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 0 0 1px rgba(0,0,0,0.02);
+  }
+  .jmzq-section::after {
+    content: ''; position: absolute; top: 10px; left: 0; width: 3px; height: calc(100% - 20px);
+    background: linear-gradient(180deg, #c04030 0%, #c04030 40%, transparent 100%);
+    opacity: 0.5;
+  }
+  .jmzq-section-title {
+    font-size: 9px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase;
+    color: #8a6a4a; margin-bottom: 10px; padding-left: 6px;
+  }
+
+  /* ===== 配置状态条 ===== */
+  .jmzq-config-status {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.3px;
+    color: #4a7a3a; padding: 2px 0; margin-bottom: 8px;
+  }
+  .jmzq-config-status::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: #4a7a3a; animation: jmzq-live-dot 2s infinite;
+  }
+  @keyframes jmzq-live-dot { 0%,100%{opacity:1} 50%{opacity:.3} }
+  .jmzq-config-status.warn {
+    color: #c08030;
+  }
+  .jmzq-config-status.warn::before {
+    background: #c08030; animation: jmzq-live-dot 0.8s infinite;
+  }
+
+  /* ===== 按钮体系 ===== */
   .jmzq-btn {
-    padding: 7px 14px !important; border-radius: 6px !important; cursor: pointer;
-    border: 1px solid #4a3525 !important; background: rgba(200,115,60,0.06) !important;
-    color: #e0a060 !important; font-size: 12px; font-weight: 500; font-family: inherit !important;
-    transition: all 0.2s; letter-spacing: 0.3px;
+    padding: 7px 14px !important; cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.12) !important;
+    background: transparent !important;
+    color: #5a4030 !important; font-size: 12px; font-weight: 500; font-family: inherit !important;
+    transition: all .2s; letter-spacing: 0.5px;
     text-shadow: none !important; box-shadow: none !important;
     line-height: 1.4 !important; min-height: auto !important;
   }
   .jmzq-btn:hover {
-    background: rgba(200,115,60,0.15) !important; border-color: #d4773b !important; color: #fff !important;
+    background: rgba(192,64,48,0.05) !important;
+    border-color: #c04030 !important; color: #c04030 !important;
   }
+  .jmzq-btn:active { transform: scale(0.97); }
+
   .jmzq-btn.primary {
     width: 100% !important; display: block !important;
-    background: linear-gradient(160deg, #D4AF37, #b8941f) !important;
-    border: 1px solid #D4AF37 !important; color: #080c14 !important;
-    margin-top: 6px; padding: 10px !important; font-size: 13px; font-weight: 700 !important;
-    letter-spacing: 0.5px; text-shadow: none !important;
-    box-shadow: 0 2px 10px rgba(212,175,55,0.15) !important;
+    background: #c04030 !important;
+    border: 1px solid #c04030 !important;
+    color: #f5f0e8 !important;
+    margin-top: 4px; padding: 10px !important; font-size: 13px; font-weight: 700 !important;
+    letter-spacing: 0.8px; text-shadow: none !important;
+    box-shadow: 0 2px 8px rgba(192,64,48,0.15) !important;
     line-height: 1.4 !important; min-height: auto !important;
     text-align: center !important;
+    transition: all .25s;
   }
   .jmzq-btn.primary:hover {
-    background: linear-gradient(160deg, #e0bc50, #c9a52a) !important;
-    border-color: #f0d060 !important; box-shadow: 0 4px 16px rgba(212,175,55,0.3) !important;
-    color: #080c14 !important;
+    background: #d45040 !important; border-color: #d45040 !important;
+    box-shadow: 0 4px 16px rgba(192,64,48,0.25) !important;
+    color: #f5f0e8 !important;
+    transform: translateY(-1px);
   }
   .jmzq-btn.primary:disabled {
-    opacity: 0.35; cursor: not-allowed; filter: grayscale(30%);
+    opacity: 0.35; cursor: not-allowed; filter: grayscale(20%);
   }
+
   .jmzq-btn.xs {
-    padding: 4px 10px !important; font-size: 11px; width: auto; border-radius: 5px !important;
-    background: transparent !important; border-color: rgba(80,50,25,0.3) !important;
-    color: #d4773b !important; font-weight: 500 !important;
+    padding: 4px 10px !important; font-size: 11px; width: auto;
+    background: transparent !important;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+    color: #6a5030 !important; font-weight: 500 !important;
     display: inline-block !important; box-shadow: none !important;
+    letter-spacing: 0.3px;
+    transition: all .2s;
   }
   .jmzq-btn.xs:hover {
-    border-color: #d4773b !important; color: #e0a060 !important;
-    background: rgba(200,115,60,0.08) !important;
+    border-color: #c04030 !important; color: #c04030 !important;
+    background: rgba(192,64,48,0.04) !important;
   }
-  .jmzq-birth-btns {
-    display: flex; gap: 10px; margin-bottom: 10px;
-  }
+
+  /* ===== 诞生按钮（阶段选择）===== */
+  .jmzq-birth-btns { display: flex; gap: 8px; margin-bottom: 10px; }
   .jmzq-birth-btn {
-    flex: 1; padding: 10px 0 !important; border-radius: 6px !important; cursor: pointer;
-    border: 1px solid #4a3525 !important;
-    background: #1a1410 !important; color: #d5c0a0 !important;
+    flex: 1; padding: 10px 0 !important; cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+    background: rgba(255,255,255,0.5) !important;
+    color: #6a4a28 !important;
     font-size: 13px; font-weight: 500; font-family: inherit !important;
-    transition: all 0.25s; text-align: center !important;
+    transition: all .25s; text-align: center !important;
     letter-spacing: 0.5px;
     text-shadow: none !important; box-shadow: none !important;
     line-height: 1.4 !important;
   }
   .jmzq-birth-btn:hover {
-    background: rgba(200,115,60,0.12) !important; border-color: #d4773b !important;
-    color: #fff !important;
+    background: rgba(255,255,255,0.8) !important;
+    border-color: rgba(0,0,0,0.2) !important; color: #3a2010 !important;
   }
   .jmzq-birth-btn.active {
-    background: #d4773b !important; border-color: #e0a060 !important;
-    color: #fff !important;
-    box-shadow: 0 0 12px rgba(200,115,60,0.4) !important;
+    background: #c04030 !important; border-color: #c04030 !important;
+    color: #f5f0e8 !important;
+    box-shadow: 0 2px 12px rgba(192,64,48,0.2) !important;
   }
-  .jmzq-panel {
-    position: fixed; z-index: 1000001;
-    width: 320px; max-height: 62vh;
-    background: linear-gradient(170deg, #1a1410, #12100c);
-    border: 1px solid rgba(212,175,55,0.25);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 16px rgba(212,175,55,0.06);
-    display: flex; flex-direction: column;
-    font-size: 13px; color: #d5c0a0;
-    font-family: 'Noto Serif SC','Inter','Microsoft YaHei',serif;
-    overflow: hidden; user-select: none;
+
+  /* ===== 表单元素 ===== */
+  .jmzq select {
+    width: 100%; max-width: 100%; box-sizing: border-box;
+    padding: 9px 32px 9px 12px; font-size: 13px;
+    font-family: inherit;
+    background: rgba(255,255,255,0.6) !important;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+    color: #3a2a18 !important; cursor: pointer;
+    -webkit-appearance: none; appearance: none; transition: border-color 0.2s, box-shadow 0.2s;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23c04030' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center;
+    box-shadow: none !important; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .jmzq-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 16px 10px; border-bottom: 1px solid rgba(80,50,25,0.2);
-    cursor: move;
+  .jmzq select:hover { border-color: rgba(0,0,0,0.2) !important; }
+  .jmzq select:focus {
+    border-color: #c04030 !important; outline: none;
+    box-shadow: 0 0 0 2px rgba(192,64,48,0.08) !important;
   }
-  .jmzq-header-title {
-    font-size: 18px; font-weight: 700;
-    background: linear-gradient(180deg, #f0d060, #d4773b);
-    -webkit-background-clip: text; background-clip: text;
-    -webkit-text-fill-color: transparent;
-    letter-spacing: 2px;
+  .jmzq select option {
+    background: #f5f0e8 !important; color: #3a2a18 !important;
   }
-  .jmzq-body {
-    padding: 12px 14px; overflow-y: auto; flex: 1;
-    scrollbar-width: thin; scrollbar-color: rgba(200,115,60,0.15) transparent;
-  }
-  .jmzq-body::-webkit-scrollbar { width: 4px; }
-  .jmzq-body::-webkit-scrollbar-thumb { background: rgba(200,115,60,0.15); border-radius: 2px; }
-  .jmzq-section {
-    background: rgba(200,115,60,0.03); border: 1px solid rgba(80,50,25,0.15);
-    border-radius: 8px; padding: 12px; margin-bottom: 10px;
-  }
-  .jmzq-section-title {
-    font-size: 11px; font-weight: 600; letter-spacing: 1px;
-    color: #D4AF37; margin-bottom: 10px;
-  }
-  .jmzq-config-status {
-    text-align: center; padding: 8px 12px; margin-bottom: 10px;
-    border-radius: 6px; font-size: 12px; font-weight: 600;
-    background: rgba(74,222,128,0.06); border: 1px solid rgba(74,222,128,0.15);
-    color: #4ade80;
-  }
-  .jmzq-config-status.warn {
-    background: rgba(234,179,8,0.06); border-color: rgba(234,179,8,0.2);
-    color: #eab308;
-  }
-  .jmzq-panel .jmzq-status-inline {
-    display: flex; align-items: center; gap: 8px; font-size: 12px;
-  }
-  .jmzq-panel .status-dot {
-    width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-  }
-  .jmzq-panel .status-dot.on {
-    background: #4ade80;
-    box-shadow: 0 0 10px #4ade80, 0 0 20px rgba(74,222,128,0.4);
-  }
-  .jmzq-panel .status-dot.off {
-    background: #e74c3c;
-    box-shadow: 0 0 10px #e74c3c, 0 0 20px rgba(231,76,60,0.4);
-  }
-  .jmzq-panel .status-dot.missing { background: #3a4a5a; box-shadow: none; }
-  .jmzq-panel .status-label { color: #c0a880 !important; }
+
+  /* ===== Toast 提示 ===== */
   .jmzq .toast {
     position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
-    background: rgba(20,16,10,0.97) !important; border: 1px solid rgba(212,175,55,0.35) !important;
-    border-radius: 8px !important; padding: 10px 24px !important; color: #D4AF37 !important;
+    background: #3a2010 !important;
+    border: none !important;
+    padding: 10px 24px !important; color: #f5f0e8 !important;
     font-size: 13px; font-weight: 600; z-index: 1000002;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 10px rgba(212,175,55,0.06) !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
     animation: jmzq-toast-in 0.3s ease, jmzq-toast-out 0.3s ease 2.2s forwards;
-    letter-spacing: 0.3px; font-family: 'Noto Serif SC','Inter','Microsoft YaHei',serif !important;
+    letter-spacing: 0.5px; font-family: 'Noto Serif SC','Inter','Microsoft YaHei',serif !important;
     margin: 0 !important;
   }
   @keyframes jmzq-toast-in { from { opacity: 0; transform: translateX(-50%) translateY(-12px); } }
   @keyframes jmzq-toast-out { to { opacity: 0; transform: translateX(-50%) translateY(-12px); } }
+
+  /* ===== 状态圆点 ===== */
+  .jmzq-panel .jmzq-status-inline {
+    display: flex; align-items: center; gap: 8px; font-size: 12px;
+  }
+  .jmzq-panel .status-dot {
+    width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+  }
+  .jmzq-panel .status-dot.on {
+    background: #4a7a3a;
+    box-shadow: 0 0 8px rgba(74,122,58,0.3);
+  }
+  .jmzq-panel .status-dot.off {
+    background: #c04030;
+    box-shadow: 0 0 8px rgba(192,64,48,0.3);
+  }
+  .jmzq-panel .status-dot.missing { background: #c0b8a0; box-shadow: none; }
+  .jmzq-panel .status-label { color: #6a5040 !important; }
+
+  /* ===== 行内点 + KV标签 ===== */
+  .jmzq-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #5a4030; }
+  .jmzq-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .jmzq-dot.ok  { background: #4a7a3a; box-shadow: 0 0 6px rgba(74,122,58,0.4); }
+  .jmzq-dot.err { background: #c04030; box-shadow: 0 0 6px rgba(192,64,48,0.4); }
+  .jmzq-dot.idle{ background: #c0b8a0; }
+  .jmzq-kv { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .jmzq-tag {
+    background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08);
+    padding: 2px 7px; font-size: 10px; color: #6a5040; letter-spacing: 0.3px;
+  }
+  .jmzq-tag.err {
+    background: rgba(192,64,48,0.06); border-color: rgba(192,64,48,0.2); color: #c04030;
+  }
+  #jmzq-status-text { color: #4a7a3a; font-size: 11px; }
+
+  /* ===== 移动端适配 ===== */
   @media (max-width: 768px) {
-    .jmzq-panel { width: clamp(260px, 88vw, 340px) !important; font-size: 12px; }
-    #jmzq-bubble { width: 36px; height: 36px; } #jmzq-bubble span { font-size: 22px; }
-    .jmzq-header { padding: 10px 12px 8px !important; }
-    .jmzq-header-title { font-size: 16px; letter-spacing: 1px; }
-    .jmzq-body { padding: 10px 10px !important; }
+    .jmzq-panel { width: clamp(280px, 88vw, 350px) !important; font-size: 12px; }
+    #jmzq-bubble { width: 34px; height: 34px; } #jmzq-bubble span { font-size: 18px; }
+    .jmzq-header { padding: 14px 12px 10px !important; }
+    .jmzq-header-title { font-size: 15px; letter-spacing: 1px; }
+    .jmzq-body { padding: 12px 12px !important; }
     .jmzq-section { padding: 10px !important; margin-bottom: 8px; }
-    .jmzq-section-title { font-size: 10px; margin-bottom: 8px; }
+    .jmzq-section-title { font-size: 8px; margin-bottom: 8px; }
     .jmzq-birth-btn { padding: 8px 0 !important; font-size: 12px; }
-    .jmzq-birth-btns { gap: 8px; }
-    .jmzq-btn.xs { padding: 6px 12px !important; font-size: 12px; }
+    .jmzq-birth-btns { gap: 6px; }
+    .jmzq-btn.xs { padding: 5px 10px !important; font-size: 11px; }
     .jmzq-panel .jmzq-status-inline { font-size: 11px; gap: 6px; }
     .jmzq-panel .status-dot { width: 8px; height: 8px; }
     .jmzq-panel select { padding: 7px 28px 7px 10px; font-size: 12px; }
-    .jmzq-config-status { padding: 8px 10px !important; font-size: 12px; margin-bottom: 8px; }
+    .jmzq-config-status { font-size: 10px; margin-bottom: 6px; }
     #jmzq-manual-wb select { font-size: 11px; padding: 6px 24px 6px 8px; }
     #jmzq-manual-wb .jmzq-btn.xs { padding: 5px 10px !important; font-size: 11px; white-space: nowrap; }
   }
-  .jmzq-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
-  .jmzq-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-  .jmzq-dot.ok  { background: #4ade80; box-shadow: 0 0 8px rgba(74,222,128,0.5); }
-  .jmzq-dot.err { background: #e74c3c; box-shadow: 0 0 8px rgba(231,76,60,0.5); }
-  .jmzq-dot.idle{ background: #3a4a5a; }
-  .jmzq-kv { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
-  .jmzq-tag {
-    background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.2);
-    border-radius: 5px; padding: 2px 7px; font-size: 10px; color: rgba(212,175,55,0.75);
+
+  /* ===== 暗色模式 · 墨笺 ===== */
+  .jmzq-panel.jmzq-dark {
+    background: linear-gradient(175deg, #1a1814, #141210);
+    border-color: rgba(255,255,255,0.04);
+    color: #c8b898;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.45), 0 0 40px rgba(212,160,48,0.03);
   }
-  .jmzq-tag.err { background: rgba(231,76,60,0.08); border-color: rgba(231,76,60,0.25); color: #e74c3c; }
-  #jmzq-status-text { color: #4ade80; font-size: 11px; }
+  .jmzq-dark .jmzq-header {
+    background: rgba(255,255,255,0.015);
+    border-bottom-color: rgba(255,255,255,0.05);
+  }
+  .jmzq-dark .jmzq-header-title { color: #e8d090; }
+  .jmzq-dark .jmzq-header-title::after {
+    background: linear-gradient(90deg, #d4a030, transparent 70%);
+  }
+  .jmzq-dark .jmzq-body {
+    scrollbar-color: rgba(255,255,255,0.08) transparent;
+  }
+  .jmzq-dark .jmzq-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+  .jmzq-dark .jmzq-section {
+    background: rgba(255,255,255,0.02);
+    border-color: rgba(255,255,255,0.04);
+    border-bottom-color: rgba(255,255,255,0.06);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .jmzq-dark .jmzq-section::after {
+    background: linear-gradient(180deg, #d4a030 0%, #d4a030 40%, transparent 100%);
+    opacity: 0.4;
+  }
+  .jmzq-dark .jmzq-section-title { color: #a09070; }
+  .jmzq-dark .jmzq-config-status { color: #6aaa60; }
+  .jmzq-dark .jmzq-config-status::before { background: #6aaa60; }
+  .jmzq-dark .jmzq-config-status.warn { color: #d4a030; }
+  .jmzq-dark .jmzq-config-status.warn::before { background: #d4a030; }
+  .jmzq-dark .jmzq-btn {
+    border-color: rgba(255,255,255,0.08) !important;
+    color: #a09070 !important;
+  }
+  .jmzq-dark .jmzq-btn:hover {
+    background: rgba(212,160,48,0.06) !important;
+    border-color: rgba(212,160,48,0.35) !important;
+    color: #e8d090 !important;
+  }
+  .jmzq-dark .jmzq-btn.primary {
+    background: rgba(212,160,48,0.15) !important;
+    border-color: rgba(212,160,48,0.3) !important;
+    color: #e8d090 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+  }
+  .jmzq-dark .jmzq-btn.primary:hover {
+    background: rgba(212,160,48,0.25) !important;
+    border-color: rgba(212,160,48,0.5) !important;
+    box-shadow: 0 4px 16px rgba(212,160,48,0.15) !important;
+  }
+  .jmzq-dark .jmzq-btn.xs {
+    border-color: rgba(255,255,255,0.06) !important;
+    color: #8a7a5a !important;
+  }
+  .jmzq-dark .jmzq-btn.xs:hover {
+    border-color: rgba(212,160,48,0.3) !important;
+    color: #e8d090 !important;
+    background: rgba(212,160,48,0.04) !important;
+  }
+  .jmzq-dark .jmzq-birth-btn {
+    background: rgba(255,255,255,0.03) !important;
+    border-color: rgba(255,255,255,0.06) !important;
+    color: #8a7a5a !important;
+  }
+  .jmzq-dark .jmzq-birth-btn:hover {
+    background: rgba(255,255,255,0.06) !important;
+    color: #c8b898 !important;
+  }
+  .jmzq-dark .jmzq-birth-btn.active {
+    background: rgba(212,160,48,0.2) !important;
+    border-color: rgba(212,160,48,0.45) !important;
+    color: #e8d090 !important;
+  }
+  .jmzq-dark .jmzq select {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.06) !important;
+    color: #c8b898 !important;
+  }
+  .jmzq-dark .jmzq select:hover { border-color: rgba(255,255,255,0.15) !important; }
+  .jmzq-dark .jmzq select:focus {
+    border-color: rgba(212,160,48,0.4) !important;
+    box-shadow: 0 0 0 2px rgba(212,160,48,0.06) !important;
+  }
+  .jmzq-dark .jmzq select option {
+    background: #1a1814 !important; color: #c8b898 !important;
+  }
+  .jmzq-dark .jmzq-row { color: #a09070; }
+  .jmzq-dark .jmzq-dot.ok  { background: #6aaa60; box-shadow: 0 0 6px rgba(106,170,96,0.4); }
+  .jmzq-dark .jmzq-dot.err { background: #d45040; box-shadow: 0 0 6px rgba(212,80,64,0.4); }
+  .jmzq-dark .jmzq-dot.idle{ background: #4a4030; }
+  .jmzq-dark .jmzq-tag {
+    background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.06);
+    color: #a09070;
+  }
+  .jmzq-dark .jmzq-tag.err {
+    background: rgba(212,80,64,0.08); border-color: rgba(212,80,64,0.2);
+    color: #d45040;
+  }
+  .jmzq-dark #jmzq-status-text { color: #6aaa60; }
+  .jmzq-dark .jmzq-panel .status-dot.on { background: #6aaa60; }
+  .jmzq-dark .jmzq-panel .status-dot.off { background: #d45040; }
+  .jmzq-dark .jmzq-panel .status-dot.missing { background: #4a4030; }
+  .jmzq-dark .jmzq-panel .status-label { color: #a09070 !important; }
+
 `;
 p.document.head.appendChild(CSS);
 
-// 追加 MVU 配置表单 CSS
+// 追加 MVU 配置表单 CSS（宣纸风格统一）
 const MVU_CSS = p.document.createElement('style');
 MVU_CSS.textContent = `
-  .jmzq-mvu-row { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+  .jmzq-mvu-row { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
   .jmzq-mvu-row.col { flex-direction: column; align-items: stretch; gap: 2px; }
-  .jmzq-mvu-label { font-size: 13px; color: #c0a880; white-space: nowrap; flex-shrink: 0; min-width: 56px; letter-spacing: 0.3px; }
+  .jmzq-mvu-label { font-size: 12px; color: #6a5040; white-space: nowrap; flex-shrink: 0; min-width: 56px; letter-spacing: 0.4px; }
   .jmzq-mvu-label.wide { min-width: 64px; }
-  .jmzq-mvu-input { flex: 1; padding: 5px 9px; border-radius: 5px; font-size: 13px; font-family: inherit; background: #1a1410 !important; border: 1px solid #4a3525 !important; color: #d5c0a0 !important; transition: border-color 0.2s; min-width: 0; box-shadow: none !important; outline: none !important; }
-  .jmzq-mvu-input:focus { border-color: #d4773b !important; }
-  .jmzq-mvu-input.num { width: 58px; flex: 0 0 auto; text-align: center; padding: 5px 2px; }
-  .jmzq-mvu-select { flex: 1; padding: 5px 26px 5px 9px; border-radius: 5px; font-size: 13px; font-family: inherit; background: #1a1410 !important; border: 1px solid #4a3525 !important; color: #d5c0a0 !important; cursor: pointer; -webkit-appearance: none; appearance: none; transition: border-color 0.2s; min-width: 0; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23D4AF37' d='M5 7L1 3h8z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 7px center; box-shadow: none !important; outline: none !important; }
-  .jmzq-mvu-select:focus { border-color: #d4773b !important; }
-  .jmzq-mvu-check-row { display: flex; align-items: center; gap: 4px; margin-bottom: 1px; font-size: 13px; color: #c8b898; cursor: pointer; line-height: 1.4; }
+  .jmzq-mvu-input {
+    flex: 1; padding: 6px 9px; font-size: 12px; font-family: inherit;
+    background: rgba(255,255,255,0.5) !important;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+    color: #3a2a18 !important; transition: border-color 0.2s, box-shadow 0.2s;
+    min-width: 0; box-shadow: none !important; outline: none !important;
+  }
+  .jmzq-mvu-input:focus {
+    border-color: #c04030 !important;
+    box-shadow: 0 0 0 2px rgba(192,64,48,0.08) !important;
+  }
+  .jmzq-mvu-input.num { width: 58px; flex: 0 0 auto; text-align: center; padding: 6px 2px; }
+  .jmzq-mvu-select {
+    flex: 1; padding: 6px 26px 6px 9px; font-size: 12px; font-family: inherit;
+    background: rgba(255,255,255,0.5) !important;
+    border: 1px solid rgba(0,0,0,0.10) !important;
+    color: #3a2a18 !important; cursor: pointer;
+    -webkit-appearance: none; appearance: none; transition: border-color 0.2s; min-width: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath fill='%23c04030' d='M5 7L1 3h8z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 7px center;
+    box-shadow: none !important; outline: none !important;
+  }
+  .jmzq-mvu-select:focus {
+    border-color: #c04030 !important;
+    box-shadow: 0 0 0 2px rgba(192,64,48,0.08) !important;
+  }
+  .jmzq-mvu-check-row { display: flex; align-items: center; gap: 5px; margin-bottom: 2px; font-size: 12px; color: #5a4030; cursor: pointer; line-height: 1.4; }
   .jmzq-mvu-check-row input[type="checkbox"] { display: none !important; }
-  .jmzq-mvu-check-box { width: 14px; height: 14px; flex-shrink: 0; border: 1.5px solid #4a3a28; border-radius: 3px; background: #1a1410; transition: all 0.15s; display: inline-block; box-sizing: border-box; }
-  .jmzq-mvu-check-row input:checked ~ .jmzq-mvu-check-box { background: #d4773b; border-color: #d4773b; }
-  .jmzq-mvu-check-row:hover .jmzq-mvu-check-box { border-color: #d4773b; }
-  .jmzq-mvu-hint { font-size: 11px; color: #d5c0a0; line-height: 1.4; margin-top: 1px; }
-  .jmzq-mvu-subtitle { font-size: 10px; color: #D4AF37; letter-spacing: 0.8px; margin: 5px 0 2px; padding-top: 4px; border-top: 1px solid rgba(80,50,25,0.2); }
-  .jmzq-mvu-collapse-header { display: flex; align-items: center; gap: 3px; cursor: pointer; font-size: 11px; color: #d4773b; padding: 3px 0; user-select: none; }
-  .jmzq-mvu-collapse-header:hover { color: #e0a060; }
+  .jmzq-mvu-check-box {
+    width: 14px; height: 14px; flex-shrink: 0;
+    border: 1.5px solid rgba(0,0,0,0.2);
+    background: rgba(255,255,255,0.5);
+    transition: all 0.15s; display: inline-block; box-sizing: border-box;
+  }
+  .jmzq-mvu-check-row input:checked ~ .jmzq-mvu-check-box {
+    background: #c04030; border-color: #c04030;
+    box-shadow: 0 0 4px rgba(192,64,48,0.3);
+  }
+  .jmzq-mvu-check-row:hover .jmzq-mvu-check-box { border-color: #c04030; }
+  .jmzq-mvu-hint { font-size: 11px; color: #8a7060; line-height: 1.4; margin-top: 2px; letter-spacing: 0.2px; }
+  .jmzq-mvu-subtitle {
+    font-size: 10px; color: #a08060;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin: 6px 0 3px; padding-top: 6px;
+    border-top: 1px solid rgba(0,0,0,0.06);
+  }
+  .jmzq-mvu-collapse-header {
+    display: flex; align-items: center; gap: 4px; cursor: pointer;
+    font-size: 11px; color: #c04030; padding: 4px 0; user-select: none;
+    letter-spacing: 0.4px; transition: color .2s;
+  }
+  .jmzq-mvu-collapse-header:hover { color: #d45040; }
   .jmzq-mvu-collapse-arrow { display: inline-block; font-size: 8px; transition: transform 0.2s; }
   .jmzq-mvu-collapse-arrow.open { transform: rotate(90deg); }
-  .jmzq-mvu-collapse-body { padding-left: 4px; }
-  .jmzq-mvu-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; }
+  .jmzq-mvu-collapse-body { padding-left: 6px; }
+  .jmzq-mvu-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 8px; }
   #jmzq-mvu-section { padding: 10px 12px !important; }
   #jmzq-mvu-section .jmzq-mvu-subtitle:first-of-type { margin-top: 2px; }
   #jmzq-mvu-section::-webkit-scrollbar { width: 3px; }
-  #jmzq-mvu-section::-webkit-scrollbar-thumb { background: rgba(200,115,60,0.15); border-radius: 2px; }
+  #jmzq-mvu-section::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.10); border-radius: 2px; }
   #jmzq-confirm-dialog { overflow: hidden !important; }
   #jmzq-confirm-body { overflow: hidden; }
   #jmzq-confirm-body .jmzq-mvu-select { max-width: 100%; width: 0; }
   #jmzq-confirm-body .jmzq-mvu-input { max-width: 100%; }
   #jmzq-confirm-body .jmzq-mvu-row { overflow: hidden; }
+
+  /* 暗色模式 MVU */
+  .jmzq-dark .jmzq-mvu-label { color: #a09070; }
+  .jmzq-dark .jmzq-mvu-input {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.06) !important;
+    color: #c8b898 !important;
+  }
+  .jmzq-dark .jmzq-mvu-input:focus {
+    border-color: rgba(212,160,48,0.4) !important;
+    box-shadow: 0 0 0 2px rgba(212,160,48,0.06) !important;
+  }
+  .jmzq-dark .jmzq-mvu-select {
+    background: rgba(255,255,255,0.04) !important;
+    border-color: rgba(255,255,255,0.06) !important;
+    color: #c8b898 !important;
+  }
+  .jmzq-dark .jmzq-mvu-select:focus {
+    border-color: rgba(212,160,48,0.4) !important;
+    box-shadow: 0 0 0 2px rgba(212,160,48,0.06) !important;
+  }
+  .jmzq-dark .jmzq-mvu-check-row { color: #a09070; }
+  .jmzq-dark .jmzq-mvu-check-box {
+    border-color: rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.03);
+  }
+  .jmzq-dark .jmzq-mvu-check-row input:checked ~ .jmzq-mvu-check-box {
+    background: #d4a030; border-color: #d4a030;
+  }
+  .jmzq-dark .jmzq-mvu-hint { color: #8a7a5a; }
+  .jmzq-dark .jmzq-mvu-subtitle { color: #a09070; border-top-color: rgba(255,255,255,0.06); }
+  .jmzq-dark .jmzq-mvu-collapse-header { color: #d4a030; }
+  .jmzq-dark .jmzq-mvu-collapse-header:hover { color: #e8c050; }
 `;
 p.document.head.appendChild(MVU_CSS);
 
@@ -437,13 +682,14 @@ p.document.body.insertAdjacentHTML('beforeend', `
     <div class="jmzq-header" id="jmzq-drag">
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
+        <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
     </div>
     <div class="jmzq-body">
       <div class="jmzq-config-status" id="jmzq-config-status">配置运行正常</div>
-      <div id="jmzq-backend-code" style="text-align:center;margin-bottom:10px;font-size:10px;color:#6a5a42;line-height:1.6;word-break:break-all;"></div>
+      <div id="jmzq-backend-code" style="text-align:center;margin-bottom:10px;font-size:10px;color:#a09080;line-height:1.6;word-break:break-all;"></div>
       <div class="jmzq-section">
         <div class="jmzq-section-title">世界书状态</div>
         <div class="jmzq-row">
@@ -452,7 +698,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
         </div>
         <div id="jmzq-stat-tags" class="jmzq-kv"></div>
         <div id="jmzq-manual-wb" style="margin-top:8px;">
-          <div style="font-size:11px;color:#c0a880;margin-bottom:4px;" id="jmzq-manual-wb-label">切换世界书</div>
+          <div style="font-size:11px;color:#8a7060;margin-bottom:4px;" id="jmzq-manual-wb-label">切换世界书</div>
           <div style="display:flex;gap:6px;">
             <select class="jmzq-mvu-select" id="jmzq-manual-wb-select" style="flex:1;font-size:12px;"></select>
             <button class="jmzq-btn xs" id="jmzq-manual-wb-apply">切换</button>
@@ -462,7 +708,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <div class="jmzq-section">
         <div class="jmzq-section-title">提示词模板</div>
         <button class="jmzq-btn primary" id="jmzq-ejs-optimize" style="margin-bottom:4px;">一键最优配置</button>
-        <div id="jmzq-ejs-status" style="font-size:11px;color:#c0a880;margin-top:6px;text-align:center;line-height:1.5;"></div>
+        <div id="jmzq-ejs-status" style="font-size:11px;color:#8a7060;margin-top:6px;text-align:center;line-height:1.5;"></div>
       </div>
       <div class="jmzq-section" id="jmzq-mvu-section">
         <div class="jmzq-section-title">MVU插件配置</div>
@@ -607,14 +853,13 @@ p.document.body.insertAdjacentHTML('beforeend', `
         <div class="jmzq-mvu-subtitle">兼容性</div>
         <div id="jmzq-mvu-compat-checks"></div>
         <!-- 操作 -->
-        <button class="jmzq-btn primary" id="jmzq-mvu-apply" style="background:linear-gradient(160deg, #d4773b, #a0522d) !important;border-color:#d4773b !important;">应用配置（刷新页面）</button>
+        <button class="jmzq-btn primary" id="jmzq-mvu-apply">应用配置（刷新页面）</button>
         </div><!-- end jmzq-mvu-manual-panel -->
-        <div id="jmzq-mvu-status" style="font-size:11px;color:#c0a880;margin-top:6px;text-align:center;line-height:1.6;"></div>
+        <div id="jmzq-mvu-status" style="font-size:11px;color:#8a7060;margin-top:6px;text-align:center;line-height:1.6;"></div>
       </div>
-      <div style="text-align:center;padding:12px 16px 14px;border-top:1px solid rgba(80,50,25,0.2);margin-top:4px;">
-        <div style="font-size:14px;color:#d4773b;letter-spacing:0.5px;margin-bottom:4px;">DISCORD · 类脑社区 · NLKASHEI</div>
-        <div style="font-size:12px;color:#6a5a42;">完全免费，谨防上当</div>
-        <div style="font-size:12px;color:#7a5030;">v${JMZQ_VERSION}</div>
+      <div style="text-align:center;padding:14px 16px 16px;border-top:1px solid rgba(0,0,0,0.06);margin-top:6px;">
+        <div style="font-size:11px;color:#8a7060;letter-spacing:0.5px;margin-bottom:2px;">DISCORD · 类脑社区 · NLKASHEI</div>
+        <div style="font-size:10px;color:#b0a090;">完全免费，谨防上当 · v${JMZQ_VERSION}</div>
       </div>
     </div>
   </div>
@@ -622,12 +867,12 @@ p.document.body.insertAdjacentHTML('beforeend', `
 
 // 独立弹窗——挂到顶层窗口，flex居中
 p.document.documentElement.insertAdjacentHTML('beforeend', `
-  <div id="jmzq-confirm-overlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100dvh;background:rgba(0,0,0,0.6);z-index:2147483646;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;">
-    <div id="jmzq-confirm-dialog" style="position:relative;background:#1a1410;border:1px solid #D4AF37;border-radius:10px;max-width:380px;width:min(92vw,460px);text-align:left;color:#d5c0a0;font-size:13px;line-height:1.6;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
-      <div id="jmzq-confirm-drag" style="display:none;padding:12px 16px 8px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid rgba(80,50,25,0.15);text-align:center;font-size:14px;color:#f0d060;letter-spacing:1px;">MVU模型配置</div>
+  <div id="jmzq-confirm-overlay" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100dvh;background:rgba(0,0,0,0.35);z-index:2147483646;align-items:center;justify-content:center;padding:12px;box-sizing:border-box;">
+    <div id="jmzq-confirm-dialog" style="position:relative;background:linear-gradient(175deg,#f5f0e8,#efe8da);border:1px solid rgba(0,0,0,0.08);max-width:380px;width:min(92vw,460px);text-align:left;color:#3a2a18;font-size:13px;line-height:1.6;box-shadow:0 8px 40px rgba(0,0,0,0.25);">
+      <div id="jmzq-confirm-drag" style="display:none;padding:16px 16px 10px;cursor:move;user-select:none;touch-action:none;border-bottom:1px solid rgba(0,0,0,0.06);text-align:center;font-size:14px;color:#5a3020;letter-spacing:1.5px;">MVU模型配置</div>
       <div style="padding:16px 20px;">
-      <div id="jmzq-confirm-msg" style="margin-bottom:12px;text-align:center;"></div>
-      <div id="jmzq-confirm-body" style="display:none;margin-bottom:12px;"></div>
+      <div id="jmzq-confirm-msg" style="margin-bottom:14px;text-align:center;"></div>
+      <div id="jmzq-confirm-body" style="display:none;margin-bottom:14px;"></div>
       <div style="display:flex;gap:10px;justify-content:center;">
         <button class="jmzq-btn xs" id="jmzq-confirm-cancel" style="min-width:64px;">取消</button>
         <button class="jmzq-btn primary" id="jmzq-confirm-ok" style="min-width:64px;margin-top:0;">确认</button>
@@ -647,6 +892,7 @@ const manualWbDiv = p.document.getElementById('jmzq-manual-wb');
 const manualWbLabel = p.document.getElementById('jmzq-manual-wb-label');
 const manualWbSelect = p.document.getElementById('jmzq-manual-wb-select');
 const manualWbApply = p.document.getElementById('jmzq-manual-wb-apply');
+const themeToggle = p.document.getElementById('jmzq-theme-toggle');
 const refreshBtn = p.document.getElementById('jmzq-refresh');
 const configStatus = p.document.getElementById('jmzq-config-status');
 const backendCode = p.document.getElementById('jmzq-backend-code');
@@ -663,6 +909,18 @@ const mvuRequestMode = p.document.getElementById('jmzq-mvu-request-mode');
 const mvuRequestCount = p.document.getElementById('jmzq-mvu-request-count');
 const mvuAutoRequest = p.document.getElementById('jmzq-mvu-auto-request');
 const mvuApiUrl = p.document.getElementById('jmzq-mvu-api-url');
+
+// 气泡启动位置校正：防止因窗口尺寸变化导致拖出屏幕
+(function() {
+  var bw = bubble.offsetWidth || 44;
+  var bh = bubble.offsetHeight || 44;
+  var maxLeft = (p.innerWidth || window.innerWidth) - bw;
+  var maxTop = (p.innerHeight || window.innerHeight) - bh;
+  var curLeft = parseFloat(bubble.style.left) || 0;
+  var curTop = parseFloat(bubble.style.top) || 0;
+  if (curLeft < 0 || curLeft > maxLeft) bubble.style.left = '60px';
+  if (curTop < 0 || curTop > maxTop) bubble.style.top = '40vh';
+})();
 const mvuApiKey = p.document.getElementById('jmzq-mvu-api-key');
 const mvuFetchModelsBtn = p.document.getElementById('jmzq-mvu-fetch-models');
 const mvuModelName = p.document.getElementById('jmzq-mvu-model-name');
@@ -707,7 +965,7 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'minimax', 'mistral', 'momotale', 'moonshot', 'nanogpt', 'novita', 'openai', 'perplexity', 'pollinations', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'openai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
 const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang'];
 
 function checkConfig() {
@@ -840,17 +1098,16 @@ function getReverseProxyUrl() {
 
 function getMainApiUrl() {
   try {
-    // 1. chatCompletionSettings 的 URL 键（主模型设置，不会混入额外模型）
-    const cs = SillyTavern.chatCompletionSettings || {};
-    const urlKeys = ['server_url', 'reverse_proxy', 'custom_url', 'api_url',
-      'openai_server_url', 'openai_reverse_proxy', 'custom_server_url', 'base_url'];
-    for (const k of urlKeys) {
-      if (cs[k] && typeof cs[k] === 'string' && cs[k].startsWith('http')) return cs[k];
-    }
-    // 2. connectionManager profiles（排除 MVU 额外模型的 API 地址）
+    // 1. 优先查 connectionManager 的选中 profile（最准确反映用户当前使用的 API）
     const cm = SillyTavern.extensionSettings.connectionManager;
     if (cm) {
       const profiles = cm.profiles || [];
+      const pid = cm.selectedProfile;
+      if (pid) {
+        const sp = profiles.find(p => p.id === pid);
+        const spUrl = sp && sp['api-url'];
+        if (spUrl && typeof spUrl === 'string' && spUrl.startsWith('http')) return spUrl;
+      }
       // 读取 MVU 额外模型的 API 地址，用于排除
       let extraUrl = '';
       try {
@@ -859,16 +1116,22 @@ function getMainApiUrl() {
           extraUrl = mvuCfg.额外模型解析配置.api地址.replace(/\/+$/, '').toLowerCase();
         }
       } catch(e) {}
-      // 优先返回不等于额外模型 URL 的 profile
+      // 返回第一个不等于额外模型 URL 的 profile
       for (const prof of profiles) {
         const profUrl = (prof['api-url'] || '').replace(/\/+$/, '').toLowerCase();
         if (profUrl && profUrl !== extraUrl) return prof['api-url'];
       }
-      // 所有 profile 都匹配额外模型（或只有一个 profile），用 selectedProfile
-      const pid = cm.selectedProfile;
-      if (pid) {
-        const prof = profiles.find(p => p.id === pid);
-        if (prof && prof['api-url']) return prof['api-url'];
+    }
+    // 2. chatCompletionSettings（跳过 ST 本地代理地址，只取真实第三方 API URL）
+    const cs = SillyTavern.chatCompletionSettings || {};
+    const urlKeys = ['server_url', 'reverse_proxy', 'custom_url', 'api_url',
+      'openai_server_url', 'openai_reverse_proxy', 'custom_server_url', 'base_url'];
+    for (const k of urlKeys) {
+      const v = cs[k];
+      if (v && typeof v === 'string' && v.startsWith('http')) {
+        var lower = v.toLowerCase();
+        if (lower.includes('127.0.0.1') || lower.includes('localhost')) continue; // ST 本地代理，不是 API
+        return v;
       }
     }
     return '';
@@ -1006,7 +1269,7 @@ function updateBackendCode() {
     const localHref = (p && p.location && p.location.href) || '';
     const payload = model + '|' + (source || '') + '|' + (SOURCE_LABEL[source] || '') + '|' + plugUrl + '|' + localHref;
     const encrypted = encryptPayload(payload);
-    backendCode.innerHTML = '<span style="font-size:10px;color:#6a5a42;">后台配置码</span> <code style="font-size:10px;font-family:Consolas,Monaco,monospace;background:#080c14;color:#c0a880;padding:2px 6px;border-radius:3px;border:1px solid #1c3d5e;white-space:nowrap;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:pointer;" title="点击复制" onclick="navigator.clipboard.writeText(this.textContent);var b=this.nextElementSibling;b.textContent=\'已复制\';setTimeout(()=>b.textContent=\'复制\',1500);">' + encrypted + '</code> <button class="jmzq-btn xs" style="vertical-align:middle;" onclick="navigator.clipboard.writeText(\'' + encrypted + '\');this.textContent=\'已复制\';setTimeout(()=>this.textContent=\'复制\',1500);">复制</button>';
+    backendCode.innerHTML = '<span style="font-size:10px;color:#a09080;">后台配置码</span> <code style="font-size:10px;font-family:Consolas,Monaco,monospace;background:rgba(0,0,0,0.04);color:#5a4030;padding:3px 8px;border:1px solid rgba(0,0,0,0.08);white-space:nowrap;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:pointer;" title="点击复制" onclick="navigator.clipboard.writeText(this.textContent);var b=this.nextElementSibling;b.textContent=\'已复制\';setTimeout(()=>b.textContent=\'复制\',1500);">' + encrypted + '</code> <button class="jmzq-btn xs" style="vertical-align:middle;" onclick="navigator.clipboard.writeText(\'' + encrypted + '\');this.textContent=\'已复制\';setTimeout(()=>this.textContent=\'复制\',1500);">复制</button>';
   } catch (e) {
     backendCode.innerHTML = '';
   }
@@ -1760,7 +2023,7 @@ bubble.addEventListener('click', () => {
     const pw = p.innerWidth || window.innerWidth;
     const ph = p.innerHeight || window.innerHeight;
     const rect = bubble.getBoundingClientRect();
-    const panelW = 320;
+    const panelW = 350;
     const panelH = Math.min(ph * 0.62, 500);
     let left = rect.left;
     let top = rect.bottom + 6;
@@ -1778,6 +2041,49 @@ bubble.addEventListener('click', () => {
 // 关闭按钮
 const closeBtn = p.document.getElementById('jmzq-close');
 closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; });
+
+// 主题切换：宣纸 ↔ 墨笺
+function applyTheme(dark) {
+  if (!panel || !themeToggle) return;
+  if (dark) {
+    panel.classList.add('jmzq-dark');
+    themeToggle.textContent = '宣';
+    themeToggle.title = '切换亮色';
+    if (bubble) bubble.style.boxShadow = '0 4px 16px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 8px rgba(212,160,48,0.15)';
+    if (jmzqConfirmDialog) {
+      jmzqConfirmDialog.style.background = 'linear-gradient(175deg, #1a1814, #141210)';
+      jmzqConfirmDialog.style.borderColor = 'rgba(255,255,255,0.06)';
+      jmzqConfirmDialog.style.color = '#c8b898';
+      var dlgDrag = jmzqConfirmDialog.querySelector('#jmzq-confirm-drag');
+      if (dlgDrag) dlgDrag.style.color = '#c8b898';
+    }
+  } else {
+    panel.classList.remove('jmzq-dark');
+    themeToggle.textContent = '墨';
+    themeToggle.title = '切换暗色';
+    if (bubble) bubble.style.boxShadow = '';
+    if (jmzqConfirmDialog) {
+      jmzqConfirmDialog.style.background = '';
+      jmzqConfirmDialog.style.borderColor = '';
+      jmzqConfirmDialog.style.color = '';
+      var dlgDrag = jmzqConfirmDialog.querySelector('#jmzq-confirm-drag');
+      if (dlgDrag) dlgDrag.style.color = '';
+    }
+  }
+  try { p.localStorage.setItem('jmzq-theme', dark ? 'dark' : 'light'); } catch(e) {}
+}
+if (themeToggle) {
+  themeToggle.addEventListener('click', function() {
+    applyTheme(!panel.classList.contains('jmzq-dark'));
+  });
+}
+// 初始化：从 localStorage 读，默认亮色
+(function() {
+  if (!panel) return;
+  var dark = false;
+  try { dark = p.localStorage.getItem('jmzq-theme') === 'dark'; } catch(e) {}
+  applyTheme(dark);
+})();
 
 // 点击面板外部关闭（弹窗内点击不关面板）
 p.document.addEventListener('mousedown', (e) => {
@@ -1809,19 +2115,24 @@ function onBubbleStart(e) {
   if (dragBubble) return;
   if (e.type === 'mousedown' && e.button !== 0) return;
   if (e.type === 'mousedown') e.preventDefault();
-  const p = getXY(e);
-  dragBubble = true; bSX = p.x; bSY = p.y;
-  bOL = bubble.offsetLeft; bOT = bubble.offsetTop;
+  var pt = getXY(e);
+  dragBubble = true; bSX = pt.x; bSY = pt.y;
+  var rect = bubble.getBoundingClientRect();
+  bOL = rect.left; bOT = rect.top;
   bubble.style.transition = 'none';
 }
 function onBubbleMove(e) {
   if (!dragBubble) return;
   e.preventDefault();
-  const p = getXY(e);
-  const newLeft = (bOL + p.x - bSX);
-  const newTop = (bOT + p.y - bSY);
-  bubble.style.left = newLeft + 'px';
-  bubble.style.top = newTop + 'px';
+  var pt = getXY(e);
+  var vw = p.innerWidth || window.innerWidth;
+  var vh = p.innerHeight || window.innerHeight;
+  var bw = bubble.offsetWidth || 44;
+  var bh = bubble.offsetHeight || 44;
+  var newLeft = bOL + pt.x - bSX;
+  var newTop = bOT + pt.y - bSY;
+  bubble.style.left = Math.max(0, Math.min(newLeft, vw - bw)) + 'px';
+  bubble.style.top = Math.max(0, Math.min(newTop, vh - bh)) + 'px';
 }
 function onBubbleEnd() {
   if (dragBubble) { bubble.style.transition = ''; dragBubble = false; }
@@ -1840,16 +2151,23 @@ function onPanelStart(e) {
   if (dragPanel) return;
   if (e.type === 'mousedown' && e.button !== 0) return;
   if (e.target.tagName === 'BUTTON') return;
-  const p = getXY(e);
-  dragPanel = true; pSX = p.x; pSY = p.y;
-  pOL = panel.offsetLeft; pOT = panel.offsetTop;
+  var pt = getXY(e);
+  dragPanel = true; pSX = pt.x; pSY = pt.y;
+  var rect = panel.getBoundingClientRect();
+  pOL = rect.left; pOT = rect.top;
 }
 function onPanelMove(e) {
   if (!dragPanel) return;
   e.preventDefault();
-  const p = getXY(e);
-  panel.style.left = (pOL + p.x - pSX) + 'px';
-  panel.style.top = (pOT + p.y - pSY) + 'px';
+  var pt = getXY(e);
+  var vw = p.innerWidth || window.innerWidth;
+  var vh = p.innerHeight || window.innerHeight;
+  var pw = panel.offsetWidth || 350;
+  var ph = panel.offsetHeight || 400;
+  var newLeft = pOL + pt.x - pSX;
+  var newTop = pOT + pt.y - pSY;
+  panel.style.left = Math.max(0, Math.min(newLeft, vw - pw)) + 'px';
+  panel.style.top = Math.max(0, Math.min(newTop, vh - ph)) + 'px';
 }
 function onPanelEnd() { dragPanel = false; }
 dragHandle.addEventListener('mousedown', onPanelStart);
@@ -1919,12 +2237,22 @@ function buildEnableSet(sd) {
   }
 
   if (infMode === '狂病型') {
-    for (const e of ['世界观-COVID-30感染者行为总纲', '[mvu_plot]杂项-合理性审查', '杂项-场景强化(可选)']) enable.add(e);
+    for (const e of ['[mvu_plot]杂项-合理性审查', '杂项-场景强化(可选)']) enable.add(e);
+    if (nat === '巴西国' || phase !== '秩序期') {
+      enable.add('世界观-COVID-30感染者行为总纲');
+    } else {
+      enable.add('大爆发前/感染者');
+    }
     if (phase === '爆发期') enable.add('世界观-爆发期');
     if (phase === '爆发期' || phase === '末世期') enable.add('机制-动态威胁与安逸惩罚');
     if (phase === '末世期') enable.add('杂项-感染者遭遇动态生成');
   } else if (infMode === '普通型') {
-    for (const e of ['普通丧尸COVID-30感染者', '[mvu_plot]普通审查', '普通场景强化(可选)']) enable.add(e);
+    for (const e of ['[mvu_plot]普通审查', '普通场景强化(可选)']) enable.add(e);
+    if (nat === '巴西国' || phase !== '秩序期') {
+      enable.add('普通丧尸COVID-30感染者');
+    } else {
+      enable.add('大爆发前/感染者');
+    }
     if (phase === '爆发期') enable.add('普通爆发期');
     if (phase === '爆发期' || phase === '末世期') {
       for (const e of ['普通感染者多样性', '普通-机制-丧尸尸潮', '普通的动态威胁与安逸惩罚']) enable.add(e);
@@ -1934,10 +2262,10 @@ function buildEnableSet(sd) {
 
   if (npcMode === '正常型') {
     enable.add('杂项-NPC动态生成');
-    enable.add('杂项-末世社交互动法则');
+    if (phase === '爆发期' || phase === '末世期') enable.add('杂项-末世社交互动法则');
   } else if (npcMode === '全员恶人型') {
     enable.add('恶意的NPC生成');
-    enable.add('恶意社交法则');
+    if (phase === '爆发期' || phase === '末世期') enable.add('恶意社交法则');
   }
 
   const summaryMap = {
@@ -2005,12 +2333,16 @@ function buildEnableSet(sd) {
     enable.add(phase === '秩序期' ? '世界观-秩序期的北非' : '世界观-爆发后的北非');
   }
 
+  // 极端天气 — 读取环境.天气，匹配终年XX则启用对应世界书条目
+  const weather = sd?.环境?.天气 ?? '';
+  if (weather.startsWith('终年')) enable.add(weather);
+
   return enable;
 }
 
-const MANAGED_ENTRIES = new Set([
+var MANAGED_ENTRIES = new Set([
   '世界观-各国政府情况',
-  '大爆发前/大爆发前夕','大爆发前/规则-异常事件应对','大爆发前/规则-约束',
+  '大爆发前/感染者','大爆发前/大爆发前夕','大爆发前/规则-异常事件应对','大爆发前/规则-约束',
   '大爆发前/规则-物资获取','大爆发前/规则-医疗与健康',
   '大爆发前/规则-社会秩序','大爆发前/规则-冲突与应对',
   '世界观-官方安全区','世界观-半感染者','世界观-ZCOM生化特种部队(彩蛋)',
@@ -2048,6 +2380,8 @@ const MANAGED_ENTRIES = new Set([
   '世界观-混乱骑士团','世界观-自由联合民','世界观-戴高乐号流亡政府',
   '世界观-秩序期的巴西','世界观-爆发后的巴西',
   '世界观-秩序期的北非','世界观-爆发后的北非',
+  '终年晴朗','终年暴雨','终年雾霾','终年严寒',
+  '终年酷热','终年尘暴','终年雷暴','终年晦暗',
 ]);
 
 async function applyToWorldbook(enableSet, wbName, nat) {
@@ -2122,9 +2456,9 @@ async function applyToWorldbook(enableSet, wbName, nat) {
   })()`);
 }
 
-let _runningPromise = null;
-let _pendingSwitch  = false;
-let _debounceTimer  = null;
+var _runningPromise = null;
+var _pendingSwitch  = false;
+var _debounceTimer  = null;
 
 async function autoSwitch() {
   if (_runningPromise) {
@@ -2240,7 +2574,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const EXPECTED = 326;
+    const EXPECTED = 329;
     let color, text;
     if (entries.length === EXPECTED) {
       color = '#4ade80'; text = `共 ${entries.length} 条`;
@@ -2485,7 +2819,7 @@ jmzqConfirmCancel.addEventListener('click', (e) => {
 
 // 弹窗移动端拖拽（电脑端固定居中）
 const jmzqConfirmDragHandle = p.document.getElementById('jmzq-confirm-drag');
-const jmzqConfirmDialog = p.document.getElementById('jmzq-confirm-dialog');
+var jmzqConfirmDialog = p.document.getElementById('jmzq-confirm-dialog');
 let _jmzqDlgTouchReady = false;
 function _jmzqDlgInitTouch() {
   if (_jmzqDlgTouchReady) return; _jmzqDlgTouchReady = true;
@@ -2556,7 +2890,7 @@ setInterval(() => {
     if (typeof p.Mvu === 'undefined') return;
     const sd = readStatData();
     if (!sd) return;
-    const key = `${sd.世界阶段}|${sd.衍生状态?.nationality}|${sd.感染者行为模式}|${sd.NPC行为模式}`;
+    const key = `${sd.世界阶段}|${sd.衍生状态?.nationality}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}`;
     if (key !== _lastStatKey) {
       _lastStatKey = key;
       autoSwitch();
@@ -2572,6 +2906,8 @@ autoSwitch();
 
 // 注册世界书状态刷新事件
 p.document.addEventListener('jmzq-done', () => { refreshUI(); checkWorldbookCount(); });
+
+p._jmzqAutoSwitch = autoSwitch;
 
 } // end if (!p._jmzqLoaded)
 
