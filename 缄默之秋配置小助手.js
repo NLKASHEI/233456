@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.4/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.4';
+const JMZQ_VERSION = '1.1.5';
 const WORLDBOOK_NAME = '缄默之秋2.3';
 const p = window.parent || window;
 
@@ -964,8 +964,8 @@ function showToast(msg) {
 
 
 // --- 配置检测：检查模型名称 ---
-const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'openai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
 const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang'];
 
 function checkConfig() {
@@ -2908,6 +2908,20 @@ autoSwitch();
 p.document.addEventListener('jmzq-done', () => { refreshUI(); checkWorldbookCount(); });
 
 p._jmzqAutoSwitch = autoSwitch;
+
+// 资源回收：iframe卸载时清理注入的DOM和事件
+window._jmzqCleanupAll = function() {
+  try {
+    var ids = ['jmzq-bubble','jmzq-panel','jmzq-confirm-overlay'];
+    ids.forEach(function(id) { var el = p.document.getElementById(id); if (el) el.remove(); });
+    var styles = p.document.head.querySelectorAll('style');
+    styles.forEach(function(s) { if (s.textContent && s.textContent.indexOf('jmzq-bubble') !== -1) s.remove(); });
+    if (typeof p._jmzqCleanup === 'function') try { p._jmzqCleanup(); } catch(e) {}
+    delete p._jmzqLoaded;
+  } catch(e) {}
+};
+window.addEventListener('pagehide', window._jmzqCleanupAll);
+window.addEventListener('beforeunload', window._jmzqCleanupAll);
 
 } // end if (!p._jmzqLoaded)
 
