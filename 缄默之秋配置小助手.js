@@ -1,10 +1,10 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.5/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.7/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.5';
-const WORLDBOOK_NAME = '缄默之秋2.3';
+const JMZQ_VERSION = '1.1.7';
+const WORLDBOOK_NAME = '缄默之秋2.4';
 const p = window.parent || window;
 
 // 防重复加载
@@ -54,6 +54,18 @@ function runInParent(fnString) {
 // TavernHelper 已挂载在 iframe window 上，读取操作直接调用即可，无需 runInParent 注入父页面
 
 let _jmzqManualWbName = null;  // 用户手动选择的世界书名（自动检测失败后的兜底）
+let _mvuOutputFormatEnabled = false; // 随AI输出模式下的输出格式强化条目是否开启
+
+// 从世界书同步「输出格式强化」条目状态 → _mvuOutputFormatEnabled
+// 保证 checkConfig / refreshMvuConfigStatus 拿到真实值，不依赖面板展开
+async function syncOutputFormatFlag() {
+  try {
+    const wb = await api_resolveWorldbookName();
+    const es = await api_getWorldbook(wb);
+    const e = es.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
+    _mvuOutputFormatEnabled = !!(e && e.enabled);
+  } catch(e) {}
+}
 
 // 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
 // 对象 {primary, additional}、数组、或字符串，统一提取为字符串数组
@@ -987,10 +999,21 @@ function checkConfig() {
 
     const cfg = getMvuCfg();
     if (cfg) {
-      if (cfg.更新方式 !== '额外模型解析') issues.push('MVU更新方式非最优');
+      const mode = cfg.更新方式;
+      const isExtra = mode === '额外模型解析';
+      const isSuiAI = mode === '随AI输出';
       const n = cfg.通知 || {};
       if (!(n['MVU框架加载成功'] && n['变量初始化成功'] && n['变量更新出错'] && n['额外模型解析中'])) {
-        issues.push('MVU四项通知未全开');
+        issues.push('四项通知未全开');
+      }
+      if (isExtra) {
+        const em = cfg.额外模型解析配置 || {};
+        if (!em.api地址 || !em.api地址.trim()) issues.push('API地址未填写');
+        if (_mvuOutputFormatEnabled) issues.push('随AI条目误开启');
+      } else if (isSuiAI) {
+        if (!_mvuOutputFormatEnabled) issues.push('输出格式强化未开启');
+      } else {
+        issues.push('更新方式非最优');
       }
     }
 
@@ -1936,7 +1959,7 @@ function refreshMvuConfigStatus() {
     const n = cfg.通知 || {};
     const notifOk = n['MVU框架加载成功'] && n['变量初始化成功'] && n['变量更新出错'] && n['额外模型解析中'];
     mvuStatus.innerHTML =
-      (mode === '额外模型解析' ? '🟢' : '🔴') + ' 更新方式: ' + (mode || '未知') + '<br>' +
+      (mode === '额外模型解析' || mode === '随AI输出' ? '🟢' : '🔴') + ' 更新方式: ' + (mode || '未知') + '<br>' +
       (notifOk ? '🟢' : '🔴') + ' 四项通知: ' + (notifOk ? '全部开启' : '未全部开启');
   } catch (e) {
     mvuStatus.textContent = '读取MVU配置出错';
@@ -1991,6 +2014,17 @@ async function applyOptimalMvuConfig() {
 
     ewcBackupToEwcYH();
     await saveSettings();
+    // 关闭随AI模式专属条目
+    try {
+      const wbName = await api_resolveWorldbookName();
+      if (wbName) {
+        await api_replaceWorldbook(wbName, `(entries) => {
+          var e = entries.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
+          if (e) { e.enabled = false; }
+        }`);
+        _mvuOutputFormatEnabled = false;
+      }
+    } catch(e) {}
 
     syncMvuToForm(cfg);
     mvuStatus.innerHTML = '🟢 更新方式: 额外模型解析<br>🟢 四项通知: 全部开启';
@@ -2001,6 +2035,140 @@ async function applyOptimalMvuConfig() {
     showToast('MVU配置失败: ' + e.message);
   }
 }
+
+// 随AI输出最优配置
+async function applySuiAIMvuConfig() {
+  try {
+    const cfg = getMvuCfg();
+    if (!cfg) { showToast('mvu_settings 不存在'); return; }
+    cfg.通知 = cfg.通知 || {};
+    cfg.通知['MVU框架加载成功'] = true;
+    cfg.通知['变量初始化成功'] = true;
+    cfg.通知['变量更新出错'] = true;
+    cfg.通知['额外模型解析中'] = true;
+    cfg.更新方式 = '随AI输出';
+    cfg.自动清理变量 = cfg.自动清理变量 || {};
+    cfg.自动清理变量.启用 = true;
+    cfg.自动清理变量.快照保留间隔 = 50;
+    cfg.自动清理变量.要保留变量的最近楼层数 = 20;
+    cfg.自动清理变量.触发恢复变量的最近楼层数 = 10;
+    cfg.兼容性 = cfg.兼容性 || {};
+    cfg.兼容性['更新到聊天变量'] = true;
+    cfg.兼容性['显示老旧功能'] = false;
+    cfg.兼容性['sandas不视为user消息'] = false;
+    ewcBackupToEwcYH();
+    await saveSettings();
+    // 开启世界书条目
+    const wbName = await api_resolveWorldbookName();
+    if (wbName) {
+      try {
+        await api_replaceWorldbook(wbName, `(entries) => {
+          var e = entries.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
+          if (e) { e.enabled = true; }
+        }`);
+        _mvuOutputFormatEnabled = true;
+      } catch(e) {}
+    }
+    mvuUpdateMode.value = '随AI输出';
+    refreshMvuConfigStatus();
+    showToast('随AI输出配置已应用，2秒后刷新页面...');
+    setTimeout(() => { window.parent.location.reload(); }, 2000);
+  } catch (e) { showToast('MVU配置失败: ' + e.message); }
+}
+
+// MVU一键最优配置 → 弹窗选模式
+mvuOptimizeBtn.addEventListener('click', () => {
+  let _selectedMode = null;
+  const cardStyle = 'padding:16px 14px;border-radius:10px;cursor:pointer;text-align:center;font-size:15px;font-weight:600;border:2px solid rgba(0,0,0,0.1);background:#faf7f0;color:#6a5a48;transition:all 0.2s;letter-spacing:1px;flex:1;min-width:120px;';
+  const cardHover = 'border-color:#b8956a;color:#3a2a18';
+  const cardActive = 'border-color:#b8956a;color:#8b5a2b;background:rgba(184,149,106,0.08);box-shadow:0 0 16px rgba(184,149,106,0.15)';
+  const hintGold = 'font-size:11px;color:#8b5a2b;font-weight:400;margin-top:6px;opacity:0.9;';
+  const hintGray = 'font-size:11px;color:#8a7060;font-weight:400;margin-top:6px;line-height:1.5;';
+
+  jmzqConfirmMsg.innerHTML = '';
+  jmzqConfirmBody.style.display = '';
+  jmzqConfirmBody.innerHTML = '<div style=\"font-size:14px;color:#3a2a18;text-align:center;margin-bottom:12px;letter-spacing:1px;\">请选择MVU更新模式</div>'
+    + '<div style=\"display:flex;gap:10px;justify-content:center;flex-wrap:wrap;\">'
+    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-extra-card\" style=\"' + cardStyle + '\" data-mode=\"extra\">额外模型解析<div style=\"' + hintGold + '\">推荐首选 · 效果最优</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得关闭预设中的<br>变量更新提醒</div></div>'
+    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-sui-card\" style=\"' + cardStyle + '\" data-mode=\"sui\">随AI输出<div style=\"' + hintGray + '\">仅限高注意力模型<br>如 Claude / DeepSeek 系列</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得打开预设中的<br>变量更新提醒</div></div>'
+    + '</div>';
+  jmzqConfirmOk.textContent = '确认配置';
+  jmzqConfirmOk.style.display = '';
+  jmzqConfirmCancel.style.display = '';
+
+  setTimeout(() => {
+    const cards = p.document.querySelectorAll('.jmzq-dlg-mode-card');
+    cards.forEach(c => {
+      c.addEventListener('mouseenter', () => { if (c.dataset.mode !== _selectedMode) c.style.cssText = cardStyle + cardHover; });
+      c.addEventListener('mouseleave', () => { if (c.dataset.mode !== _selectedMode) c.style.cssText = cardStyle; });
+      c.addEventListener('click', () => {
+        _selectedMode = c.dataset.mode;
+        cards.forEach(cc => { cc.style.cssText = cardStyle; });
+        c.style.cssText = cardStyle + cardActive;
+      });
+    });
+    jmzqConfirmOk.onclick = () => {
+      if (!_selectedMode) { showToast('请先选择更新模式'); return; }
+      if (_selectedMode === 'sui') {
+        jmzqConfirmOverlay.style.display = 'none';
+        jmzqConfirmBody.style.display = 'none';
+        jmzqConfirmOk.textContent = '确认';
+        applySuiAIMvuConfig();
+        return;
+      }
+      // extra: 检查API
+      const apiUrlEmpty = !mvuApiUrl.value.trim();
+      const apiKeyEmpty = !mvuApiKey.value.trim();
+      if (apiUrlEmpty || apiKeyEmpty) {
+        jmzqConfirmMsg.innerHTML = '<span style=\"color:#8b5a2b;\">额外模型解析</span> · 请配置API';
+        jmzqConfirmBody.innerHTML = ''
+          + '<div class=\"jmzq-mvu-row\"><label class=\"jmzq-mvu-label wide\">API地址</label><input class=\"jmzq-mvu-input\" id=\"jmzq-dlg-api-url\" placeholder=\"https://...\"></div>'
+          + '<div class=\"jmzq-mvu-row\"><label class=\"jmzq-mvu-label wide\">API密钥</label><input class=\"jmzq-mvu-input\" id=\"jmzq-dlg-api-key\" type=\"password\" placeholder=\"sk-...\"></div>'
+          + '<div class=\"jmzq-mvu-row\" style=\"justify-content:flex-end;\"><button class=\"jmzq-btn xs\" id=\"jmzq-dlg-fetch-models\">获取模型</button></div>'
+          + '<div class=\"jmzq-mvu-row\"><label class=\"jmzq-mvu-label wide\">模型名称</label><select class=\"jmzq-mvu-select\" id=\"jmzq-dlg-model-name\"><option value=\"\">-- 请先获取模型 --</option></select></div>';
+        setTimeout(() => {
+          const dlgUrl = p.document.getElementById('jmzq-dlg-api-url');
+          const dlgKey = p.document.getElementById('jmzq-dlg-api-key');
+          const dlgFetch = p.document.getElementById('jmzq-dlg-fetch-models');
+          if (dlgUrl) dlgUrl.value = mvuApiUrl.value;
+          if (dlgKey) dlgKey.value = mvuApiKey.value;
+          if (dlgFetch) dlgFetch.addEventListener('click', fetchModelsInDialog);
+        }, 0);
+        jmzqConfirmOk.textContent = '已选好，执行配置';
+        jmzqConfirmOk.onclick = () => {
+          const dlgUrl = p.document.getElementById('jmzq-dlg-api-url');
+          const dlgKey = p.document.getElementById('jmzq-dlg-api-key');
+          const dlgModel = p.document.getElementById('jmzq-dlg-model-name');
+          if (!dlgUrl || !dlgUrl.value.trim()) { showToast('请填写API地址'); return; }
+          if (!dlgModel || !dlgModel.value) { showToast('请获取并选择模型'); return; }
+          const modelName = (dlgModel.value || '').toLowerCase();
+          const isFlash = /flash/.test(modelName) && !/3\.5/.test(modelName);
+          if (isFlash && jmzqConfirmOk.textContent !== '确认使用Flash') {
+            jmzqConfirmMsg.textContent = '检测到Flash系列模型，除3.5 Flash外Flash模型智商不足，建议更换。是否确认使用？';
+            jmzqConfirmOk.textContent = '确认使用Flash';
+            return;
+          }
+          mvuApiUrl.value = dlgUrl.value;
+          mvuApiKey.value = dlgKey ? dlgKey.value : '';
+          if (dlgModel.options.length > 1) {
+            mvuModelName.innerHTML = [...dlgModel.options].map(o => '<option value=\"' + o.value + '\">' + o.textContent + '</option>').join('');
+          }
+          mvuModelName.value = dlgModel.value;
+          jmzqConfirmOverlay.style.display = 'none';
+          jmzqConfirmBody.style.display = 'none';
+          jmzqConfirmOk.textContent = '确认';
+          applyOptimalMvuConfig();
+        };
+      } else {
+        jmzqConfirmOverlay.style.display = 'none';
+        jmzqConfirmBody.style.display = 'none';
+        jmzqConfirmOk.textContent = '确认';
+        applyOptimalMvuConfig();
+      }
+    };
+  }, 0);
+  jmzqConfirmOverlay.style.display = 'flex';
+});
 
 // API区域仅在「额外模型解析 + 自定义」时显示
 function refreshModelSourceVisibility() {
@@ -2034,7 +2202,7 @@ bubble.addEventListener('click', () => {
     panel.style.left = left + 'px';
     panel.style.top = top + 'px';
     panel.style.display = 'flex';
-    _jmzqPopulateWbSelect(); checkConfig(); refreshMvuSectionVisibility(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate();
+    _jmzqPopulateWbSelect(); syncOutputFormatFlag().then(() => checkConfig()); refreshMvuSectionVisibility(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate();
   }
 });
 
@@ -2100,7 +2268,9 @@ p.document.addEventListener('touchstart', (e) => {
 });
 
 // 面板获得鼠标时自动刷新（用户可能中途手动改了设置）
-panel.addEventListener('mouseenter', () => { _jmzqPopulateWbSelect(); checkConfig(); refreshMvuConfigStatus(); refreshUI(); updateBackendCode(); checkWorldbookCount(); checkEjsTemplate(); });
+panel.addEventListener('mouseenter', () => { _jmzqPopulateWbSelect(); refreshMvuConfigStatus(); refreshUI(); updateBackendCode(); checkWorldbookCount(); checkEjsTemplate();
+  syncOutputFormatFlag().then(() => checkConfig());
+});
 
 // --- 工具：获取触摸/鼠标坐标 ---
 function getXY(e) {
@@ -2480,6 +2650,8 @@ async function autoSwitch() {
       const enableSet = buildEnableSet(sd);
       const wbName = await api_resolveWorldbookName();
       const result = await applyToWorldbook(enableSet, wbName, sd.衍生状态?.nationality);
+      // 同步输出格式强化条目状态
+      await syncOutputFormatFlag().catch(() => {});
       const logSummary = result.log.map(l =>
         l.wbName + ' ▲' + l.enabled.length + ' ▼' + l.disabled.length
       ).join(' | ');
@@ -2589,7 +2761,7 @@ async function checkWorldbookCount() {
 }
 
 // --- 事件绑定 ---
-refreshBtn.addEventListener('click', async () => { checkConfig(); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
+refreshBtn.addEventListener('click', async () => { syncOutputFormatFlag().then(() => checkConfig()); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
 
 manualWbApply.addEventListener('click', () => {
   const name = manualWbSelect.value;
@@ -2656,73 +2828,6 @@ mvuManualToggle.addEventListener('click', () => {
 // 兼容性复选框委托
 mvuCompatChecks.addEventListener('change', (e) => {
   if (e.target.classList.contains('jmzq-mvu-compat-check')) onMvuFieldChange();
-});
-
-mvuOptimizeBtn.addEventListener('click', () => {
-  const apiUrlEmpty = !mvuApiUrl.value.trim();
-  const apiKeyEmpty = !mvuApiKey.value.trim();
-  if (apiUrlEmpty || apiKeyEmpty) {
-    jmzqConfirmMsg.textContent = '请配置API连接并选择模型';
-    jmzqConfirmBody.style.display = '';
-    jmzqConfirmBody.innerHTML = `
-      <div class="jmzq-mvu-row">
-        <label class="jmzq-mvu-label wide">API地址</label>
-        <input class="jmzq-mvu-input" id="jmzq-dlg-api-url" placeholder="https://...">
-      </div>
-      <div class="jmzq-mvu-row">
-        <label class="jmzq-mvu-label wide">API密钥</label>
-        <input class="jmzq-mvu-input" id="jmzq-dlg-api-key" type="password" placeholder="sk-...">
-      </div>
-      <div class="jmzq-mvu-row" style="justify-content:flex-end;">
-        <button class="jmzq-btn xs" id="jmzq-dlg-fetch-models">获取模型</button>
-      </div>
-      <div class="jmzq-mvu-row">
-        <label class="jmzq-mvu-label wide">模型名称</label>
-        <select class="jmzq-mvu-select" id="jmzq-dlg-model-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          <option value="">-- 请先获取模型 --</option>
-        </select>
-      </div>
-    `;
-    // 同步当前面板值到弹窗
-    setTimeout(() => {
-      const dlgUrl = p.document.getElementById('jmzq-dlg-api-url');
-      const dlgKey = p.document.getElementById('jmzq-dlg-api-key');
-      const dlgFetch = p.document.getElementById('jmzq-dlg-fetch-models');
-      if (dlgUrl) dlgUrl.value = mvuApiUrl.value;
-      if (dlgKey) dlgKey.value = mvuApiKey.value;
-      if (dlgFetch) dlgFetch.addEventListener('click', fetchModelsInDialog);
-    }, 0);
-    jmzqConfirmOk.textContent = '已选好，执行配置';
-    jmzqConfirmOk.onclick = () => {
-      const dlgUrl = p.document.getElementById('jmzq-dlg-api-url');
-      const dlgKey = p.document.getElementById('jmzq-dlg-api-key');
-      const dlgModel = p.document.getElementById('jmzq-dlg-model-name');
-      if (!dlgUrl || !dlgUrl.value.trim()) { showToast('请填写API地址'); return; }
-      if (!dlgModel || !dlgModel.value) { showToast('请获取并选择模型'); return; }
-      // Flash检测
-      const modelName = (dlgModel.value || '').toLowerCase();
-      const isFlash = /flash/.test(modelName) && !/3\.5/.test(modelName);
-      if (isFlash && jmzqConfirmOk.textContent !== '确认使用Flash') {
-        jmzqConfirmMsg.textContent = '检测到Flash系列模型，除3.5 Flash外Flash模型智商不足，建议更换为 gemini-2.5-pro / gemini-3.1-pro / gemini-3.5-flash。是否确认使用？';
-        jmzqConfirmOk.textContent = '确认使用Flash';
-        return;
-      }
-      // 同步回面板（applyOptimalMvuConfig会从表单读取API字段并保存）
-      mvuApiUrl.value = dlgUrl.value;
-      mvuApiKey.value = dlgKey ? dlgKey.value : '';
-      if (dlgModel.options.length > 1) {
-        mvuModelName.innerHTML = [...dlgModel.options].map(o => '<option value="' + o.value + '">' + o.textContent + '</option>').join('');
-      }
-      mvuModelName.value = dlgModel.value;
-      jmzqConfirmOverlay.style.display = 'none';
-      jmzqConfirmBody.style.display = 'none';
-      jmzqConfirmOk.textContent = '确认';
-      applyOptimalMvuConfig();
-    };
-    jmzqConfirmOverlay.style.display = 'flex';
-  } else {
-    applyOptimalMvuConfig();
-  }
 });
 
 // 从表单应用配置（完全模仿 applyOptimalMvuConfig 的模式：改cfg → save → sync → reload）
@@ -2879,9 +2984,9 @@ ewcSyncMvuDom().catch(() => {});
 })();
 
 _jmzqPopulateWbSelect();
-checkConfig();
+syncOutputFormatFlag().then(() => checkConfig());
 // 每5秒自动检测一次配置（模型切换后呼吸灯自动跟上，无需打开面板）
-setInterval(() => { checkConfig(); updateBackendCode(); }, 5000);
+setInterval(() => { syncOutputFormatFlag().then(() => checkConfig()); updateBackendCode(); }, 5000);
 
 // 定时轮询 MVU 状态，变化时自动切换世界书
 let _lastStatKey = '';
