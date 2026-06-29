@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.8/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.1.9/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.1.8';
+const JMZQ_VERSION = '1.1.9';
 const WORLDBOOK_NAME = '缄默之秋2.4';
 const p = window.parent || window;
 
@@ -2507,6 +2507,10 @@ function buildEnableSet(sd) {
   const weather = sd?.环境?.天气 ?? '';
   if (weather.startsWith('终年')) enable.add(weather);
 
+  enable.add('暗线主角已定义NPC摘要');
+  enable.add('暗线主角/约修亚/基础信息');
+  enable.add('暗线主角/林青/基础信息');
+
   return enable;
 }
 
@@ -2552,6 +2556,9 @@ var MANAGED_ENTRIES = new Set([
   '世界观-秩序期的北非','世界观-爆发后的北非',
   '终年晴朗','终年暴雨','终年雾霾','终年严寒',
   '终年酷热','终年尘暴','终年雷暴','终年晦暗',
+  '暗线主角已定义NPC摘要',
+  '暗线主角/约修亚/基础信息',
+  '暗线主角/林青/基础信息',
 ]);
 
 async function applyToWorldbook(enableSet, wbName, nat) {
@@ -2746,7 +2753,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const EXPECTED = 329;
+    const EXPECTED = 332;
     const countEntries = entries.filter(e => !e.name.includes('DB'));
     let color, text;
     if (countEntries.length === EXPECTED) {
