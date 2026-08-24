@@ -3,8 +3,9 @@
 //   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.2.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '1.2.3';
-const WORLDBOOK_NAME = '缄默之秋2.5';
+const JMZQ_VERSION = '2.0.0';
+const WORLDBOOK_NAME = '缄默之秋-3.0-世界书';
+const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书'];
 const p = window.parent || window;
 
 // 防重复加载
@@ -12,7 +13,7 @@ if (!p._jmzqLoaded) { p._jmzqLoaded = true;
 
 // 清理旧实例
 {
-  const old = ['jmzq-bubble', 'jmzq-panel', 'jmzq-style'];
+  const old = ['jmzq-bubble', 'jmzq-panel', 'jmzq-style', 'jmzq-super-event-modal'];
   for (const id of old) { const el = p.document.getElementById(id); if (el) el.remove(); }
   if (typeof p._jmzqCleanup === 'function') try { p._jmzqCleanup(); } catch(e) {}
   delete p._jmzqCleanup;
@@ -23,16 +24,34 @@ if (!p._jmzqLoaded) { p._jmzqLoaded = true;
 // iframe 中的异步 API（getWorldbook/updateWorldbookWith）调用会因
 // 请求上下文问题失败。解决办法：往父页面注入 <script> 标签，
 // 在父页面原生上下文中执行操作，结果通过 CustomEvent 回传。
-function runInParent(fnString) {
+function runInParent(fnString, timeoutMs = 10000) {
   return new Promise((resolve, reject) => {
     const token = 'jmzq_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+    let settled = false;
+    let timer = null;
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      p.document.removeEventListener('jmzq-result', handler);
+      if (timer) clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(result);
+    };
     const handler = (e) => {
       if (!e.detail || e.detail.token !== token) return;
-      p.document.removeEventListener('jmzq-result', handler);
-      if (e.detail.error) reject(new Error(e.detail.error));
-      else resolve(e.detail.result);
+      finish(e.detail.error ? new Error(e.detail.error) : null, e.detail.result);
     };
     p.document.addEventListener('jmzq-result', handler);
+    timer = setTimeout(() => finish(new Error('酒馆接口调用超时，请确认酒馆助手与世界书已加载')), timeoutMs);
+
+    // 动态代码在真正插入父页面前先解析；语法错误应立即返回，不能伪装成十秒超时。
+    try {
+      const ParentFunction = p.Function || Function;
+      ParentFunction(`return (${fnString});`);
+    } catch (error) {
+      finish(new Error(`父页面脚本语法错误：${error.message || error}`));
+      return;
+    }
 
     const script = p.document.createElement('script');
     script.textContent = `
@@ -45,8 +64,13 @@ function runInParent(fnString) {
   }
 })();
 `;
-    p.document.body.appendChild(script);
-    script.remove();
+    try {
+      p.document.body.appendChild(script);
+      script.remove();
+    } catch (error) {
+      script.remove();
+      finish(new Error(`父页面脚本注入失败：${error.message || error}`));
+    }
   });
 }
 
@@ -56,15 +80,9 @@ function runInParent(fnString) {
 let _jmzqManualWbName = null;  // 用户手动选择的世界书名（自动检测失败后的兜底）
 let _mvuOutputFormatEnabled = false; // 随AI输出模式下的输出格式强化条目是否开启
 
-// 从世界书同步「输出格式强化」条目状态 → _mvuOutputFormatEnabled
-// 保证 checkConfig / refreshMvuConfigStatus 拿到真实值，不依赖面板展开
+// v2.0-db: 输出格式强化条目已随 MVU 迁移删除，始终视为关闭
 async function syncOutputFormatFlag() {
-  try {
-    const wb = await api_resolveWorldbookName();
-    const es = await api_getWorldbook(wb);
-    const e = es.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
-    _mvuOutputFormatEnabled = !!(e && e.enabled);
-  } catch(e) {}
+  _mvuOutputFormatEnabled = false;
 }
 
 // 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
@@ -79,9 +97,11 @@ async function api_resolveWorldbookName() {
   //    getCharWorldbookNames 返回 { primary: string|null, additional: string[] }
   try {
     const raw = TavernHelper.getCharWorldbookNames('current');
-    if (raw && (raw.primary === WORLDBOOK_NAME || (raw.additional && raw.additional.includes(WORLDBOOK_NAME)))) {
-      _jmzqOnWbResolved(WORLDBOOK_NAME);
-      return WORLDBOOK_NAME;
+    const bound = [raw?.primary, ...(Array.isArray(raw?.additional) ? raw.additional : [])].filter(Boolean);
+    const matched = WORLDBOOK_ALIASES.find(name => bound.includes(name));
+    if (matched) {
+      _jmzqOnWbResolved(matched);
+      return matched;
     }
   } catch(e) {
     // 静默处理
@@ -90,9 +110,10 @@ async function api_resolveWorldbookName() {
   // 2. 从全部世界书列表中精确搜索（兜底）
   try {
     const all = TavernHelper.getWorldbookNames();  // 返回 string[]
-    if (Array.isArray(all) && all.includes(WORLDBOOK_NAME)) {
-      _jmzqOnWbResolved(WORLDBOOK_NAME);
-      return WORLDBOOK_NAME;
+    const matched = Array.isArray(all) ? WORLDBOOK_ALIASES.find(name => all.includes(name)) : null;
+    if (matched) {
+      _jmzqOnWbResolved(matched);
+      return matched;
     }
   } catch(e) {
   }
@@ -117,6 +138,10 @@ function _jmzqPopulateWbSelect() {
   // 恢复之前的值（如果新列表中还有的话）
   if (saved && [...manualWbSelect.options].some(o => o.value === saved)) manualWbSelect.value = saved;
   else if (_jmzqManualWbName && [...manualWbSelect.options].some(o => o.value === _jmzqManualWbName)) manualWbSelect.value = _jmzqManualWbName;
+  else {
+    const preferred = WORLDBOOK_ALIASES.find(name => [...manualWbSelect.options].some(o => o.value === name));
+    if (preferred) manualWbSelect.value = preferred;
+  }
 }
 
 // 世界书自动检测成功 → 更新下拉选中值、恢复绿色标签
@@ -138,39 +163,38 @@ function _jmzqOnWbNotFound() {
 }
 
 async function api_getWorldbook(name) {
-  return runInParent(`TavernHelper.getWorldbook(${JSON.stringify(name)})`);
+  if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
+    throw new Error('TavernHelper 世界书接口不可用');
+  }
+  return await TavernHelper.getWorldbook(name);
 }
 
-// 直接在父页面：获取条目 → 修改 → replaceWorldbook 保存 → 返回刷新后的条目
+// JS-Slash-Runner/predefine.js 已将绑定后的 TavernHelper 接口暴露给脚本 iframe。
+// 直接调用可避免把函数再次拼成 <script> 注入父页面所产生的转义和 CSP 问题。
 async function api_replaceWorldbook(name, entriesModifier) {
-  return runInParent(
-    `(async () => {` +
-    `  var _entries = await TavernHelper.getWorldbook(${JSON.stringify(name)});` +
-    `  (${entriesModifier})(_entries);` +
-    `  await TavernHelper.replaceWorldbook(${JSON.stringify(name)}, _entries);` +
-    `  return await TavernHelper.getWorldbook(${JSON.stringify(name)});` +
-    `})()`
-  );
+  if (typeof entriesModifier !== 'function') throw new TypeError('世界书修改器必须是函数');
+  const entries = await api_getWorldbook(name);
+  await entriesModifier(entries);
+  await TavernHelper.replaceWorldbook(name, entries);
+  return await api_getWorldbook(name);
 }
 
 // 正则操作（角色级别）
 async function api_getTavernRegexes() {
-  return runInParent('TavernHelper.getTavernRegexes({ type: "character" })');
+  return await TavernHelper.getTavernRegexes({ type: 'character' });
 }
 async function api_updateTavernRegexes(modifier) {
-  return runInParent(
-    `TavernHelper.updateTavernRegexesWith(${modifier}, { type: "character" })`
-  );
+  if (typeof modifier !== 'function') throw new TypeError('正则修改器必须是函数');
+  return await TavernHelper.updateTavernRegexesWith(modifier, { type: 'character' });
 }
 
 // 角色脚本树操作
 async function api_getScriptTrees() {
-  return runInParent('TavernHelper.getScriptTrees({ type: "character" })');
+  return await TavernHelper.getScriptTrees({ type: 'character' });
 }
 async function api_updateScriptTrees(modifier) {
-  return runInParent(
-    `TavernHelper.updateScriptTreesWith(${modifier}, { type: "character" })`
-  );
+  if (typeof modifier !== 'function') throw new TypeError('脚本树修改器必须是函数');
+  return await TavernHelper.updateScriptTreesWith(modifier, { type: 'character' });
 }
 
 // --- CSS（注入到父页面 · 宣纸暖白风格） ---
@@ -188,7 +212,9 @@ CSS.textContent = `
     transition: all .25s ease;
     user-select: none; touch-action: none;
     -webkit-tap-highlight-color: transparent;
+    outline: none !important;
   }
+  #jmzq-bubble:focus, #jmzq-bubble:focus-visible { outline: none !important; }
   #jmzq-bubble span {
     font-size: 22px; font-weight: 400; line-height: 1;
     font-family: 'Ma Shan Zheng', 'KaiTi', cursive;
@@ -207,8 +233,17 @@ CSS.textContent = `
     filter: drop-shadow(0 0 8px rgba(212,175,55,0.6));
   }
   #jmzq-bubble:active { transform: scale(0.95); transition: transform .1s; }
-  #jmzq-bubble.running { animation: jmzq-spin 1.2s linear infinite; }
-  @keyframes jmzq-spin { 100% { transform: rotate(360deg); } }
+  /* 后台运行时保持静止，不再用旋转打扰阅读。 */
+  #jmzq-bubble.running { animation: none; }
+  #jmzq-bubble.edge-peek-left,
+  #jmzq-bubble.edge-peek-right {
+    opacity: .72;
+    box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  }
+  #jmzq-bubble.edge-peek-left { border-radius: 0 6px 6px 0; }
+  #jmzq-bubble.edge-peek-right { border-radius: 6px 0 0 6px; }
+  #jmzq-bubble.edge-peek-left span,
+  #jmzq-bubble.edge-peek-right span { opacity: .38; }
 
   /* 警告：金边脉冲 */
   #jmzq-bubble.warn {
@@ -241,7 +276,7 @@ CSS.textContent = `
     display: flex; align-items: center; justify-content: space-between;
     padding: 18px 16px 14px;
     border-bottom: 1px solid rgba(0,0,0,0.06);
-    cursor: move;
+    cursor: move; touch-action: none;
     background: rgba(245,240,232,0.6);
     position: relative; z-index: 1;
   }
@@ -438,6 +473,21 @@ CSS.textContent = `
   .jmzq-dot.err { background: #c04030; box-shadow: 0 0 6px rgba(192,64,48,0.4); }
   .jmzq-dot.idle{ background: #c0b8a0; }
   .jmzq-kv { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+  .jmzq-active-head {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    margin-top:8px; padding-top:7px; border-top:1px solid rgba(0,0,0,.07);
+    color:#7a6048; font-size:10px;
+  }
+  .jmzq-active-entries {
+    display:flex; flex-wrap:wrap; gap:4px; margin-top:5px;
+    max-height:112px; overflow:auto; padding-right:2px;
+    scrollbar-width:thin;
+  }
+  .jmzq-active-entry {
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    padding:2px 6px; border:1px solid rgba(74,122,58,.18);
+    background:rgba(74,122,58,.06); color:#4f6842; font-size:9px;
+  }
   .jmzq-tag {
     background: rgba(255,255,255,0.5); border: 1px solid rgba(0,0,0,0.08);
     padding: 2px 7px; font-size: 10px; color: #6a5040; letter-spacing: 0.3px;
@@ -683,6 +733,8 @@ MVU_CSS.textContent = `
   .jmzq-dark .jmzq-mvu-subtitle { color: #a09070; border-top-color: rgba(255,255,255,0.06); }
   .jmzq-dark .jmzq-mvu-collapse-header { color: #d4a030; }
   .jmzq-dark .jmzq-mvu-collapse-header:hover { color: #e8c050; }
+  .jmzq-dark .jmzq-active-head { color:#9a8968; border-top-color:rgba(255,255,255,.06); }
+  .jmzq-dark .jmzq-active-entry { color:#b8aa82; border-color:rgba(212,160,48,.18); background:rgba(212,160,48,.05); }
 `;
 p.document.head.appendChild(MVU_CSS);
 
@@ -709,6 +761,8 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <span id="jmzq-status-text">已就绪，等待消息触发…</span>
         </div>
         <div id="jmzq-stat-tags" class="jmzq-kv"></div>
+        <div class="jmzq-active-head"><span>当前启用条目</span><span id="jmzq-active-count">等待读取</span></div>
+        <div id="jmzq-active-entries" class="jmzq-active-entries"></div>
         <div id="jmzq-manual-wb" style="margin-top:8px;">
           <div style="font-size:11px;color:#8a7060;margin-bottom:4px;" id="jmzq-manual-wb-label">切换世界书</div>
           <div style="display:flex;gap:6px;">
@@ -900,6 +954,8 @@ const panel = p.document.getElementById('jmzq-panel');
 const statusDot = p.document.getElementById('jmzq-status-dot');
 const statusText = p.document.getElementById('jmzq-status-text');
 const statTags = p.document.getElementById('jmzq-stat-tags');
+const activeCount = p.document.getElementById('jmzq-active-count');
+const activeEntries = p.document.getElementById('jmzq-active-entries');
 const manualWbDiv = p.document.getElementById('jmzq-manual-wb');
 const manualWbLabel = p.document.getElementById('jmzq-manual-wb-label');
 const manualWbSelect = p.document.getElementById('jmzq-manual-wb-select');
@@ -1304,11 +1360,34 @@ function readMvuCfgFromParent() {
   return getMvuCfg();
 }
 
+// 兼容性字段迁移：新版 MVU 使用 sendas；sandas 是旧版遗留拼写。
+// cfg 与 _ewcYH 都必须清理，否则启动恢复流程会把旧键重新灌回去。
+function normalizeMvuCompatKeys(holder) {
+  if (!holder || typeof holder !== 'object') return false;
+  const compat = holder.兼容性;
+  if (!compat || typeof compat !== 'object') return false;
+  let changed = false;
+  if (compat['sendas不视为user消息'] === undefined && compat['sandas不视为user消息'] !== undefined) {
+    compat['sendas不视为user消息'] = !!compat['sandas不视为user消息'];
+    changed = true;
+  }
+  if (Object.prototype.hasOwnProperty.call(compat, 'sandas不视为user消息')) {
+    delete compat['sandas不视为user消息'];
+    changed = true;
+  }
+  return changed;
+}
+
 // 构建兼容性复选框（动态读取键名）
 function buildCompatChecks() {
   const cfg = getMvuCfg();
+  normalizeMvuCompatKeys(cfg);
   const compat = cfg && cfg.兼容性 ? cfg.兼容性 : {};
-  const keys = Object.keys(compat);
+  const preferred = ['更新到聊天变量', '显示老旧功能', 'sendas不视为user消息'];
+  const keys = [
+    ...preferred.filter(k => Object.prototype.hasOwnProperty.call(compat, k)),
+    ...Object.keys(compat).filter(k => !preferred.includes(k) && k !== 'sandas不视为user消息'),
+  ];
   mvuCompatChecks.innerHTML = keys.map(k => {
     const checked = compat[k] ? ' checked' : '';
     return '<label class="jmzq-mvu-check-row"><input type="checkbox" class="jmzq-mvu-compat-check" data-key="' + k + '"' + checked + '><span class="jmzq-mvu-check-box"></span><span>' + k + '</span></label>';
@@ -1434,6 +1513,8 @@ function ewcGetEwcYH() {
 function ewcBackupToEwcYH() {
   const cfg = getMvuCfg(); if (!cfg) return;
   const bu = ewcGetEwcYH();
+  normalizeMvuCompatKeys(cfg);
+  normalizeMvuCompatKeys(bu);
   bu.更新方式 = cfg.更新方式;
   const em = cfg.额外模型解析配置 || {};
   bu.破限方案 = em.破限方案;
@@ -1464,6 +1545,8 @@ function ewcBackupToEwcYH() {
 function ewcRestoreFromEwcYH() {
   const cfg = getMvuCfg(); const bu = ewcGetEwcYH();
   if (!cfg || !bu) return;
+  normalizeMvuCompatKeys(cfg);
+  normalizeMvuCompatKeys(bu);
   if (!cfg.更新方式 && bu.更新方式) cfg.更新方式 = bu.更新方式;
   if (!cfg.额外模型解析配置) cfg.额外模型解析配置 = {};
   const em = cfg.额外模型解析配置;
@@ -1496,6 +1579,7 @@ function ewcRestoreFromEwcYH() {
       if (cfg.兼容性[k] === undefined) cfg.兼容性[k] = v;
     }
   }
+  normalizeMvuCompatKeys(cfg);
 }
 
 // ── DOM 事件模拟：通过 runInParent 在父页面找到 MVU 自身的表单元素，设值并派发事件 ──
@@ -1650,6 +1734,56 @@ function ewcSyncMvuDom() {
     for (var r = 0; r < details.length; r++) { details[r].open = savedStates[r]; }
   }
 })()`);
+}
+
+// 无感应用：直接重载 MVU 的 Pinia store，成功时不刷新页面。
+// 兼容新版 MVU 的 Vue 挂载方式，同时保留刷新兜底。
+async function mvuLiveApply(cfg) {
+  const cfgJson = cfg ? JSON.stringify(cfg) : null;
+  return runInParent(`(async () => {
+    try {
+      ${cfgJson ? 'var cfg = JSON.parse(' + JSON.stringify(cfgJson) + '); if (window.SillyTavern && window.SillyTavern.extensionSettings) window.SillyTavern.extensionSettings.mvu_settings = cfg;' : ''}
+      if (window.SillyTavern && typeof window.SillyTavern.saveSettingsDebounced === 'function') window.SillyTavern.saveSettingsDebounced();
+      var store = null;
+      var roots = document.querySelectorAll('[data-v-app], [script_id], [__vue_app__]');
+      for (var i = 0; i < roots.length && !store; i++) {
+        var app = roots[i].__vue_app__;
+        var pinia = app && app.config && app.config.globalProperties && app.config.globalProperties.$pinia;
+        var candidate = pinia && pinia._s && pinia._s.get('MVU变量框架');
+        if (candidate) store = candidate;
+        if (!store && app && app._instance && app._instance.setupState && app._instance.setupState.store && app._instance.setupState.store.$id === 'MVU变量框架') store = app._instance.setupState.store;
+      }
+      if (!store && window.__mvuStoreRef && window.__mvuStoreRef.value) store = window.__mvuStoreRef.value;
+      if (!store) return { ok: false };
+      if (typeof store._reload_settings === 'function') {
+        store._reload_settings();
+        if (store.settings && cfg) {
+          var em = cfg.额外模型解析配置 || {};
+          var ok = store.settings.更新方式 === cfg.更新方式 || !!(store.settings.额外模型解析配置 && store.settings.额外模型解析配置.模型名称 === em.模型名称);
+          if (!ok) return { ok: false };
+        }
+      } else if (store.settings && window.SillyTavern && window.SillyTavern.extensionSettings) {
+        store.settings = window.SillyTavern.extensionSettings.mvu_settings;
+      }
+      return { ok: true };
+    } catch (e) { return { ok: false }; }
+  })()`);
+}
+
+// 无感应用：ST-Prompt-Template 暴露 setFeatures 时直接同步内存设置。
+async function ejsLiveApply(features) {
+  const json = JSON.stringify(features || {});
+  return runInParent(`(async () => {
+    try {
+      var feat = JSON.parse(${JSON.stringify(json)});
+      if (window.EjsTemplate && typeof window.EjsTemplate.setFeatures === 'function') {
+        window.EjsTemplate.setFeatures(feat);
+        if (window.SillyTavern && typeof window.SillyTavern.saveSettingsDebounced === 'function') window.SillyTavern.saveSettingsDebounced();
+        return { ok: true };
+      }
+      return { ok: false };
+    } catch (e) { return { ok: false }; }
+  })()`);
 }
 
 // ── 预设列表：从父页面 DOM 读取可用预设 ──
@@ -1929,7 +2063,7 @@ function checkEjsTemplate() {
     ejsStatus.textContent = '检测失败: ' + e.message;
   }
 }
-function applyOptimalEjs() {
+async function applyOptimalEjs() {
   try {
     const ejs = SillyTavern?.extensionSettings?.EjsTemplate;
     if (!ejs) { showToast('提示词模板未安装，请前往插件区手动安装'); return; }
@@ -1941,8 +2075,14 @@ function applyOptimalEjs() {
     Object.assign(ejs, EJS_OPTIMAL);
     saveSettings();
     checkEjsTemplate();
-    showToast('提示词模板已设为最优配置，2秒后刷新页面...');
-    setTimeout(() => { window.parent.location.reload(); }, 2000);
+    const live = await ejsLiveApply(EJS_OPTIMAL).catch(() => ({ ok: false }));
+    if (live && live.ok) {
+      showToast('提示词模板已无感应用（未刷新页面）');
+      checkEjsTemplate();
+    } else {
+      showToast('提示词模板已设为最优配置，2秒后刷新页面...');
+      setTimeout(() => { window.parent.location.reload(); }, 2000);
+    }
   } catch (e) {
     showToast('配置失败: ' + e.message);
   }
@@ -1964,6 +2104,33 @@ function refreshMvuConfigStatus() {
   } catch (e) {
     mvuStatus.textContent = '读取MVU配置出错';
   }
+}
+
+// 按模型类型自动适配 MVU 额外解析参数。
+// 仅调整解析配置，不触碰世界书中的变量控制条目。
+function adaptExtraModelConfig(em) {
+  if (!em) return { isGemini: false, isDeepSeek: false };
+  const name = String(em.模型名称 || '').toLowerCase();
+  const isGemini = /gemini/.test(name);
+  const isDeepSeek = /deepseek/.test(name);
+  em.兼容假流式 = /假流/.test(name);
+  if (isGemini) {
+    em.随机头部 = true;
+    em.应答格式 = '聊天消息';
+    em.top_p = 1;
+    em.关闭thinking = false;
+  } else if (isDeepSeek) {
+    em.随机头部 = false;
+    em.应答格式 = '格式化输出(v4兼容)';
+    em.top_p = 0.95;
+    if (em.关闭thinking === undefined) em.关闭thinking = true;
+  } else {
+    em.随机头部 = false;
+    em.应答格式 = '聊天消息';
+    em.top_p = 1;
+    em.关闭thinking = false;
+  }
+  return { isGemini, isDeepSeek };
 }
 
 // 一键最优配置
@@ -1995,6 +2162,7 @@ async function applyOptimalMvuConfig() {
     em.密钥 = mvuApiKey.value;
     em.模型名称 = mvuModelName.value;
     em.兼容假流式 = /假流/i.test(mvuModelName.value);
+    const _adp = adaptExtraModelConfig(em);
 
     cfg.自动清理变量 = cfg.自动清理变量 || {};
     const ac = cfg.自动清理变量;
@@ -2006,7 +2174,9 @@ async function applyOptimalMvuConfig() {
     cfg.兼容性 = cfg.兼容性 || {};
     cfg.兼容性['更新到聊天变量'] = true;
     cfg.兼容性['显示老旧功能'] = false;
-    cfg.兼容性['sandas不视为user消息'] = false;
+    // 新版 MVU 的正式字段名是 sendas；旧拼写只应由迁移层读取。
+    cfg.兼容性['sendas不视为user消息'] = false;
+    delete cfg.兼容性['sandas不视为user消息'];
 
     cfg.额外模型解析配置 = cfg.额外模型解析配置 || {};
     cfg.额外模型解析配置.模型来源 = '自定义';
@@ -2018,19 +2188,24 @@ async function applyOptimalMvuConfig() {
     try {
       const wbName = await api_resolveWorldbookName();
       if (wbName) {
-        await api_replaceWorldbook(wbName, `(entries) => {
-          var e = entries.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
+        await api_replaceWorldbook(wbName, entries => {
+          const e = entries.find(x => (x.comment || x.name) === '[mvu_update]变量输出格式强化');
           if (e) { e.enabled = false; }
-        }`);
+        });
         _mvuOutputFormatEnabled = false;
       }
     } catch(e) {}
 
     syncMvuToForm(cfg);
     mvuStatus.innerHTML = '🟢 更新方式: 额外模型解析<br>🟢 四项通知: 全部开启';
-
-    showToast('MVU最优配置已应用，2秒后刷新页面...');
-    setTimeout(() => { window.parent.location.reload(); }, 2000);
+    const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
+    if (live && live.ok) {
+      showToast('MVU最优配置已无感应用（未刷新页面）' + (_adp.isDeepSeek ? '，DeepSeek已自动适配' : (_adp.isGemini ? '，Gemini已自动适配' : '')));
+      checkConfig();
+    } else {
+      showToast('MVU最优配置已应用，2秒后刷新页面...');
+      setTimeout(() => { window.parent.location.reload(); }, 2000);
+    }
   } catch (e) {
     showToast('MVU配置失败: ' + e.message);
   }
@@ -2055,24 +2230,32 @@ async function applySuiAIMvuConfig() {
     cfg.兼容性 = cfg.兼容性 || {};
     cfg.兼容性['更新到聊天变量'] = true;
     cfg.兼容性['显示老旧功能'] = false;
-    cfg.兼容性['sandas不视为user消息'] = false;
+    cfg.兼容性['sendas不视为user消息'] = false;
+    delete cfg.兼容性['sandas不视为user消息'];
+    adaptExtraModelConfig(cfg.额外模型解析配置 = cfg.额外模型解析配置 || {});
     ewcBackupToEwcYH();
     await saveSettings();
     // 开启世界书条目
     const wbName = await api_resolveWorldbookName();
     if (wbName) {
       try {
-        await api_replaceWorldbook(wbName, `(entries) => {
-          var e = entries.find(function(x) { return x.name === '[mvu_update]变量输出格式强化'; });
+        await api_replaceWorldbook(wbName, entries => {
+          const e = entries.find(x => (x.comment || x.name) === '[mvu_update]变量输出格式强化');
           if (e) { e.enabled = true; }
-        }`);
+        });
         _mvuOutputFormatEnabled = true;
       } catch(e) {}
     }
     mvuUpdateMode.value = '随AI输出';
     refreshMvuConfigStatus();
-    showToast('随AI输出配置已应用，2秒后刷新页面...');
-    setTimeout(() => { window.parent.location.reload(); }, 2000);
+    const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
+    if (live && live.ok) {
+      showToast('随AI输出配置已无感应用（未刷新页面）');
+      checkConfig();
+    } else {
+      showToast('随AI输出配置已应用，2秒后刷新页面...');
+      setTimeout(() => { window.parent.location.reload(); }, 2000);
+    }
   } catch (e) { showToast('MVU配置失败: ' + e.message); }
 }
 
@@ -2182,11 +2365,59 @@ function refreshMvuSectionVisibility() {
   mvuSection.style.display = '';
 }
 
-// --- 气泡显示/隐藏 ---
-bubble.addEventListener('click', () => {
+// --- 气泡显示/隐藏：桌面保留拉手，移动端扩大命中区 ---
+let jmzqEdgeTimer = null;
+let suppressJmzqBubbleClick = false;
+function getJmzqBubbleEdge() {
+  const rect = bubble.getBoundingClientRect();
+  const vw = p.innerWidth || window.innerWidth;
+  const snapZone = vw <= 768 ? 28 : 22;
+  if (rect.left <= snapZone) return 'left';
+  if (rect.right >= vw - snapZone) return 'right';
+  return null;
+}
+function revealJmzqBubble() {
+  clearTimeout(jmzqEdgeTimer);
+  const edge = getJmzqBubbleEdge();
+  bubble.classList.remove('edge-peek-left', 'edge-peek-right');
+  if (!edge) return;
+  const vw = p.innerWidth || window.innerWidth;
+  const bw = bubble.offsetWidth || 40;
+  bubble.dataset.edge = edge;
+  bubble.style.left = (edge === 'left' ? 8 : Math.max(8, vw - bw - 8)) + 'px';
+}
+function hideJmzqBubbleAtEdge() {
+  if (panel.style.display !== 'none' || dragBubble) return;
+  const edge = getJmzqBubbleEdge();
+  bubble.classList.remove('edge-peek-left', 'edge-peek-right');
+  if (!edge) {
+    delete bubble.dataset.edge;
+    return;
+  }
+  const vw = p.innerWidth || window.innerWidth;
+  const bw = bubble.offsetWidth || 40;
+  const peek = vw <= 768 ? 18 : 14;
+  bubble.dataset.edge = edge;
+  bubble.classList.add(edge === 'left' ? 'edge-peek-left' : 'edge-peek-right');
+  bubble.style.left = (edge === 'left' ? -(bw - peek) : vw - peek) + 'px';
+}
+function scheduleJmzqEdgeHide(delay = 900) {
+  clearTimeout(jmzqEdgeTimer);
+  jmzqEdgeTimer = setTimeout(hideJmzqBubbleAtEdge, delay);
+}
+
+bubble.addEventListener('click', (e) => {
+  if (suppressJmzqBubbleClick) {
+    suppressJmzqBubbleClick = false;
+    e.preventDefault();
+    e.stopPropagation();
+    return;
+  }
+  revealJmzqBubble();
   const showing = panel.style.display !== 'none';
   if (showing) {
     panel.style.display = 'none';
+    scheduleJmzqEdgeHide();
   } else {
     const pw = p.innerWidth || window.innerWidth;
     const ph = p.innerHeight || window.innerHeight;
@@ -2208,7 +2439,7 @@ bubble.addEventListener('click', () => {
 
 // 关闭按钮
 const closeBtn = p.document.getElementById('jmzq-close');
-closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; });
+closeBtn.addEventListener('click', (e) => { e.stopPropagation(); panel.style.display = 'none'; scheduleJmzqEdgeHide(); });
 
 // 主题切换：宣纸 ↔ 墨笺
 function applyTheme(dark) {
@@ -2254,145 +2485,620 @@ if (themeToggle) {
 })();
 
 // 点击面板外部关闭（弹窗内点击不关面板）
-p.document.addEventListener('mousedown', (e) => {
+function onOutsidePanelPress(e) {
   if (panel.style.display === 'none') return;
   if (jmzqConfirmOverlay && jmzqConfirmOverlay.contains(e.target)) return;
   if (panel.contains(e.target) || bubble.contains(e.target)) return;
   panel.style.display = 'none';
-});
-p.document.addEventListener('touchstart', (e) => {
-  if (panel.style.display === 'none') return;
-  if (jmzqConfirmOverlay && jmzqConfirmOverlay.contains(e.target)) return;
-  if (panel.contains(e.target) || bubble.contains(e.target)) return;
-  panel.style.display = 'none';
-});
+  scheduleJmzqEdgeHide();
+}
+p.document.addEventListener('mousedown', onOutsidePanelPress);
+p.document.addEventListener('touchstart', onOutsidePanelPress);
 
 // 面板获得鼠标时自动刷新（用户可能中途手动改了设置）
 panel.addEventListener('mouseenter', () => { _jmzqPopulateWbSelect(); refreshMvuConfigStatus(); refreshUI(); updateBackendCode(); checkWorldbookCount(); checkEjsTemplate();
   syncOutputFormatFlag().then(() => checkConfig());
 });
 
-// --- 工具：获取触摸/鼠标坐标 ---
-function getXY(e) {
-  if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  if (e.changedTouches && e.changedTouches.length) return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-  return { x: e.clientX, y: e.clientY };
-}
-
-// --- 气泡拖拽（支持触摸） ---
-let dragBubble = false, bSX, bSY, bOL, bOT;
+// --- 气泡拖拽：Pointer Events + Pointer Capture，避免贴边后丢失触摸事件 ---
+let dragBubble = false, bubbleDidDrag = false, bubblePointerId = null, bSX, bSY, bOL, bOT;
 function onBubbleStart(e) {
   if (dragBubble) return;
-  if (e.type === 'mousedown' && e.button !== 0) return;
-  if (e.type === 'mousedown') e.preventDefault();
-  var pt = getXY(e);
-  dragBubble = true; bSX = pt.x; bSY = pt.y;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  revealJmzqBubble();
+  dragBubble = true;
+  bubbleDidDrag = false;
+  bubblePointerId = e.pointerId;
+  bSX = e.clientX; bSY = e.clientY;
   var rect = bubble.getBoundingClientRect();
   bOL = rect.left; bOT = rect.top;
   bubble.style.transition = 'none';
+  try { bubble.setPointerCapture(e.pointerId); } catch (_) { /* 老旧 WebView 兼容 */ }
 }
 function onBubbleMove(e) {
-  if (!dragBubble) return;
+  if (!dragBubble || (bubblePointerId != null && e.pointerId !== bubblePointerId)) return;
   e.preventDefault();
-  var pt = getXY(e);
   var vw = p.innerWidth || window.innerWidth;
   var vh = p.innerHeight || window.innerHeight;
   var bw = bubble.offsetWidth || 44;
   var bh = bubble.offsetHeight || 44;
-  var newLeft = bOL + pt.x - bSX;
-  var newTop = bOT + pt.y - bSY;
+  var dx = e.clientX - bSX;
+  var dy = e.clientY - bSY;
+  if (!bubbleDidDrag && Math.hypot(dx, dy) <= 5) return;
+  bubbleDidDrag = true;
+  var newLeft = bOL + dx;
+  var newTop = bOT + dy;
   bubble.style.left = Math.max(0, Math.min(newLeft, vw - bw)) + 'px';
   bubble.style.top = Math.max(0, Math.min(newTop, vh - bh)) + 'px';
 }
-function onBubbleEnd() {
-  if (dragBubble) { bubble.style.transition = ''; dragBubble = false; }
+function onBubbleEnd(e) {
+  if (dragBubble) {
+    if (bubblePointerId != null) {
+      try { bubble.releasePointerCapture(bubblePointerId); } catch (_) { /* 已自动释放 */ }
+    }
+    bubble.style.transition = '';
+    dragBubble = false;
+    bubblePointerId = null;
+    const rect = bubble.getBoundingClientRect();
+    const vw = p.innerWidth || window.innerWidth;
+    const snapZone = vw <= 768 ? 28 : 22;
+    if (rect.left <= snapZone) bubble.dataset.edge = 'left';
+    else if (rect.right >= vw - snapZone) bubble.dataset.edge = 'right';
+    else delete bubble.dataset.edge;
+    if (bubbleDidDrag) {
+      suppressJmzqBubbleClick = true;
+      setTimeout(() => { suppressJmzqBubbleClick = false; }, 450);
+    }
+    scheduleJmzqEdgeHide();
+  }
 }
-bubble.addEventListener('mousedown', onBubbleStart);
-bubble.addEventListener('touchstart', onBubbleStart, { passive: false });
-p.document.addEventListener('mousemove', onBubbleMove);
-p.document.addEventListener('touchmove', onBubbleMove, { passive: false });
-p.document.addEventListener('mouseup', onBubbleEnd);
-p.document.addEventListener('touchend', onBubbleEnd);
+bubble.addEventListener('pointerdown', onBubbleStart);
+p.document.addEventListener('pointermove', onBubbleMove, { passive: false });
+p.document.addEventListener('pointerup', onBubbleEnd);
+p.document.addEventListener('pointercancel', onBubbleEnd);
+bubble.addEventListener('mouseenter', revealJmzqBubble);
+function onBubbleLeave() { scheduleJmzqEdgeHide(); }
+function onJmzqResize() { scheduleJmzqEdgeHide(100); }
+bubble.addEventListener('mouseleave', onBubbleLeave);
+p.addEventListener('resize', onJmzqResize);
+scheduleJmzqEdgeHide(1200);
 
-// --- 面板拖拽（支持触摸） ---
+// --- 面板拖拽（Pointer Events：鼠标与触摸统一处理） ---
 const dragHandle = p.document.getElementById('jmzq-drag');
-let dragPanel = false, pSX, pSY, pOL, pOT;
+let dragPanel = false, panelPointerId = null, pSX = 0, pSY = 0, pOL = 0, pOT = 0;
 function onPanelStart(e) {
   if (dragPanel) return;
-  if (e.type === 'mousedown' && e.button !== 0) return;
-  if (e.target.tagName === 'BUTTON') return;
-  var pt = getXY(e);
-  dragPanel = true; pSX = pt.x; pSY = pt.y;
-  var rect = panel.getBoundingClientRect();
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (e.target.closest('button,input,select,textarea,a')) return;
+  dragPanel = true;
+  panelPointerId = e.pointerId;
+  pSX = e.clientX;
+  pSY = e.clientY;
+  const rect = panel.getBoundingClientRect();
   pOL = rect.left; pOT = rect.top;
+  try { dragHandle.setPointerCapture(panelPointerId); } catch (_) {}
+  e.preventDefault();
 }
 function onPanelMove(e) {
-  if (!dragPanel) return;
+  if (!dragPanel || e.pointerId !== panelPointerId) return;
   e.preventDefault();
-  var pt = getXY(e);
-  var vw = p.innerWidth || window.innerWidth;
-  var vh = p.innerHeight || window.innerHeight;
-  var pw = panel.offsetWidth || 350;
-  var ph = panel.offsetHeight || 400;
-  var newLeft = pOL + pt.x - pSX;
-  var newTop = pOT + pt.y - pSY;
-  panel.style.left = Math.max(0, Math.min(newLeft, vw - pw)) + 'px';
-  panel.style.top = Math.max(0, Math.min(newTop, vh - ph)) + 'px';
+  const vw = p.innerWidth || window.innerWidth;
+  const vh = p.innerHeight || window.innerHeight;
+  const pw = panel.offsetWidth || 350;
+  const ph = panel.offsetHeight || 400;
+  const newLeft = pOL + e.clientX - pSX;
+  const newTop = pOT + e.clientY - pSY;
+  panel.style.left = Math.max(0, Math.min(newLeft, Math.max(0, vw - pw))) + 'px';
+  panel.style.top = Math.max(0, Math.min(newTop, Math.max(0, vh - ph))) + 'px';
 }
-function onPanelEnd() { dragPanel = false; }
-dragHandle.addEventListener('mousedown', onPanelStart);
-dragHandle.addEventListener('touchstart', onPanelStart, { passive: false });
-p.document.addEventListener('mousemove', onPanelMove);
-p.document.addEventListener('touchmove', onPanelMove, { passive: false });
-p.document.addEventListener('mouseup', onPanelEnd);
-p.document.addEventListener('touchend', onPanelEnd);
+function onPanelEnd(e) {
+  if (!dragPanel || (e && e.pointerId !== panelPointerId)) return;
+  try { dragHandle.releasePointerCapture(panelPointerId); } catch (_) {}
+  dragPanel = false;
+  panelPointerId = null;
+}
+dragHandle.addEventListener('pointerdown', onPanelStart);
+dragHandle.addEventListener('pointermove', onPanelMove, { passive: false });
+dragHandle.addEventListener('pointerup', onPanelEnd);
+dragHandle.addEventListener('pointercancel', onPanelEnd);
 
 // ═══════════════ 世界书自动切换 ═══════════════
-function readStatData() {
-  if (typeof p.Mvu === 'undefined') return null;
+// 数据源直接读取新版 MVU/ZOD 的 stat_data，不依赖外部数据插件。
+function readNationality(sd) {
+  return sd?.衍生状态?.nationality ?? sd?.衍生状态?.国籍 ?? sd?.国籍 ?? null;
+}
 
-  for (let i = -1; i >= -30; i--) {
+function readStatData() {
+  if (typeof p.Mvu === 'undefined' || typeof p.Mvu.getMvuData !== 'function') return null;
+
+  // 新版 MVU 官方选择器优先；只要求存在 stat_data，不再因缺少世界阶段而跳过有效国籍。
+  for (const messageId of ['latest', -1, -2, -3, -4, -5, -6, -7, -8, -9, -10]) {
     try {
-      const d = p.Mvu.getMvuData({ type: 'message', message_id: i });
-      if (d?.stat_data?.衍生状态?.nationality && d?.stat_data?.世界阶段) return d.stat_data;
+      const d = p.Mvu.getMvuData({ type: 'message', message_id: messageId });
+      if (d?.stat_data) return d.stat_data;
     } catch (e) {}
   }
 
+  // 兼容部分酒馆版本：负索引不可用时回扫最近 200 条消息。
   let best = null;
   for (let i = 0; i < 200; i++) {
     try {
       const d = p.Mvu.getMvuData({ type: 'message', message_id: i });
-      if (d?.stat_data?.衍生状态?.nationality && d?.stat_data?.世界阶段) best = d.stat_data;
+      if (d?.stat_data) best = d.stat_data;
     } catch (e) {}
   }
   return best;
 }
 
+// ═══════════════ 末世超事件：全局互斥、单次随机、阶段呈现 ═══════════════
+// 事件只在末世期后从当前玩家国籍的候选池随机一次；选择结果写回 stat_data.超事件，避免刷新/换页重抽。
+const SUPER_EVENT_POOL = [
+  { country: '华国', id: '龙脉断裂·三峡崩溃', entry: '[mvu_plot]华国-超事件-龙脉断裂·三峡崩溃', continent: 'asia', imageFile: '华国-三峡崩溃-阶段3.png' },
+  { country: '华国', id: '长城崩塌·北境京观', entry: '[mvu_plot]华国-超事件-长城崩塌·北境京观', continent: 'asia', imageFile: '华国-长城崩塌-阶段3.png' },
+  { country: '华国', id: '秦陵开门·始皇血行', entry: '[mvu_plot]华国-超事件-秦陵开门·始皇血行', continent: 'asia', imageFile: '华国-秦陵开门-阶段3.png' },
+  { country: '美利坚国', id: '暴君出世·生化天灾', entry: '[mvu_plot]美利坚国-超事件-暴君出世·生化天灾', continent: 'namerica', imageFile: '美利坚-暴君出世-阶段3.png' },
+  { country: '美利坚国', id: '华盛顿末日协议·联邦坠日', entry: '[mvu_plot]美利坚国-超事件-华盛顿末日协议·联邦坠日', continent: 'namerica', imageFile: '美利坚-华盛顿协议-阶段3.png' },
+  { country: '美利坚国', id: '方舟接管·自由终结', entry: '[mvu_plot]美利坚国-超事件-方舟接管·自由终结', continent: 'namerica', imageFile: '美利坚-方舟接管-阶段3.png' },
+  { country: '大毛国', id: '凛冬降临·万年寒潮', entry: '[mvu_plot]大毛国-超事件-凛冬降临·万年寒潮', continent: 'asia', imageFile: '大毛-凛冬寒潮-阶段3.png' },
+  { country: '大毛国', id: '核净化日·白光覆盖北境', entry: '[mvu_plot]大毛国-超事件-核净化日·白光覆盖北境', continent: 'asia', imageFile: '大毛-核净化日-阶段3.png' },
+  { country: '大毛国', id: '钢铁裂国·北境内战', entry: '[mvu_plot]大毛国-超事件-钢铁裂国·北境内战', continent: 'asia', imageFile: '大毛-北境内战-阶段3.png' },
+  { country: '法国', id: '戴高乐号的沉默', entry: '[mvu_plot]法国-超事件-戴高乐号的沉默', continent: 'europe', imageFile: '法国-戴高乐沉默-阶段3.png' },
+  { country: '法国', id: '吸血鬼出世', entry: '[mvu_plot]法国-超事件-吸血鬼出世', continent: 'europe', imageFile: '法国-吸血鬼出世-阶段3.png' },
+  { country: '法国', id: '王国风云·百旗战争', entry: '[mvu_plot]法国-超事件-王国风云·百旗战争', continent: 'europe', imageFile: '法国-王国风云-阶段3.png' },
+  { country: '日本国', id: '富士焚城·东京灰烬', entry: '[mvu_plot]日本国-超事件-富士焚城·东京灰烬', continent: 'asia', imageFile: '日本-富士焚城-阶段3.png' },
+  { country: '日本国', id: '八岐出世·基因钥匙失控', entry: '[mvu_plot]日本国-超事件-八岐出世·基因钥匙失控', continent: 'asia', imageFile: '日本-八岐出世-阶段3.png' },
+  { country: '日本国', id: '绝望终幕·东京献城', entry: '[mvu_plot]日本国-超事件-绝望终幕·东京献城', continent: 'asia', imageFile: '日本-东京献城-阶段3.png' },
+];
+const SUPER_EVENT_IMAGE_BASE = 'https://cdn.jsdelivr.net/gh/NLKASHEI/Music-aaaaaaaaaaaaa@dd934c8/images/jmzq/super-events/stage3/';
+const SUPER_EVENT_STAGE_TEXT = {
+  '龙脉断裂·三峡崩溃': ['水位异常与闸门失灵的传闻扩散', '沿江警报中断，洪峰正在逼近', '大坝溃决，江汉平原被黑水撕开', '洪水退去后，疫潮与争夺席卷沿岸', '旧河道成为无人区，幸存者只能绕行'],
+  '长城崩塌·北境京观': ['烽火台接连失联，北境出现无名尸堆', '长城防线多处塌陷，尸群越过关隘', '城墙整体崩断，断砖与尸骸筑成高台', '北境聚落被迫南撤，补给线断裂', '长城成为禁区，任何靠近者都可能失踪'],
+  '秦陵开门·始皇血行': ['骊山地底传出沉重甲胄声', '秦俑坑开启，冷兵器尸群走出黑暗', '始皇感染体率军横扫沿途聚落', '古军团继续南下，所到之处只留下血迹', '无人知道这支军队会在哪一座城停下'],
+  '暴君出世·生化天灾': ['失控实验体的影像在地下网络流传', '感染者开始出现统一的暴力指令', '暴君现身，城市防线被正面撕碎', '残余势力争夺实验室与避难所', '北美出现无法靠近的红色禁区'],
+  '华盛顿末日协议·联邦坠日': ['首都通讯出现无法解释的空窗', '多州拒绝执行联邦命令，军警分裂', '末日协议启动，核心城市同时熄灭', '各州武装互相封锁，公路网络断成孤岛', '联邦名称仍在，国家已只剩地图上的旧字'],
+  '方舟接管·自由终结': ['避难方舟开始筛选幸存者', '被拒绝的人群在设施外聚集', '方舟系统接管城市，所有门禁归于一个声音', '外部聚落被当作资源点清除', '方舟继续运转，却再也不承认人类'],
+  '凛冬降临·万年寒潮': ['气温骤降，北境出现无法解释的白霜', '寒潮封死铁路与港口，燃料成为命根子', '极寒覆盖国土，暴风雪吞没整座城市', '冻土下的感染者随冰层移动', '太阳重新出现时，北方已经没有灯火'],
+  '核净化日·白光覆盖北境': ['高空出现不明热源与失联航迹', '边境预警系统反复报错', '白光越过地平线，北境在瞬间失去颜色', '辐射尘云随风扩散，幸存者向南迁徙', '地图上的大片区域被标成永久禁行'],
+  '钢铁裂国·北境内战': ['军区之间互相扣押通讯权限', '装甲车队封锁城市，民众开始逃亡', '北境全面内战，炮火把补给线切成碎片', '感染者与军阀争夺废墟和燃料', '停火只存在于纸面，边境再无统一命令'],
+  '戴高乐号的沉默': ['舰队回波在海面上消失', '海军频道只剩重复的求救声', '戴高乐号带着感染舰员沉入黑暗，流亡政府宣告终结', '沿海港口失去最后的秩序屏障', '法国海岸线成为无人接近的死海'],
+  '吸血鬼出世': ['夜间失踪案在乡镇间蔓延', '伤口呈现异常的失血与坏死', '特殊变体现身，黑夜开始追猎活人', '幸存者用灯火围出孤岛', '每一次熄灯都可能让整座村庄消失'],
+  '王国风云·百旗战争': ['地方武装开始以旧王旗号召人群', '城堡与要塞互相宣战，难民潮涌向乡间', '百旗混战全面爆发，法国本土化为战场', '感染者趁乱攻破最后的城门', '王国仍在争夺名号，土地已没有主人'],
+  '富士焚城·东京灰烬': ['富士山腹出现红光，东京上空落下黑灰', '道路与电网连续崩溃，城市被迫断粮', '火山与感染潮同时爆发，东京化为灰烬', '关东平原被烟尘和尸群覆盖', '日本东部只剩海风穿过废墟'],
+  '八岐出世·基因钥匙失控': ['实验区流出无法辨认的生物样本', '多处研究站同时封锁并失联', '巨型变体挣脱控制，沿都市带猎杀', '自卫队与感染者在废墟中相互消耗', '失控样本扩散到海岛之外'],
+  '绝望终幕·东京献城': ['东京开始向外界发出重复的求援信号', '城内广播改为要求所有人返回市中心', '整座东京向感染者敞开，活人被当作祭品', '城市灯光逐区熄灭，逃生路线全部封闭', '东京成为一座没有回声的献城'],
+};
+const SUPER_EVENT_CONTINENT_PREFIX = '【超事件动态】'; // 旧版单行标记，仅用于无损迁移
+const SUPER_EVENT_CONTINENT_START = '【超事件动态·开始】';
+const SUPER_EVENT_CONTINENT_END = '【超事件动态·结束】';
+const SUPER_EVENT_UPDATE_ENTRY = '[mvu_update][extra]超事件-状态推进';
+const MVU_LATEST_MESSAGE = { type: 'message', message_id: -1 };
+
+function cloneData(v) { try { return structuredClone(v); } catch (e) { return JSON.parse(JSON.stringify(v)); } }
+function getLatestMvuData() {
+  try { return p.Mvu?.getMvuData?.(MVU_LATEST_MESSAGE); } catch (e) { return null; }
+}
+function showSuperEventPopup(event, stage, text) {
+  const doc = p.document;
+  const old = doc.getElementById('jmzq-super-event-modal'); if (old) old.remove();
+  const modal = doc.createElement('div'); modal.id = 'jmzq-super-event-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,28px);font-family:"Microsoft YaHei",sans-serif;backdrop-filter:blur(8px);';
+  const imageUrl = SUPER_EVENT_IMAGE_BASE + encodeURIComponent(event.imageFile || '');
+  modal.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="jmzq-super-event-title" style="position:relative;max-width:920px;width:100%;max-height:94vh;overflow:auto;background:linear-gradient(165deg,#160d0d,#08090c 72%);border:1px solid rgba(255,76,76,.68);border-radius:14px;box-shadow:0 0 70px rgba(210,35,35,.36),0 24px 80px rgba(0,0,0,.75);color:#f2d9c5"><div style="position:relative;aspect-ratio:3/2;overflow:hidden;border-radius:13px 13px 0 0;background:#050608"><img id="jmzq-super-event-image" src="${imageUrl}" alt="${event.country} ${event.id}" style="display:block;width:100%;height:100%;object-fit:cover"><div style="position:absolute;inset:auto 0 0;padding:70px 24px 18px;background:linear-gradient(transparent,rgba(8,5,5,.96));pointer-events:none"><div style="color:#ff6767;letter-spacing:5px;font-size:12px;font-weight:800">SUPER EVENT · PHASE III</div><h2 id="jmzq-super-event-title" style="margin:8px 0 0;color:#fff0e3;font-size:clamp(21px,4vw,34px);text-shadow:0 2px 18px #000">${event.country} · ${event.id}</h2></div></div><div style="padding:clamp(18px,3vw,30px)"><p style="font-size:clamp(14px,2.2vw,17px);line-height:1.85;margin:0 0 22px;color:#e8d8cd">${text}</p><div style="display:flex;justify-content:flex-end"><button id="jmzq-super-event-close" style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border:1px solid #ef6b63;border-radius:7px;padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer">确认已阅</button></div></div></div>`;
+  doc.body.appendChild(modal);
+  const close = () => modal.remove();
+  doc.getElementById('jmzq-super-event-close')?.addEventListener('click', close);
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+  const img = doc.getElementById('jmzq-super-event-image');
+  img?.addEventListener('error', () => { img.style.display = 'none'; img.parentElement.style.aspectRatio = 'auto'; });
+}
+function clearSuperEventPrompt() {
+  let cleared = false;
+  try {
+    const fn = p.uninjectPrompts || (typeof uninjectPrompts === 'function' ? uninjectPrompts : null);
+    if (typeof fn === 'function') { fn(['jmzq-super-event-stage3']); cleared = true; }
+  } catch (e) {}
+  if (!cleared) {
+    try {
+      const context = p.SillyTavern?.getContext?.() || p.getCurrentContext?.();
+      context?.setExtensionPrompt?.('jmzq-super-event-stage3', '', 1, 0, false, 0);
+    } catch (e) {}
+  }
+  delete p._jmzqSuperEventPromptKey;
+}
+function injectSuperEventStage3(event, text, sd) {
+  const promptKey = `${event.id}|${sd?.超事件?.进展 ?? 0}`;
+  if (p._jmzqSuperEventPromptKey === promptKey) return;
+  clearSuperEventPrompt();
+  const content = `【超事件·第三阶段强制表现】\n当前事件：${event.country}·${event.id}\n阶段描述：${text}\n这是正在发生的世界级灾变，必须在正文中表现其规模、伤亡与对环境/各大洲局势的影响。结合当前剧情判断{{user}}是否有现实可行的制止或延缓行动；不得凭空解决，不得跳过后续发展。当前记录进展：${sd?.超事件?.进展 ?? 0}%。`;
+  try {
+    const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
+    if (typeof fn === 'function') {
+      fn([{ id: 'jmzq-super-event-stage3', position: 'in_chat', depth: 0, role: 'system', content, should_scan: false }]);
+      p._jmzqSuperEventPromptKey = promptKey;
+      return;
+    }
+  } catch (e) { console.warn('[JMZQ] 超事件第三阶段提示注入失败', e); }
+  // 旧版酒馆助手没有 injectPrompts 时，退回原生扩展提示；仍保持 depth 0，贴近上下文尾部。
+  try {
+    const context = p.SillyTavern?.getContext?.() || p.getCurrentContext?.();
+    if (typeof context?.setExtensionPrompt === 'function') {
+      // SillyTavern/JS-Slash-Runner: position=1 才是 in-chat，depth=0 位于上下文尾部。
+      context.setExtensionPrompt('jmzq-super-event-stage3', content, 1, 0, false, 0);
+      p._jmzqSuperEventPromptKey = promptKey;
+    }
+  } catch (e) { console.warn('[JMZQ] 超事件提示回退注入失败', e); }
+}
+function superEventStage(progress, solved) {
+  if (solved) return 0;
+  const n = Math.max(0, Math.min(100, Number(progress) || 0));
+  if (n >= 100) return 6; // 失控
+  if (n >= 95) return 5;
+  if (n >= 85) return 4;
+  if (n >= 75) return 3;
+  if (n >= 25) return 2;
+  if (n > 0) return 1;
+  return 0;
+}
+function superEventSentKey(event, stage) {
+  let chat = 'default';
+  try { chat = p.SillyTavern?.getCurrentChatId?.() || p.getCurrentChatId?.() || 'default'; } catch (e) {}
+  return `jmzq-super-event-v2:${chat}:${event.id}:${stage}`;
+}
+function hasSuperEventBeenShown(event, stage) {
+  try { return p.localStorage?.getItem(superEventSentKey(event, stage)) === '1'; } catch (e) { return false; }
+}
+function markSuperEventShown(event, stage) {
+  try { p.localStorage?.setItem(superEventSentKey(event, stage), '1'); } catch (e) {}
+}
+function superEventProgressKey(event) {
+  return superEventSentKey(event, 'progress');
+}
+function readLastSuperEventProgress(event) {
+  try {
+    const raw = p.localStorage?.getItem(superEventProgressKey(event));
+    return raw == null ? null : Math.max(0, Math.min(100, Number(raw)));
+  } catch (e) { return null; }
+}
+function writeLastSuperEventProgress(event, progress) {
+  try { p.localStorage?.setItem(superEventProgressKey(event), String(Math.max(0, Math.min(100, Number(progress) || 0)))); } catch (e) {}
+}
+function stripSuperEventContinentBlock(value) {
+  const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return String(value || '')
+    .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_START)}[\\s\\S]*?${escape(SUPER_EVENT_CONTINENT_END)}(?:\\r?\\n)?`, 'g'), '')
+    // 旧版本内容只有一行：仅删标记行，绝不截断其后的其他洲际动态。
+    .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_PREFIX)}[^\\r\\n]*(?:\\r?\\n)?`, 'g'), '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+function appendSuperEventContinentBlock(value, text) {
+  const base = stripSuperEventContinentBlock(value);
+  const block = `${SUPER_EVENT_CONTINENT_START}\n${text}\n${SUPER_EVENT_CONTINENT_END}`;
+  return `${base}${base ? '\n' : ''}${block}`;
+}
+async function clearSuperEventContinentDynamics(sd, resetState = false) {
+  // 每次都基于写入瞬间的最新楼层，避免覆盖正文AI或其他前端刚写入的内容。
+  const data = cloneData(getLatestMvuData());
+  const latestSd = data?.stat_data || sd;
+  const continents = latestSd?.各大洲;
+  let dirty = false;
+  if (continents && typeof continents === 'object') {
+    for (const key of ['asia', 'europe', 'africa', 'namerica', 'samerica', 'oceania']) {
+      const current = String(continents[key] || '');
+      const clean = stripSuperEventContinentBlock(current);
+      if (clean !== current) {
+        if (data?.stat_data?.各大洲) { data.stat_data.各大洲[key] = clean; dirty = true; }
+      }
+    }
+  }
+  if (resetState && data?.stat_data) {
+    const current = data.stat_data.超事件 || {};
+    if (current.事件ID || Number(current.进展) || current.已解决 || current.结果) {
+      data.stat_data.超事件 = { 事件ID: '', 进展: 0, 已解决: false, 结果: '' };
+      dirty = true;
+    }
+  }
+  if (dirty) {
+    try { await p.Mvu.replaceMvuData(data, MVU_LATEST_MESSAGE); return data.stat_data; } catch (e) {}
+  }
+  return latestSd || sd;
+}
+async function reconcileSuperEvent(sd) {
+  if (!sd || sd.扩展内容?.超事件 !== true || sd.世界阶段 !== '末世期') {
+    clearSuperEventPrompt();
+    delete p._jmzqSuperEventCatchupId;
+    const cleaned = await clearSuperEventContinentDynamics(sd, true);
+    return { sd: cleaned || sd, event: null, changed: cleaned !== sd };
+  }
+  const nat = readNationality(sd);
+  const allowed = SUPER_EVENT_POOL.filter(e => e.country === nat);
+  if (!allowed.length) {
+    clearSuperEventPrompt();
+    delete p._jmzqSuperEventCatchupId;
+    const cleaned = await clearSuperEventContinentDynamics(sd, true);
+    return { sd: cleaned || sd, event: null, changed: cleaned !== sd };
+  }
+  const current = sd.超事件 || {};
+  let event = allowed.find(e => e.id === current.事件ID);
+  let data = null; let changed = false;
+  if (!event) {
+    event = allowed[Math.floor(Math.random() * allowed.length)];
+    data = cloneData(getLatestMvuData());
+    if (!data?.stat_data) return { sd, event: null, changed: false };
+    // 抽中即进入阶段一并写出洲际前兆；若停在0，正文没有可观察事实，事件将无法自然推进。
+    data.stat_data.超事件 = { 事件ID: event.id, 进展: 1, 已解决: false, 结果: '' };
+    try { await p.Mvu.replaceMvuData(data, MVU_LATEST_MESSAGE); sd = data.stat_data; changed = true; } catch (e) { return { sd, event: null, changed: false }; }
+  }
+  // 若变量AI从第二阶段直接跳过 75~84，则硬压回 84，确保阶段三至少完整经历一轮。
+  let progress = Math.max(0, Math.min(100, Number(sd.超事件?.进展) || 0));
+  const lastProgress = readLastSuperEventProgress(event);
+  if (!sd.超事件?.已解决 && lastProgress != null && lastProgress < 75 && progress >= 85 && !hasSuperEventBeenShown(event, 3)) {
+    data = cloneData(getLatestMvuData());
+    if (data?.stat_data?.超事件?.事件ID === event.id) {
+      data.stat_data.超事件.进展 = 84;
+      try {
+        await p.Mvu.replaceMvuData(data, MVU_LATEST_MESSAGE);
+        sd = data.stat_data; progress = 84; changed = true;
+      } catch (e) {}
+    }
+  }
+  const stage = superEventStage(progress, sd.超事件?.已解决);
+  const stageTexts = SUPER_EVENT_STAGE_TEXT[event.id] || [];
+  const text = stageTexts[stage - 1] || stageTexts[stageTexts.length - 1] || '';
+  const displayText = sd.超事件?.已解决
+    ? `${event.id}已结束：${sd.超事件?.结果 || '灾变被制止，具体结果仍待确认'}`
+    : stage === 6 ? `${text}；灾变已失控，原有遏制手段失效` : text;
+  if ((stage > 0 || sd.超事件?.已解决) && displayText && sd.各大洲?.[event.continent] != null) {
+    data = cloneData(getLatestMvuData());
+    const latest = String(data?.stat_data?.各大洲?.[event.continent] || '');
+    const next = appendSuperEventContinentBlock(latest, displayText);
+    if (next !== latest) {
+      if (data?.stat_data?.各大洲) { data.stat_data.各大洲[event.continent] = next; try { await p.Mvu.replaceMvuData(data, MVU_LATEST_MESSAGE); sd = data.stat_data; changed = true; } catch (e) {} }
+    }
+  }
+  if (stage === 3) injectSuperEventStage3(event, displayText, sd);
+  else if (p._jmzqSuperEventCatchupId !== event.id) clearSuperEventPrompt();
+  if (stage > 0 && displayText && !hasSuperEventBeenShown(event, stage)) {
+    const shouldPopup = stage === 3;
+    if (shouldPopup) showSuperEventPopup(event, stage, displayText);
+    if (shouldPopup) markSuperEventShown(event, stage);
+  }
+  // 老存档首次加载时可能早已越过阶段三；至少补发一次第三阶段立绘，不回滚其真实进展。
+  if (stage > 3 && !hasSuperEventBeenShown(event, 3)) {
+    const stage3Text = stageTexts[2] || displayText;
+    // 补弹同时保留一轮尾部系统提示；下一次正文生成结束后再清除。
+    p._jmzqSuperEventCatchupId = event.id;
+    injectSuperEventStage3(event, stage3Text, sd);
+    showSuperEventPopup(event, 3, stage3Text);
+    markSuperEventShown(event, 3);
+  }
+  writeLastSuperEventProgress(event, sd.超事件?.进展 ?? progress);
+  return { sd, event, changed };
+}
+
+const YEHuo_EXTRA_ENTRIES = [
+  '[mvu_update][extra]业火归途-变量更新规则',
+  '[mvu_update][extra]业火归途-变量输出格式',
+  '业火归途-杀戮叙事约束', '业火归途-默示录',
+  '业火归途-COVID-30狂化覆写', '业火归途-状态召回',
+];
+const ADULT_EXTRA_BASE_ENTRIES = [
+  '[mvu_update][extra]瑟瑟加强-变量更新规则',
+  '[mvu_update][extra]瑟瑟加强-变量输出格式',
+  '机制-色情博弈与迟缓期陷阱', '机制-吞食体液数值规则',
+  '机制-战败与捕获', '机制-女性生理周期',
+  '物品-避孕用品与手段', '物品-女性卫生用品', '物品-抗炎与消炎药物',
+];
+const ADULT_EXTRA_POST_OUTBREAK_ENTRIES = [
+  '机制-末世交易-肉偿与红灯区', '机制-官方安全区-保育与榨乳中心',
+  '机制-电台纯净母体悬赏与火种计划',
+];
+const ADULT_EXTRA_PREGNANCY_ENTRIES = [
+  '物品-堕胎药物与手段', '物品-孕产与哺乳特殊药具',
+  '物品-乳汁', '物品-婴儿维生口粮', '机制-母乳榨取与用法',
+  '机制-女性孕产与哺乳期', '机制-阵营法则-婴儿与母亲',
+  '机制-女性生理-婴儿危机',
+];
+const CONTRACT_MODE_ENTRIES = [
+  '[mvu_plot]魅魔契约-审查', '魅魔契约-契约诅咒',
+  '魅魔契约-异能-sp_charm_aura', '魅魔契约-异能-sp_pheromone_control',
+  '魅魔契约-异能-sp_dream_weave', '魅魔契约-异能-sp_touch_read',
+  '魅魔契约-异能-sp_soul_anchor', '地狱模式-变种感染者',
+];
+const DARKLINE_ENTRIES = [
+  '暗线主角已定义NPC摘要',
+  '暗线主角/约修亚/基础信息',
+  '暗线主角/林青/基础信息',
+  '[mvu_plot]暗线主角-引入与退场',
+];
+// 通用结算已由常驻变量更新规则覆盖；保留旧条目在管理集合中并主动关闭，避免重复提示。
+const ALWAYS_UPDATE_ENTRIES = [];
+const PHASE_UPDATE_ENTRIES = {
+  秩序期: '[mvu_update]阶段-秩序期',
+  爆发期: '[mvu_update]阶段-爆发期',
+  末世期: '[mvu_update]阶段-末世期',
+};
+const INFECTED_UPDATE_ENTRIES = {
+  狂病型: '[mvu_update]感染者-狂病型',
+  普通型: '[mvu_update]感染者-普通型',
+};
+const NPC_UPDATE_ENTRIES = {
+  正常型: '[mvu_update]NPC-正常型',
+  全员恶人型: '[mvu_update]NPC-全员恶人型',
+};
+const RECIPE_REVIEW_ENTRY = '[mvu_update]配方审核-总则';
+const RECIPE_CATEGORY_ENTRIES = {
+  '食物与水': '[mvu_update]配方规范-生存与食品',
+  '医疗药品': '[mvu_update]配方规范-医疗与化工',
+  '武器弹药': '[mvu_update]配方规范-武器与弹药',
+  '护甲衣物': '[mvu_update]配方规范-护甲与衣物',
+  '建筑材料': '[mvu_update]配方规范-工具与建筑',
+  '工具零件': '[mvu_update]配方规范-工具与建筑',
+  '燃料能源': '[mvu_update]配方规范-能源与电子',
+  '载具配件': '[mvu_update]配方规范-载具与配件',
+  '其他杂物': '[mvu_update]配方规范-工具与建筑',
+  '载具': '[mvu_update]配方规范-载具与配件',
+  '尖端科技': '[mvu_update]配方规范-自动化与尖端科技',
+};
+// /当前活动 是可组合短数组；同一轮可同时启用多个机制条目。
+const ACTIVITY_ENTRIES = {
+  休息: ['机制-休息与睡眠', '机制-舒适度', '机制-体力'],
+  睡眠: ['机制-休息与睡眠', '机制-舒适度', '机制-体力'],
+  探索: ['机制-探索', '机制-沉浸式体验'],
+  搜刮: ['机制-探索', '机制-搜刮物资', '杂项-搜刮结果动态生成', '机制-负重'],
+  战斗: ['机制-战斗', '机制-毁伤', '机制-伤病与医疗', '机制-完整度', '机制-体力', '[mvu_update]物品完整度'],
+  潜行: ['机制-探索', '机制-体力', '机制-沉浸式体验'],
+  医疗: ['机制-伤病与医疗', '机制-体力'],
+  制造: ['机制-制造', '机制-完整度', '机制-负重', '[mvu_update]物品完整度'],
+  建造: ['机制-建造庇护所', '机制-完整度', '机制-负重', '[mvu_update]物品完整度'],
+  营地经营: ['机制-营地经营', '机制-完整度', '[mvu_update]物品完整度'],
+  驾驶: ['物品-载具', '机制-驾驶与乘车', '机制-完整度', '[mvu_update]物品完整度'],
+  乘车: ['物品-载具', '机制-驾驶与乘车', '机制-完整度', '[mvu_update]物品完整度'],
+  钓鱼: ['机制-钓鱼', '机制-探索'],
+  种植: ['机制-种田！我要种田！', '机制-营地经营'],
+  交易: ['机制-交易'],
+  通讯: ['机制-通讯'],
+  进食: ['机制-饱食度，饱水度与体重'],
+};
+
 function buildEnableSet(sd) {
   const enable = new Set();
-  const nat           = sd?.衍生状态?.nationality ?? null;
+  const nat           = readNationality(sd);
   const phase         = sd?.世界阶段 ?? '秩序期';
   const infMode       = sd?.感染者行为模式 ?? '狂病型';
   const npcMode       = sd?.NPC行为模式 ?? '正常型';
+  const extra         = sd?.扩展内容 ?? {};
+
+  if (extra.超事件 === true && phase === '末世期' && sd?.超事件?.事件ID && !sd?.超事件?.已解决) {
+    enable.add(SUPER_EVENT_UPDATE_ENTRY);
+  }
+
+  ALWAYS_UPDATE_ENTRIES.forEach(e => enable.add(e));
+  if (PHASE_UPDATE_ENTRIES[phase]) enable.add(PHASE_UPDATE_ENTRIES[phase]);
+  // 秩序期只有普通呼吸道疾病，不启用任何感染者行为更新规则。
+  // 感染者模式字段可能在创角默认值中提前写成“狂病型”，不能据此越过阶段门槛。
+  if ((phase === '爆发期' || phase === '末世期') && INFECTED_UPDATE_ENTRIES[infMode]) {
+    enable.add(INFECTED_UPDATE_ENTRIES[infMode]);
+  }
+  if (NPC_UPDATE_ENTRIES[npcMode]) enable.add(NPC_UPDATE_ENTRIES[npcMode]);
+
+  if (extra.业火归途 === true) {
+    YEHuo_EXTRA_ENTRIES.forEach(e => enable.add(e));
+  }
+  if (extra.瑟瑟加强 === true) {
+    ADULT_EXTRA_BASE_ENTRIES.forEach(e => enable.add(e));
+    if (phase === '爆发期' || phase === '末世期') {
+      ADULT_EXTRA_POST_OUTBREAK_ENTRIES.forEach(e => enable.add(e));
+    }
+    const physiology = Object.values(sd?.生理追踪 ?? {});
+    const hasPregnancyFlow = physiology.some(v => v && ['孕早期', '孕中期', '孕晚期', '分娩期', '产后恢复期', '哺乳期'].includes(v.阶段));
+    if (hasPregnancyFlow) ADULT_EXTRA_PREGNANCY_ENTRIES.forEach(e => enable.add(e));
+  }
+  if (extra.暗线主角 === true) DARKLINE_ENTRIES.forEach(e => enable.add(e));
+
+  // 配方规范只在存在待审核项时加载，并按申请类别精确路由；审核完成删除
+  // 预审项后自动关闭，避免日常制造长期携带整套配方知识。
+  const pendingRecipes = Object.entries(sd?.可制造?.预审配方 ?? {}).filter(pair => pair[1] && typeof pair[1] === 'object');
+  if (pendingRecipes.length > 0) {
+    enable.add(RECIPE_REVIEW_ENTRY);
+    pendingRecipes.forEach(pair => {
+      const recipeName = pair[0];
+      const recipe = pair[1];
+      const category = recipe.产出类型 === '载具' ? '载具' : (recipe.产出类别 || '其他杂物');
+      enable.add(RECIPE_CATEGORY_ENTRIES[category] || RECIPE_CATEGORY_ENTRIES['其他杂物']);
+      if (/(自动|机器人|无人机|人工智能|战术AI|量子|生物科技|基因|疫苗|再生能源)/.test(recipeName + ' ' + (recipe.描述 || ''))) {
+        enable.add(RECIPE_CATEGORY_ENTRIES['尖端科技']);
+      }
+    });
+  }
+
+  const activeActivities = Array.isArray(sd?.当前活动) ? sd.当前活动 : [];
+  const activitySet = new Set(activeActivities);
+  // 已建档人物跨国籍也要保持详情条目可被酒馆关键词扫描；选择性条目不会因此自动注入全文。
+  const activeCharacterNames = new Set([
+    ...Object.keys(sd?.NPC ?? {}),
+    ...Object.keys(sd?.队友 ?? {}),
+    ...Object.keys(sd?.营地?.成员 ?? {}),
+  ]);
+  const characterCountries = ['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非'];
+  activeCharacterNames.forEach(name => characterCountries.forEach(country => {
+    enable.add(`${country}/角色/${name}/基础信息`);
+    enable.add(`${country}/人物/${name}/基础信息`);
+  }));
+  if (activeActivities.length > 0) {
+    enable.add('机制-活动叠加与冲突');
+  }
+  activeActivities.forEach(activity => {
+    (ACTIVITY_ENTRIES[activity] || []).forEach(entry => enable.add(entry));
+  });
+
+  // 状态达到叙事阈值时补开影响条目；不靠活动标签掩盖已经存在的饥渴、疲劳或伤病。
+  const core = sd?.核心状态 ?? {};
+  if ((core.hunger_current ?? 100) < 80 || (core.thirst_current ?? 100) < 80) {
+    enable.add('机制-饱食度，饱水度与体重');
+  }
+  if ((core.stamina_current ?? 100) < 40) enable.add('机制-体力');
+  if ((core.hp_current ?? 100) < (core.hp_max ?? 100) || !/^健康/.test(String(sd?.衍生状态?.physical_status ?? '健康'))) {
+    enable.add('机制-伤病与医疗');
+    enable.add('机制-毁伤');
+  }
+  const carryKg = Object.values(sd?.物品 ?? {}).reduce((sum, item) => {
+    if (!item || typeof item !== 'object' || item.type) return sum;
+    return sum + Math.max(0, Number(item.weight) || 0) * Math.max(0, Number(item.count) || 0);
+  }, 0);
+  const endurance = Number(sd?.SPECIAL?.E) || 0;
+  const carryReference = endurance >= 3 ? 45 : endurance <= -2 ? 20 : 30;
+  if (carryKg > carryReference * 0.5) enable.add('机制-负重');
+
+  const customTraits = Array.isArray(sd?.特质?.自定义) ? sd.特质.自定义 : [];
+  const negativeTraits = Array.isArray(sd?.特质?.负面) ? sd.特质.负面 : [];
+  const narrativeMode = String(sd?.叙事模式 ?? '');
+  const succubusActive = narrativeMode === '魅魔契约'
+    || negativeTraits.some(v => String(v).startsWith('[魅魔契约]'))
+    || customTraits.some(v => String(v).startsWith('[魅魔异能]'));
+  if (succubusActive) {
+    enable.add('[mvu_plot]魅魔契约-审查');
+    enable.add('魅魔契约-契约诅咒');
+    const selected = customTraits.find(v => String(v).startsWith('[魅魔异能]')) || '';
+    const powerEntries = {
+      '魅惑光环': '魅魔契约-异能-sp_charm_aura', '信息素操控': '魅魔契约-异能-sp_pheromone_control',
+      '梦境编织': '魅魔契约-异能-sp_dream_weave', '触感溯源': '魅魔契约-异能-sp_touch_read',
+      '灵魂锚定': '魅魔契约-异能-sp_soul_anchor',
+    };
+    Object.entries(powerEntries).forEach(([name, entry]) => { if (String(selected).includes(name)) enable.add(entry); });
+  }
+  if (narrativeMode === '地狱' || customTraits.some(v => String(v).startsWith('[地狱异能]'))) {
+    enable.add('地狱模式-变种感染者');
+  }
 
   if (phase === '秩序期') {
     for (const e of [
       '世界观-各国政府情况',
-      '大爆发前/大爆发前夕', '大爆发前/规则-异常事件应对', '大爆发前/规则-约束',
+      '大爆发前/大爆发前夕', '大爆发前/规则-异常事件应对',
       '大爆发前/规则-物资获取', '大爆发前/规则-医疗与健康',
       '大爆发前/规则-社会秩序', '大爆发前/规则-冲突与应对',
     ]) enable.add(e);
   } else if (phase === '爆发期' || phase === '末世期') {
-    for (const e of [
-      '世界观-官方安全区', '世界观-半感染者', '世界观-ZCOM生化特种部队(彩蛋)',
-      '世界观-流浪者', '世界观-无序者', '杂项-无序者行为强化',
-      '杂项-幸存者据点动态生成', '机制-建造庇护所', '物品-灭杀疫苗', '物品-药物',
-      '机制-COVID-30感染', '机制-找事儿', '机制-制造', '机制-完整度',
-      '机制-战斗', '机制-恐慌', '机制-伤病与医疗',
-      '杂项-搜刮结果动态生成', '杂项-幸存者NPC关系推进',
-      '世界观-宇航员们（彩蛋）', '世界观-外星人(彩蛋)',
-      '机制-搜刮物资', '机制-半感染者生存机制', '机制-沉浸式体验', '机制-种田！我要种田！',
-    ]) enable.add(e);
+    enable.add('[mvu_update]威胁压力');
+    if (sd?.衍生状态?.camp === '流浪') enable.add('世界观-流浪者');
+    if (activitySet.has('探索') || activitySet.has('搜刮')) enable.add('杂项-幸存者据点动态生成');
+    if (activitySet.has('医疗') || activitySet.has('搜刮')) enable.add('物品-药物');
+    if (activitySet.has('医疗')) enable.add('物品-灭杀疫苗');
+    if ((core.infection_current ?? 0) > 0 || activitySet.has('医疗') || activitySet.has('战斗')) {
+      enable.add('机制-COVID-30感染');
+      enable.add('[mvu_update]感染进程');
+    }
+    if ((sd?.环境?.hatred ?? 0) >= 51) enable.add('机制-找事儿');
+    if ((core.morale_current ?? 100) < 50 || activitySet.has('战斗')) {
+      enable.add('机制-恐慌（默认不开，因为哈基米会绝望）');
+      enable.add('[mvu_update]恐慌');
+    }
+    if (activitySet.has('对话') || activitySet.has('交易')) enable.add('杂项-幸存者NPC关系推进');
+    if (/半感染/.test(String(sd?.衍生状态?.physical_status ?? ''))) {
+      enable.add('世界观-半感染者');
+      enable.add('机制-半感染者生存机制');
+      enable.add('[mvu_update]半感染者生存');
+    }
     if (phase === '末世期') {
       for (const e of [
         '世界观-末世期', '世界观-COVID-30变体感染者',
@@ -2407,68 +3113,60 @@ function buildEnableSet(sd) {
   }
 
   if (infMode === '狂病型') {
-    for (const e of ['[mvu_plot]杂项-合理性审查', '杂项-场景强化(可选)']) enable.add(e);
+    enable.add('[mvu_plot]杂项-合理性审查');
+    if (activitySet.has('探索') || activitySet.has('战斗') || activitySet.has('潜行')) enable.add('杂项-场景强化(可选)');
     if (nat === '巴西国' || phase !== '秩序期') {
       enable.add('世界观-COVID-30感染者行为总纲');
     } else {
       enable.add('大爆发前/感染者');
     }
     if (phase === '爆发期') enable.add('世界观-爆发期');
-    if (phase === '爆发期' || phase === '末世期') enable.add('机制-动态威胁与安逸惩罚');
-    if (phase === '末世期') enable.add('杂项-感染者遭遇动态生成');
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('战斗') || (sd?.环境?.hatred ?? 0) >= 31)) {
+      enable.add('机制-动态威胁与安逸惩罚');
+      enable.add('[mvu_update]威胁压力');
+    }
+    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('杂项-感染者遭遇动态生成');
   } else if (infMode === '普通型') {
-    for (const e of ['[mvu_plot]普通审查', '普通场景强化(可选)']) enable.add(e);
+    enable.add('[mvu_plot]普通审查');
+    if (activitySet.has('探索') || activitySet.has('战斗') || activitySet.has('潜行')) enable.add('普通场景强化(可选)');
     if (nat === '巴西国' || phase !== '秩序期') {
       enable.add('普通丧尸COVID-30感染者');
     } else {
       enable.add('大爆发前/感染者');
     }
     if (phase === '爆发期') enable.add('普通爆发期');
-    if (phase === '爆发期' || phase === '末世期') {
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('战斗') || (sd?.环境?.hatred ?? 0) >= 31)) {
       for (const e of ['普通感染者多样性', '普通-机制-丧尸尸潮', '普通的动态威胁与安逸惩罚']) enable.add(e);
+      enable.add('[mvu_update]威胁压力');
     }
-    if (phase === '末世期') enable.add('普通感染者遭遇');
+    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('普通感染者遭遇');
   }
 
+  const npcRelevant = activitySet.has('对话') || activitySet.has('交易') || activitySet.has('探索') || Object.keys(sd?.NPC ?? {}).length > 0;
   if (npcMode === '正常型') {
-    enable.add('杂项-NPC动态生成');
-    if (phase === '爆发期' || phase === '末世期') enable.add('杂项-末世社交互动法则');
+    if (npcRelevant) enable.add('杂项-NPC动态生成');
+    if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('杂项-末世社交互动法则');
   } else if (npcMode === '全员恶人型') {
-    enable.add('恶意的NPC生成');
-    if (phase === '爆发期' || phase === '末世期') enable.add('恶意社交法则');
+    if (npcRelevant) enable.add('恶意的NPC生成');
+    if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('恶意社交法则');
   }
 
   const summaryMap = {
     '华国':'华国已定义NPC摘要', '美利坚国':'美利坚国已定义NPC摘要',
     '日本国':'日本国已定义NPC摘要', '大毛国':'大毛国已定义NPC摘要',
-    '法国':'法国已定义NPC摘要', '巴西国':'巴西已定义NPC摘要', '北非':'北非已定义NPC摘要',
+    '法国':'法国已定义NPC摘要',
   };
   if (summaryMap[nat]) enable.add(summaryMap[nat]);
 
-  if (nat === '华国' && (phase === '爆发期' || phase === '末世期')) {
-    enable.add('世界观-无序者-华国血煞团体'); enable.add('世界观-无序者-华国月影团体');
-    enable.add('华国-华国人民解放军行为');
-  }
+  // 人物详情、势力、地点与彩蛋由酒馆原生关键词/递归配置负责；小助手不扫描正文关键词。
   if (nat === '日本国') {
     enable.add('世界观-日本国暗线');
-    if (phase === '爆发期' || phase === '末世期') {
-      for (const e of [
-        '世界观-无序者-日本国狩人之牙', '世界观-无序者-日本国绝望残党',
-        '世界观-幸存者-樱丘女子高中', '世界观-幸存者-藤美学园',
-        '世界观-幸存者-弗兰秀秀', '世界观-安全区-警视厅',
-      ]) enable.add(e);
-    }
   }
   if (nat === '美利坚国') {
     if (phase === '秩序期') {
       enable.add('世界观-美利坚爆发前');
     } else if (phase === '爆发期' || phase === '末世期') {
-      for (const e of [
-        '世界观-美利坚爆发后势力格局', '世界观-美利坚特色流浪者行为',
-        '世界观-美利坚特色无序者总体设定', '世界观-安布雷拉(彩蛋)',
-        '世界观-无序者-美利坚国铁冠帮', '世界观-无序者-美利坚国净世神殿',
-      ]) enable.add(e);
-      if (phase === '末世期') enable.add('世界观-安布雷拉生物');
+      enable.add('世界观-美利坚爆发后势力格局');
     }
   }
   if (nat === '大毛国') {
@@ -2476,23 +3174,14 @@ function buildEnableSet(sd) {
     if (phase === '秩序期') {
       enable.add('世界观-大毛国爆发前'); enable.add('世界观-势力爆发前');
     } else if (phase === '爆发期' || phase === '末世期') {
-      for (const e of [
-        '世界观-统一党爆发后', '世界观-新布尔什维克党爆发后', '世界观-工人钢铁会爆发后',
-        '世界观-黑雪势力', '世界观-零度教势力',
-        '世界观-电动实验BMPT(彩蛋)', '世界观-空中飞艇',
-      ]) enable.add(e);
-      if (phase === '末世期') enable.add('世界观-核爆区域');
+      enable.add('世界观-大毛国爆发后概览');
     }
   }
   if (nat === '法国') {
     if (phase === '秩序期') {
       enable.add('世界观-法国爆发前');
     } else if (phase === '爆发期' || phase === '末世期') {
-      for (const e of [
-        '世界观-爆发期的法国', '世界观-白鹿堡', '世界观-鸢尾堡',
-        '世界观-铁王冠领', '世界观-圣公教会', '世界观-混乱骑士团',
-        '世界观-自由联合民', '世界观-戴高乐号流亡政府',
-      ]) enable.add(e);
+      enable.add('世界观-爆发期的法国');
       if (phase === '末世期') enable.add('世界观-末世期的法国');
     }
   }
@@ -2507,25 +3196,31 @@ function buildEnableSet(sd) {
   const weather = sd?.环境?.天气 ?? '';
   if (weather.startsWith('终年')) enable.add(weather);
 
-  enable.add('暗线主角已定义NPC摘要');
-  enable.add('暗线主角/约修亚/基础信息');
-  enable.add('暗线主角/林青/基础信息');
-
   return enable;
 }
 
 var MANAGED_ENTRIES = new Set([
+  ...ALWAYS_UPDATE_ENTRIES,
+  '[mvu_update]基础状态结算',
+  // 旧卡遗留：已被阶段专项规则与标准更新协议取代，始终保持关闭。
+  '[mvu_update]世界观-大爆发',
+  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  ...Object.values(PHASE_UPDATE_ENTRIES),
+  ...Object.values(INFECTED_UPDATE_ENTRIES),
+  ...Object.values(NPC_UPDATE_ENTRIES),
+  RECIPE_REVIEW_ENTRY,
+  ...Object.values(RECIPE_CATEGORY_ENTRIES),
+  '[mvu_update]威胁压力','[mvu_update]恐慌','[mvu_update]物品完整度',
+  '[mvu_update]感染进程','[mvu_update]半感染者生存',
   '世界观-各国政府情况',
-  '大爆发前/感染者','大爆发前/大爆发前夕','大爆发前/规则-异常事件应对','大爆发前/规则-约束',
+  '大爆发前/感染者','大爆发前/大爆发前夕','大爆发前/规则-异常事件应对',
   '大爆发前/规则-物资获取','大爆发前/规则-医疗与健康',
   '大爆发前/规则-社会秩序','大爆发前/规则-冲突与应对',
-  '世界观-官方安全区','世界观-半感染者','世界观-ZCOM生化特种部队(彩蛋)',
-  '世界观-流浪者','世界观-无序者','杂项-无序者行为强化',
+  '世界观-半感染者','世界观-流浪者',
   '杂项-幸存者据点动态生成','机制-建造庇护所','物品-灭杀疫苗','物品-药物',
   '机制-COVID-30感染','机制-找事儿','机制-制造','机制-完整度',
-  '机制-战斗','机制-恐慌','机制-伤病与医疗',
+  '机制-战斗','机制-恐慌（默认不开，因为哈基米会绝望）','机制-伤病与医疗',
   '杂项-搜刮结果动态生成','杂项-幸存者NPC关系推进',
-  '世界观-宇航员们（彩蛋）','世界观-外星人(彩蛋)',
   '机制-搜刮物资','机制-半感染者生存机制','机制-沉浸式体验','机制-种田！我要种田！',
   '世界观-末世期','世界观-COVID-30变体感染者',
   '机制-官方安全区行为','机制-痛啊好痛啊！','机制-死亡',
@@ -2536,22 +3231,11 @@ var MANAGED_ENTRIES = new Set([
   '普通的动态威胁与安逸惩罚','普通感染者遭遇',
   '杂项-NPC动态生成','杂项-末世社交互动法则','恶意的NPC生成','恶意社交法则',
   '华国已定义NPC摘要','美利坚国已定义NPC摘要','日本国已定义NPC摘要',
-  '大毛国已定义NPC摘要','法国已定义NPC摘要','巴西已定义NPC摘要','北非已定义NPC摘要',
-  '世界观-无序者-华国血煞团体','世界观-无序者-华国月影团体',
-  '华国-华国人民解放军行为',
-  '世界观-日本国暗线','世界观-无序者-日本国狩人之牙','世界观-无序者-日本国绝望残党',
-  '世界观-幸存者-樱丘女子高中','世界观-幸存者-藤美学园','世界观-幸存者-弗兰秀秀',
-  '世界观-安全区-警视厅','世界观-美利坚爆发前','世界观-美利坚爆发后势力格局',
-  '世界观-美利坚特色流浪者行为','世界观-美利坚特色无序者总体设定',
-  '世界观-安布雷拉(彩蛋)','世界观-无序者-美利坚国铁冠帮',
-  '世界观-无序者-美利坚国净世神殿','世界观-安布雷拉生物',
+  '大毛国已定义NPC摘要','法国已定义NPC摘要',
+  '世界观-日本国暗线','世界观-美利坚爆发前','世界观-美利坚爆发后势力格局',
   '世界观-大毛生活图景','世界观-大毛国爆发前','世界观-势力爆发前',
-  '世界观-统一党爆发后','世界观-新布尔什维克党爆发后','世界观-工人钢铁会爆发后',
-  '世界观-黑雪势力','世界观-零度教势力','世界观-核爆区域',
-  '世界观-电动实验BMPT(彩蛋)','世界观-空中飞艇',
+  '世界观-大毛国爆发后概览',
   '世界观-法国爆发前','世界观-爆发期的法国','世界观-末世期的法国',
-  '世界观-白鹿堡','世界观-鸢尾堡','世界观-铁王冠领','世界观-圣公教会',
-  '世界观-混乱骑士团','世界观-自由联合民','世界观-戴高乐号流亡政府',
   '世界观-秩序期的巴西','世界观-爆发后的巴西',
   '世界观-秩序期的北非','世界观-爆发后的北非',
   '终年晴朗','终年暴雨','终年雾霾','终年严寒',
@@ -2559,78 +3243,103 @@ var MANAGED_ENTRIES = new Set([
   '暗线主角已定义NPC摘要',
   '暗线主角/约修亚/基础信息',
   '暗线主角/林青/基础信息',
+  '[mvu_plot]暗线主角-引入与退场',
+  '机制-活动叠加与冲突','机制-休息与睡眠','机制-探索','机制-钓鱼','机制-交易','机制-驾驶与乘车','机制-通讯','机制-营地经营',
+  '机制-舒适度','机制-体力','机制-负重','机制-毁伤','机制-饱食度，饱水度与体重','物品-载具',
+  ...YEHuo_EXTRA_ENTRIES,
+  ...ADULT_EXTRA_BASE_ENTRIES,
+  ...ADULT_EXTRA_POST_OUTBREAK_ENTRIES,
+  ...ADULT_EXTRA_PREGNANCY_ENTRIES,
+  ...CONTRACT_MODE_ENTRIES,
+  ...SUPER_EVENT_POOL.map(e => e.entry),
+  SUPER_EVENT_UPDATE_ENTRY,
 ]);
 
 async function applyToWorldbook(enableSet, wbName, nat) {
-  const enableSetJSON    = JSON.stringify([...enableSet]);
-  const managedSetJSON   = JSON.stringify([...MANAGED_ENTRIES]);
-  const natStr           = nat ? JSON.stringify(nat) : 'null';
+  if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
+    throw new Error('TavernHelper 世界书接口不可用，请确认酒馆助手已启用');
+  }
 
-  return runInParent(`(async () => {
-    var enableSet       = new Set(${enableSetJSON});
-    var MANAGED_ENTRIES = new Set(${managedSetJSON});
-    var nat             = ${natStr};
+  let entries;
+  try {
+    entries = await TavernHelper.getWorldbook(wbName);
+  } catch (error) {
+    throw new Error(`无法获取世界书“${wbName}”：${error.message || error}`);
+  }
+  if (!Array.isArray(entries)) throw new Error(`世界书“${wbName}”返回的数据不是条目数组`);
 
-    if (typeof TavernHelper === 'undefined')
-      throw new Error('TavernHelper is not defined — 请确认 TavernHelper 扩展已安装并启用');
+  let changed = false;
+  const enabledList = [];
+  const disabledList = [];
+  let sectionCountry = null;
+  let sectionKind = null;
+  const supportedCountries = new Set(['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非']);
 
-    var wbName = ${JSON.stringify(wbName)};
-    var entries;
-    try { entries = await TavernHelper.getWorldbook(wbName); } catch(e) {
-      throw new Error('无法获取世界书 "' + wbName + '": ' + (e.message || String(e)));
+  for (const entry of entries) {
+    const entryName = entry.comment || entry.name || entry.title || '';
+    const anchor = entryName.match(/｜([^｜]+)·(专有条目|角色绿灯)/);
+    if (anchor) {
+      sectionCountry = supportedCountries.has(anchor[1]) ? anchor[1] : null;
+      sectionKind = anchor[2];
+      continue;
     }
-    if (!Array.isArray(entries))
-      throw new Error('世界书 "' + wbName + '" 返回数据格式异常');
-
-    var totalChanged = 0;
-    var log = [];
-    var changed = false;
-    var enabled_list = [], disabled_list = [];
-
-    for (var i = 0; i < entries.length; i++) {
-      var e = entries[i];
-      var entryName = e.name || '';
-      if (!MANAGED_ENTRIES.has(entryName)) continue;
-
-      var should = enableSet.has(entryName);
-      var dirty  = false;
-
-      if (e.enabled !== should) { e.enabled = should; dirty = true; }
-
-      if (dirty) {
-        changed = true;
-        (should ? enabled_list : disabled_list).push(entryName);
-      }
+    if (entryName.startsWith('────')) {
+      sectionCountry = null;
+      sectionKind = null;
     }
 
-    // 基础信息自动开关：匹配所有 */角色/*/基础信息，当前国籍开、其余关
-    if (nat) {
-      var prefix = nat + '/角色/';
-      for (var j = 0; j < entries.length; j++) {
-        var entry = entries[j];
-        var name = entry.name || '';
-        var idx = name.indexOf('/角色/');
-        if (idx === -1) continue;
-        if (!name.endsWith('/基础信息')) continue;
-        var shouldEnable = name.startsWith(prefix);
-        if (entry.enabled !== shouldEnable) {
-          entry.enabled = shouldEnable;
-          changed = true;
-          (shouldEnable ? enabled_list : disabled_list).push(name);
-        }
-      }
-    }
+    const isManaged = MANAGED_ENTRIES.has(entryName);
+    const isCountryExclusive = sectionKind === '专有条目' && !!sectionCountry;
+    if (!isManaged && !isCountryExclusive) continue;
 
-    if (changed) {
-      try { await TavernHelper.replaceWorldbook(wbName, entries); } catch(e) {
-        throw new Error('无法保存世界书 "' + wbName + '": ' + (e.message || String(e)));
-      }
-      totalChanged += enabled_list.length + disabled_list.length;
-      log.push({ wbName: wbName, enabled: enabled_list, disabled: disabled_list });
+    let shouldEnable = isManaged ? enableSet.has(entryName) : true;
+    if (isCountryExclusive) {
+      shouldEnable = sectionCountry === nat && (!isManaged || enableSet.has(entryName));
     }
+    if (entry.enabled !== shouldEnable) {
+      entry.enabled = shouldEnable;
+      changed = true;
+      (shouldEnable ? enabledList : disabledList).push(entryName);
+    }
+  }
 
-    return { totalChanged: totalChanged, log: log, wbNames: [wbName] };
-  })()`);
+  // 人物详情由原生绿灯关键词触发；这里只隔离国籍，不在运行时拼接正则脚本。
+  for (const entry of entries) {
+    const detailName = entry.comment || entry.name || entry.title || '';
+    const parts = detailName.split('/');
+    const isCharacterDetail = parts.length === 4 &&
+      (parts[1] === '角色' || parts[1] === '人物') &&
+      !!parts[0] && !!parts[2] && parts[3] === '基础信息';
+    if (!isCharacterDetail) continue;
+
+    const shouldEnable = !!nat && (parts[0] === nat || enableSet.has(detailName));
+    if (entry.enabled !== shouldEnable) {
+      entry.enabled = shouldEnable;
+      changed = true;
+      (shouldEnable ? enabledList : disabledList).push(detailName);
+    }
+  }
+
+  if (changed) {
+    try {
+      await TavernHelper.replaceWorldbook(wbName, entries);
+    } catch (error) {
+      throw new Error(`无法保存世界书“${wbName}”：${error.message || error}`);
+    }
+  }
+
+  const activeEntries = entries
+    .filter(entry => entry.enabled === true && String(entry.content || '').trim().length > 0)
+    .map(entry => entry.comment || entry.name || entry.title || '')
+    .filter(Boolean);
+
+  return {
+    totalChanged: enabledList.length + disabledList.length,
+    log: changed ? [{ wbName, enabled: enabledList, disabled: disabledList }] : [],
+    wbNames: [wbName],
+    totalEntries: entries.length,
+    activeEntries,
+  };
 }
 
 var _runningPromise = null;
@@ -2648,15 +3357,23 @@ async function autoSwitch() {
     try {
       if (typeof p.Mvu === 'undefined') throw new Error('Mvu 不可用');
 
-      const sd = readStatData();
+      let sd = readStatData();
       if (!sd) {
-        p._jmzqLastResult = { time: Date.now(), ok: true, stat: {}, want: [], totalChanged: 0, log: [] };
-        return;
+        throw new Error('未读取到最新消息的 MVU 变量，请先确认当前消息已经初始化变量');
       }
 
+      // 超事件是独立状态机：末世期才随机一次；第三阶段才打开对应剧情条目。
+      const superState = await reconcileSuperEvent(sd);
+      sd = superState.sd || sd;
+
       const enableSet = buildEnableSet(sd);
+      SUPER_EVENT_POOL.forEach(e => enableSet.delete(e.entry));
+      if (superState.event && superEventStage(sd.超事件?.进展, sd.超事件?.已解决) === 3) {
+        enableSet.add(superState.event.entry);
+      }
       const wbName = await api_resolveWorldbookName();
-      const result = await applyToWorldbook(enableSet, wbName, sd.衍生状态?.nationality);
+      const nationality = readNationality(sd);
+      const result = await applyToWorldbook(enableSet, wbName, nationality);
       // 同步输出格式强化条目状态
       await syncOutputFormatFlag().catch(() => {});
       const logSummary = result.log.map(l =>
@@ -2666,13 +3383,22 @@ async function autoSwitch() {
         time: Date.now(), ok: true,
         stat: {
           phase:  sd.世界阶段,
-          nat:    sd.衍生状态?.nationality,
+          叙事模式: sd.叙事模式,
+          nat:    nationality,
           感染者: sd.感染者行为模式,
           NPC模式:sd.NPC行为模式,
+          业火归途: sd.扩展内容?.业火归途 === true,
+          瑟瑟加强: sd.扩展内容?.瑟瑟加强 === true,
+          暗线主角: sd.扩展内容?.暗线主角 === true,
+          当前活动: Array.isArray(sd.当前活动) ? sd.当前活动 : [],
+          超事件: sd.超事件?.事件ID ? `${sd.超事件.事件ID} / 进展${sd.超事件.进展 ?? 0}%` : '未启用',
         },
         want: [...enableSet],
         totalChanged: result.totalChanged,
         log: result.log,
+        worldbookName: wbName,
+        totalEntries: result.totalEntries,
+        activeEntries: result.activeEntries,
       };
     } catch (err) {
       console.error('[JMZQ] 执行失败:', err);
@@ -2701,8 +3427,14 @@ function onSecondaryEvent() {
   clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(autoSwitch, 200);
 }
+function onSuperEventGenerationFinished() {
+  if (!p._jmzqSuperEventCatchupId) return;
+  delete p._jmzqSuperEventCatchupId;
+  clearSuperEventPrompt();
+}
 
 const CRITICAL_EVENTS = [
+  'global_Mvu_initialized',
   'message_sent',               'MESSAGE_SENT',
   'generate_before_combine_prompts', 'GENERATE_BEFORE_COMBINE_PROMPTS',
 ];
@@ -2722,10 +3454,19 @@ if (typeof eventOn === 'function') {
   for (const evt of SECONDARY_EVENTS) {
     try { eventOn(evt, onSecondaryEvent); } catch(e) {}
   }
+  for (const evt of ['character_message_rendered', 'CHARACTER_MESSAGE_RENDERED', 'message_received', 'MESSAGE_RECEIVED']) {
+    try { eventOn(evt, onSuperEventGenerationFinished); } catch(e) {}
+  }
   p._jmzqCleanup = function() {
+    clearSuperEventPrompt();
+    delete p._jmzqSuperEventCatchupId;
+    p.document.getElementById('jmzq-super-event-modal')?.remove();
     if (typeof eventOff === 'function') {
       for (const evt of ALL_EVENTS) { try { eventOff(evt, onCriticalEvent); } catch(e) {} }
       for (const evt of ALL_EVENTS) { try { eventOff(evt, onSecondaryEvent); } catch(e) {} }
+      for (const evt of ['character_message_rendered', 'CHARACTER_MESSAGE_RENDERED', 'message_received', 'MESSAGE_RECEIVED']) {
+        try { eventOff(evt, onSuperEventGenerationFinished); } catch(e) {}
+      }
     }
   };
 } else {
@@ -2734,6 +3475,9 @@ if (typeof eventOn === 'function') {
 function refreshUI() {
   const r = p._jmzqLastResult;
   if (!r) return;
+  const escapeHtml = value => String(value ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   if (r.ok) {
     statusDot.className = 'jmzq-dot ok';
     statTags.innerHTML = [
@@ -2742,9 +3486,18 @@ function refreshUI() {
       r.stat.感染者  && `<span class="jmzq-tag">${r.stat.感染者}</span>`,
       r.stat.NPC模式 && `<span class="jmzq-tag">${r.stat.NPC模式}</span>`,
     ].filter(Boolean).join('');
+    const enabled = Array.isArray(r.activeEntries) ? r.activeEntries : [];
+    if (activeCount) activeCount.textContent = `${enabled.length} / ${r.totalEntries ?? '?'}`;
+    if (activeEntries) {
+      activeEntries.innerHTML = enabled.length
+        ? enabled.map(name => `<span class="jmzq-active-entry" title="${escapeHtml(name)}">${escapeHtml(name)}</span>`).join('')
+        : '<span style="font-size:9px;color:#a08070;">暂无启用条目</span>';
+    }
   } else {
     statusDot.className = 'jmzq-dot err';
     statTags.innerHTML = `<span class="jmzq-tag err">ERROR</span>`;
+    if (activeCount) activeCount.textContent = '读取失败';
+    if (activeEntries) activeEntries.innerHTML = `<span style="font-size:9px;color:#e74c3c;">${escapeHtml(r.error || '未知错误')}</span>`;
   }
 }
 
@@ -2753,19 +3506,13 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const EXPECTED = 333;
-    const countEntries = entries.filter(e => !e.name.includes('DB'));
-    let color, text;
-    if (countEntries.length === EXPECTED) {
-      color = '#4ade80'; text = `共 ${countEntries.length} 条`;
-    } else if (countEntries.length < EXPECTED) {
-      color = '#e74c3c'; text = `仅 ${countEntries.length} 条，不足！`;
-    } else {
-      color = '#eab308'; text = `共 ${countEntries.length} 条，超出`;
-    }
-    statusText.textContent = text;
-    statusText.style.color = color;
-  } catch (e) {}
+    const expected = 448;
+    statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
+    statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
+  } catch (e) {
+    statusText.textContent = `世界书读取失败：${e.message || e}`;
+    statusText.style.color = '#e74c3c';
+  }
 }
 
 // --- 事件绑定 ---
@@ -2875,6 +3622,7 @@ async function applyMvuConfigFromForm() {
     em.存在惩罚 = parseFloat(mvuPresPenalty.value) || 0;
     em.top_p = parseFloat(mvuTopP.value) || 1;
     em.top_k = parseInt(mvuTopK.value) || 0;
+    adaptExtraModelConfig(em);
 
     cfg.自动清理变量 = cfg.自动清理变量 || {};
     const ac = cfg.自动清理变量;
@@ -2897,10 +3645,16 @@ async function applyMvuConfigFromForm() {
     }
 
     syncMvuToForm(cfg);
-    mvuStatus.textContent = '配置已保存，即将刷新…';
-
-    showToast('配置已应用，1秒后刷新页面…');
-    setTimeout(() => { window.parent.location.reload(); }, 1000);
+    const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
+    if (live && live.ok) {
+      mvuStatus.textContent = '配置已保存，无感生效';
+      showToast('配置已无感应用（未刷新页面）');
+      checkConfig();
+    } else {
+      mvuStatus.textContent = '配置已保存，即将刷新…';
+      showToast('配置已应用，1秒后刷新页面…');
+      setTimeout(() => { window.parent.location.reload(); }, 1000);
+    }
   } catch (e) {
     showToast('MVU配置失败: ' + e.message);
   }
@@ -2994,16 +3748,24 @@ ewcSyncMvuDom().catch(() => {});
 _jmzqPopulateWbSelect();
 syncOutputFormatFlag().then(() => checkConfig());
 // 每5秒自动检测一次配置（模型切换后呼吸灯自动跟上，无需打开面板）
-setInterval(() => { syncOutputFormatFlag().then(() => checkConfig()); updateBackendCode(); }, 5000);
+const configPollTimer = setInterval(() => { syncOutputFormatFlag().then(() => checkConfig()); updateBackendCode(); }, 5000);
 
-// 定时轮询 MVU 状态，变化时自动切换世界书
+// 定时轮询 MVU/ZOD 状态，变化时自动切换世界书
 let _lastStatKey = '';
-setInterval(() => {
+const statPollTimer = setInterval(() => {
   try {
     if (typeof p.Mvu === 'undefined') return;
     const sd = readStatData();
     if (!sd) return;
-    const key = `${sd.世界阶段}|${sd.衍生状态?.nationality}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}`;
+    const physiologyStages = Object.entries(sd.生理追踪 || {}).map(([name, value]) => `${name}:${value?.阶段 || ''}`).sort().join(',');
+    const activeActivities = Array.isArray(sd.当前活动) ? [...sd.当前活动].sort().join(',') : '';
+    const pendingRecipeKey = Object.entries(sd.可制造?.预审配方 || {})
+      .filter(([, value]) => value && typeof value === 'object')
+      .map(([name, value]) => `${name}:${value.产出类型 || value.产出类别 || ''}:${value.描述 || ''}`)
+      .sort()
+      .join(',');
+    const superEventKey = `${sd.扩展内容?.超事件 === true}|${sd.超事件?.事件ID || ''}|${sd.超事件?.进展 ?? 0}|${sd.超事件?.已解决 === true}`;
+    const key = `${sd.世界阶段}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
     if (key !== _lastStatKey) {
       _lastStatKey = key;
       autoSwitch();
@@ -3014,18 +3776,47 @@ setInterval(() => {
 refreshMvuConfigStatus();
 checkEjsTemplate();
 
-// 5. 启动时执行一次世界书切换
-autoSwitch();
-
 // 注册世界书状态刷新事件
-p.document.addEventListener('jmzq-done', () => { refreshUI(); checkWorldbookCount(); });
+const onJmzqDone = () => { refreshUI(); checkWorldbookCount(); };
+p.document.addEventListener('jmzq-done', onJmzqDone);
+
+// JS-Slash-Runner 销毁/重建脚本 iframe 时，父页面上的监听器不会自动随 DOM 一起消失。
+// 显式回收所有跨 iframe 监听器，防止旧版拖拽代码成为幽灵监听器。
+const cleanupMvuEvents = p._jmzqCleanup;
+p._jmzqCleanup = function() {
+  try { if (typeof cleanupMvuEvents === 'function') cleanupMvuEvents(); } catch (_) {}
+  clearTimeout(jmzqEdgeTimer);
+  clearTimeout(_debounceTimer);
+  clearInterval(configPollTimer);
+  clearInterval(statPollTimer);
+  p.document.removeEventListener('mousedown', onOutsidePanelPress);
+  p.document.removeEventListener('touchstart', onOutsidePanelPress);
+  p.document.removeEventListener('pointermove', onBubbleMove);
+  p.document.removeEventListener('pointerup', onBubbleEnd);
+  p.document.removeEventListener('pointercancel', onBubbleEnd);
+  p.document.removeEventListener('jmzq-done', onJmzqDone);
+  p.removeEventListener('resize', onJmzqResize);
+  bubble?.removeEventListener('pointerdown', onBubbleStart);
+  bubble?.removeEventListener('mouseenter', revealJmzqBubble);
+  bubble?.removeEventListener('mouseleave', onBubbleLeave);
+  dragHandle?.removeEventListener('pointerdown', onPanelStart);
+  dragHandle?.removeEventListener('pointermove', onPanelMove);
+  dragHandle?.removeEventListener('pointerup', onPanelEnd);
+  dragHandle?.removeEventListener('pointercancel', onPanelEnd);
+};
+
+// 5. 启动时执行一次世界书切换（监听器必须先注册，避免快速完成时漏掉结果）
+if (activeCount) activeCount.textContent = '读取中…';
+if (activeEntries) activeEntries.innerHTML = '<span style="font-size:9px;color:#a08070;">正在读取 MVU 与世界书…</span>';
+autoSwitch();
 
 p._jmzqAutoSwitch = autoSwitch;
 
 // 资源回收：iframe卸载时清理注入的DOM和事件
 window._jmzqCleanupAll = function() {
   try {
-    var ids = ['jmzq-bubble','jmzq-panel','jmzq-confirm-overlay'];
+    p.document.removeEventListener('jmzq-done', onJmzqDone);
+    var ids = ['jmzq-bubble','jmzq-panel','jmzq-confirm-overlay','jmzq-super-event-modal'];
     ids.forEach(function(id) { var el = p.document.getElementById(id); if (el) el.remove(); });
     var styles = p.document.head.querySelectorAll('style');
     styles.forEach(function(s) { if (s.textContent && s.textContent.indexOf('jmzq-bubble') !== -1) s.remove(); });
