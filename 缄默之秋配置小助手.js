@@ -3,7 +3,7 @@
 //   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.2.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.1';
+const JMZQ_VERSION = '2.0.2';
 const WORLDBOOK_NAME = '缄默之秋-3.0-世界书';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书'];
 const p = window.parent || window;
@@ -3510,7 +3510,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const expected = 448;
+    const expected = 447;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
