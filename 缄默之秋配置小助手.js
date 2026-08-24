@@ -3,7 +3,7 @@
 //   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.2.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.0';
+const JMZQ_VERSION = '2.0.1';
 const WORLDBOOK_NAME = '缄默之秋-3.0-世界书';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书'];
 const p = window.parent || window;
@@ -3296,8 +3296,10 @@ async function applyToWorldbook(enableSet, wbName, nat) {
     if (isCountryExclusive) {
       shouldEnable = sectionCountry === nat && (!isManaged || enableSet.has(entryName));
     }
-    if (entry.enabled !== shouldEnable) {
+    const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
+    if (stateMismatch) {
       entry.enabled = shouldEnable;
+      if ('disable' in entry) entry.disable = !shouldEnable;
       changed = true;
       (shouldEnable ? enabledList : disabledList).push(entryName);
     }
@@ -3313,8 +3315,10 @@ async function applyToWorldbook(enableSet, wbName, nat) {
     if (!isCharacterDetail) continue;
 
     const shouldEnable = !!nat && (parts[0] === nat || enableSet.has(detailName));
-    if (entry.enabled !== shouldEnable) {
+    const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
+    if (stateMismatch) {
       entry.enabled = shouldEnable;
+      if ('disable' in entry) entry.disable = !shouldEnable;
       changed = true;
       (shouldEnable ? enabledList : disabledList).push(detailName);
     }
