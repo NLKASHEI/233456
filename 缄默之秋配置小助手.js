@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v1.2.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.2';
+const JMZQ_VERSION = '2.0.3';
 const WORLDBOOK_NAME = '缄默之秋-3.0-世界书';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书'];
 const p = window.parent || window;
@@ -2667,6 +2667,58 @@ const SUPER_EVENT_STAGE_TEXT = {
   '八岐出世·基因钥匙失控': ['实验区流出无法辨认的生物样本', '多处研究站同时封锁并失联', '巨型变体挣脱控制，沿都市带猎杀', '自卫队与感染者在废墟中相互消耗', '失控样本扩散到海岛之外'],
   '绝望终幕·东京献城': ['东京开始向外界发出重复的求援信号', '城内广播改为要求所有人返回市中心', '整座东京向感染者敞开，活人被当作祭品', '城市灯光逐区熄灭，逃生路线全部封闭', '东京成为一座没有回声的献城'],
 };
+// 第三阶段弹窗使用独立叙事，不复用阶段摘要；前四阶段仍只写入洲际动态。
+const SUPER_EVENT_STAGE3_POPUP_TEXT = {
+  '龙脉断裂·三峡崩溃': '三峡大坝先是沉默，随后一条条闸门在没有命令的情况下自行开启。黑色洪峰越过堤岸，卷走沿江城镇、桥梁与成片灯火；水面漂过木材，也漂过被感染者拖入江中的人影。',
+  '长城崩塌·北境京观': '长城在凌晨四点十七分断裂，烽火台一座接一座熄灭。尸群沿着缺口涌入，砖石和遗骸被堆成面向南方的高台，这条曾经守护文明的脊梁终于变成了无人敢靠近的伤口。',
+  '秦陵开门·始皇血行': '骊山地底传来整齐的脚步声，秦俑坑在暴雨中自行开启。始皇感染体披着腐朽甲胄走出黑暗，抬起青铜剑，令整支冷兵器军团向最近的聚落推进，不留俘虏，也没有目的。',
+  '暴君出世·生化天灾': '暴君从实验设施的钢门后走出，皮肤像烧焦的橡胶，胸腔随着每一次呼吸隆起。它徒手撕开装甲车，把尖叫的感染者和士兵一起踩进血泥，整座城市只是供它取食的屠宰场。',
+  '华盛顿末日协议·联邦坠日': '末日协议在没有总统签名的情况下执行，首都与数座核心城市同时断电。封锁门从地下升起，把人群切成互不相通的孤岛；国会穹顶映着火光，联邦的声音只剩下重复播放的撤离指令。',
+  '方舟接管·自由终结': '方舟系统接管最后的避难设施，门内的人获得水、氧气与编号，门外的人被标记为不可回收。当所有广播同时改用同一个机械声音时，人们才明白，方舟只承认自己的运行资格。',
+  '凛冬降临·万年寒潮': '凛冬一夜封死北境，暴风雪把高楼削成白色骨架，燃料仓库在低温中爆裂。街道下传来感染者撞击冰层的闷响，最后一列南下列车停在雪原中央，车窗里的灯一盏接一盏熄灭。',
+  '核净化日·白光覆盖北境': '北境天际出现一道没有声音的白光，掠过森林、军港与城市，留下被高温剥去颜色的废墟。数小时后，灰白辐射尘像雪一样落下，地图上的道路被划成无法穿越的禁区。',
+  '钢铁裂国·北境内战': '北境军区终于互相开火，装甲纵队在居民区之间推进，炮火把铁路、粮仓和撤离路线同时截断。感染者从燃烧的检查站里冲出，军阀却仍在争夺电台频道，仿佛命令还在，国家就还没有死。',
+  '戴高乐号的沉默': '戴高乐号最后一次出现在雷达上时，舰桥频道里只剩下含混的喘息声。舰员已经感染，巨舰带着失控的灯光沉入夜海；流亡政府在同一刻宣告终结，法国海岸线失去了最后一块会移动的秩序。',
+  '吸血鬼出世': '吸血鬼变体在葡萄园边缘现身，没有嘶吼，只在灯光熄灭后穿过人群，留下被抽干的尸体。天亮之前，整座村庄的门窗都从里面反锁，再没有一个活人回应无线电。',
+  '王国风云·百旗战争': '百旗战争把法国本土撕成互相仇视的碎片，旧王旗、军旗与地方徽记插满公路。感染者从战线缝隙中涌来，而各方仍在争夺“谁有资格代表法国”这句已经失去意义的话。',
+  '富士焚城·东京灰烬': '富士山喷出的不只是火山灰，熔岩沿城市边缘燃烧，感染者从灰黑烟柱里成群出现。东京高架路像烧红的骨头一样断裂，夜空被火光照亮，却没有一条逃生通道能穿过关东平原。',
+  '八岐出世·基因钥匙失控': '八岐变体挣脱研究设施后沿都市带反复猎杀，畸变肢体撞碎高架与楼群，样本随着血水进入下水道。自卫队的炮火只让它变得更快，城市最终只剩警报声和无法辨认的脚印。',
+  '绝望终幕·东京献城': '东京的求援广播连续播放三天，直到所有幸存者都被要求返回市中心。城门在他们进入后关闭，灯光从外环向内一圈圈熄灭；整座城市像一张张开的嘴，把仍在呼救的人全部吞了进去。',
+ };
+const SUPER_EVENT_STAGE3_POPUP_META = {
+  '龙脉断裂·三峡崩溃': { quote: '汤汤洪水方割，荡荡怀山襄陵，浩浩滔天。', source: '—《尚书·尧典》', action: '江汉尽墨' },
+  '长城崩塌·北境京观': { quote: '秦时明月汉时关，万里长征人未还。', source: '—王昌龄《出塞》', action: '万里同悲' },
+  '秦陵开门·始皇血行': { quote: '祖龙魂死秦犹在，孔学名高实秕糠。', source: '—章碣《焚书坑》', action: '祖龙夜行' },
+  '暴君出世·生化天灾': { quote: '与怪物战斗的人，应当小心自己不要成为怪物。', source: '—尼采《善恶的彼岸》', action: '暴君临城' },
+  '华盛顿末日协议·联邦坠日': { quote: '一栋分裂的房子，无法长久站立。', source: '—亚伯拉罕·林肯', action: '联邦坠日' },
+  '方舟接管·自由终结': { quote: '进入此门者，当舍弃一切希望。', source: '—但丁《神曲》', action: '方舟闭锁' },
+  '凛冬降临·万年寒潮': { quote: '人是一种什么都能习惯的动物。', source: '—陀思妥耶夫斯基《死屋手记》', action: '万里冰封' },
+  '核净化日·白光覆盖北境': { quote: '我不知道第三次世界大战会用什么武器，第四次一定会用木棍和石块。', source: '—阿尔伯特·爱因斯坦', action: '白昼之后' },
+  '钢铁裂国·北境内战': { quote: '每一场内战里，胜利者都要埋葬自己的同胞。', source: '—北境战地电台', action: '北境碎裂' },
+  '戴高乐号的沉默': { quote: '法国输掉了一场战役，法国没有输掉战争。', source: '—夏尔·戴高乐', action: '法兰西失声' },
+  '吸血鬼出世': { quote: '听啊，夜之子在歌唱。这音乐何等美妙。', source: '—布拉姆·斯托克《德古拉》', action: '长夜无灯' },
+  '王国风云·百旗战争': { quote: '朕即国家。', source: '—路易十四', action: '百王无国' },
+  '富士焚城·东京灰烬': { quote: '夏草萋萋，武士功名一梦。', source: '—松尾芭蕉《奥州小道》', action: '东京成灰' },
+  '八岐出世·基因钥匙失控': { quote: '现在我成了死神，世界的毁灭者。', source: '—奥本海默转引《薄伽梵歌》', action: '八岐出笼' },
+  '绝望终幕·东京献城': { quote: '地狱已经空了，所有魔鬼都在这里。', source: '—莎士比亚《暴风雨》', action: '一城皆寂' },
+};
+const SUPER_EVENT_VISUAL_THEME = {
+  '龙脉断裂·三峡崩溃':['#69a9c7','#234e67','#07151d','rgba(3,16,24,.97)','#e2f0f3','#8faab6','#f3fbfc','left','saturate(.68) contrast(1.08)'],
+  '长城崩塌·北境京观':['#a51d24','#40090d','#160708','rgba(18,2,3,.98)','#f0d8d5','#b1817d','#fff0e8','monument','saturate(.72) contrast(1.22)'],
+  '秦陵开门·始皇血行':['#bd8c42','#50310d','#171006','rgba(18,11,3,.97)','#eadbbe','#a88c60','#ffe8ad','center','sepia(.35) saturate(.75) contrast(1.12)'],
+  '暴君出世·生化天灾':['#e12d39','#661019','#16080a','rgba(15,1,3,.97)','#f3dbdc','#b77e82','#fff1ef','right','saturate(.8) contrast(1.2)'],
+  '华盛顿末日协议·联邦坠日':['#d24b55','#293e67','#0b1020','rgba(5,8,20,.97)','#e7e9f2','#9aa3bd','#f7f4ee','split','saturate(.68) contrast(1.1)'],
+  '方舟接管·自由终结':['#d9e7e9','#56676c','#101719','rgba(7,13,15,.97)','#edf3f3','#9daeb0','#ffffff','center','grayscale(.55) contrast(1.16)'],
+  '凛冬降临·万年寒潮':['#9fd6ef','#315f7d','#07131c','rgba(3,12,20,.97)','#e7f5fb','#9dbdca','#f4fcff','left','saturate(.5) brightness(.9) contrast(1.1)'],
+  '核净化日·白光覆盖北境':['#e8d5a5','#665531','#15130e','rgba(14,12,8,.97)','#eee9db','#afa68f','#fff8df','monument','grayscale(.45) sepia(.22) contrast(1.3)'],
+  '钢铁裂国·北境内战':['#b75b3b','#56200f','#160c08','rgba(17,7,4,.97)','#eddcd3','#ae8a79','#fff0e5','split','saturate(.65) contrast(1.18)'],
+  '戴高乐号的沉默':['#537ba8','#172d4a','#07101c','rgba(2,8,17,.98)','#dfe9f3','#879caf','#eef7ff','left','saturate(.55) contrast(1.12)'],
+  '吸血鬼出世':['#a92c64','#430d27','#160713','rgba(16,2,12,.98)','#f0dbe7','#b2829c','#ffeafa','center','saturate(.7) contrast(1.17)'],
+  '王国风云·百旗战争':['#c2a14d','#503915','#140f07','rgba(15,10,3,.97)','#eee2c8','#a99368','#fff1bd','right','sepia(.28) saturate(.74) contrast(1.12)'],
+  '富士焚城·东京灰烬':['#e36b2f','#6e210b','#190b05','rgba(18,6,2,.97)','#f5ddd0','#b98d77','#fff0df','monument','saturate(.88) contrast(1.18)'],
+  '八岐出世·基因钥匙失控':['#c8497d','#164f59','#0b1116','rgba(5,9,14,.97)','#e9e1e8','#a78d9e','#fff0f5','split','saturate(.76) contrast(1.18)'],
+  '绝望终幕·东京献城':['#d03737','#3d0909','#080808','rgba(0,0,0,.98)','#e8e8e8','#929292','#ffffff','monument','grayscale(.85) contrast(1.3)'],
+};
 const SUPER_EVENT_CONTINENT_PREFIX = '【超事件动态】'; // 旧版单行标记，仅用于无损迁移
 const SUPER_EVENT_CONTINENT_START = '【超事件动态·开始】';
 const SUPER_EVENT_CONTINENT_END = '【超事件动态·结束】';
@@ -2683,7 +2735,14 @@ function showSuperEventPopup(event, stage, text) {
   const modal = doc.createElement('div'); modal.id = 'jmzq-super-event-modal';
   modal.style.cssText = 'position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.88);display:flex;align-items:center;justify-content:center;padding:clamp(10px,3vw,28px);font-family:"Microsoft YaHei",sans-serif;backdrop-filter:blur(8px);';
   const imageUrl = SUPER_EVENT_IMAGE_BASE + encodeURIComponent(event.imageFile || '');
-  modal.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="jmzq-super-event-title" style="position:relative;max-width:920px;width:100%;max-height:94vh;overflow:auto;background:linear-gradient(165deg,#160d0d,#08090c 72%);border:1px solid rgba(255,76,76,.68);border-radius:14px;box-shadow:0 0 70px rgba(210,35,35,.36),0 24px 80px rgba(0,0,0,.75);color:#f2d9c5"><div style="position:relative;aspect-ratio:3/2;overflow:hidden;border-radius:13px 13px 0 0;background:#050608"><img id="jmzq-super-event-image" src="${imageUrl}" alt="${event.country} ${event.id}" style="display:block;width:100%;height:100%;object-fit:cover"><div style="position:absolute;inset:auto 0 0;padding:70px 24px 18px;background:linear-gradient(transparent,rgba(8,5,5,.96));pointer-events:none"><div style="color:#ff6767;letter-spacing:5px;font-size:12px;font-weight:800">SUPER EVENT · PHASE III</div><h2 id="jmzq-super-event-title" style="margin:8px 0 0;color:#fff0e3;font-size:clamp(21px,4vw,34px);text-shadow:0 2px 18px #000">${event.country} · ${event.id}</h2></div></div><div style="padding:clamp(18px,3vw,30px)"><p style="font-size:clamp(14px,2.2vw,17px);line-height:1.85;margin:0 0 22px;color:#e8d8cd">${text}</p><div style="display:flex;justify-content:flex-end"><button id="jmzq-super-event-close" style="background:linear-gradient(135deg,#7f1d1d,#b91c1c);color:#fff;border:1px solid #ef6b63;border-radius:7px;padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer">确认已阅</button></div></div></div>`;
+  const meta = SUPER_EVENT_STAGE3_POPUP_META[event.id] || { quote: text, source: '—现场记录', action: '继续' };
+  const theme = SUPER_EVENT_VISUAL_THEME[event.id] || ['#b83a3a','#5a1515','#120a0c','rgba(8,5,5,.96)','#f2e5dc','#a9958d','#fff0e3','left','contrast(1.08)'];
+  const [accent, accent2, panel, overlay, bodyText, muted, titleColor, layout, imageFilter] = theme;
+  const monument = layout === 'monument';
+  const captionStyle = layout === 'split' ? 'left:auto;width:min(62%,620px);text-align:right' : `text-align:${layout === 'center' || monument ? 'center' : layout}`;
+  const actionAlign = layout === 'center' || monument ? 'center' : layout === 'right' ? 'flex-start' : 'flex-end';
+  const bodyEdge = layout === 'split' ? `border-left:3px solid ${accent};` : '';
+  modal.innerHTML = `<div role="dialog" aria-modal="true" aria-labelledby="jmzq-super-event-title" style="position:relative;max-width:920px;width:100%;max-height:94vh;overflow:auto;background:linear-gradient(165deg,${panel},#06080b 76%);border:1px solid ${accent};border-radius:${monument?'2px':'14px'};box-shadow:0 0 65px ${accent}55,0 24px 80px rgba(0,0,0,.78);color:${bodyText}"><div style="position:relative;aspect-ratio:${monument?'16/9':'3/2'};overflow:hidden;background:#050608"><img id="jmzq-super-event-image" src="${imageUrl}" alt="${event.country} ${event.id}" style="display:block;width:100%;height:100%;object-fit:cover;filter:${imageFilter}"><div style="position:absolute;inset:auto 0 0;padding:70px 24px 18px;background:linear-gradient(transparent,${overlay});pointer-events:none;${captionStyle}"><div style="color:${accent};letter-spacing:5px;font-size:12px;font-weight:800">超事件 · 第三阶段</div><h2 id="jmzq-super-event-title" style="margin:8px 0 0;color:${titleColor};font-size:clamp(21px,4vw,34px);text-shadow:0 2px 18px #000">${event.country} · ${event.id}</h2></div></div><div style="padding:clamp(18px,3vw,30px);${bodyEdge}"><p style="font-family:'Noto Serif SC','Songti SC',serif;font-size:clamp(18px,2.8vw,24px);line-height:1.7;margin:0 0 8px;color:${bodyText}">“${meta.quote}”</p><p style="font-size:13px;letter-spacing:.4px;line-height:1.5;margin:0 0 24px;color:${muted}">${meta.source}</p><div style="display:flex;justify-content:${actionAlign}"><button id="jmzq-super-event-close" style="background:linear-gradient(135deg,${accent2},${accent});color:#fff;border:1px solid ${accent};border-radius:7px;padding:10px 28px;font-size:14px;font-weight:700;cursor:pointer">${meta.action}</button></div></div></div>`;
   doc.body.appendChild(modal);
   const close = () => modal.remove();
   doc.getElementById('jmzq-super-event-close')?.addEventListener('click', close);
@@ -2844,7 +2903,9 @@ async function reconcileSuperEvent(sd) {
   }
   const stage = superEventStage(progress, sd.超事件?.已解决);
   const stageTexts = SUPER_EVENT_STAGE_TEXT[event.id] || [];
-  const text = stageTexts[stage - 1] || stageTexts[stageTexts.length - 1] || '';
+  const text = stage === 3
+    ? (SUPER_EVENT_STAGE3_POPUP_TEXT[event.id] || stageTexts[2] || '')
+    : (stageTexts[stage - 1] || stageTexts[stageTexts.length - 1] || '');
   const displayText = sd.超事件?.已解决
     ? `${event.id}已结束：${sd.超事件?.结果 || '灾变被制止，具体结果仍待确认'}`
     : stage === 6 ? `${text}；灾变已失控，原有遏制手段失效` : text;
@@ -2865,7 +2926,7 @@ async function reconcileSuperEvent(sd) {
   }
   // 老存档首次加载时可能早已越过阶段三；至少补发一次第三阶段立绘，不回滚其真实进展。
   if (stage > 3 && !hasSuperEventBeenShown(event, 3)) {
-    const stage3Text = stageTexts[2] || displayText;
+    const stage3Text = SUPER_EVENT_STAGE3_POPUP_TEXT[event.id] || stageTexts[2] || displayText;
     // 补弹同时保留一轮尾部系统提示；下一次正文生成结束后再清除。
     p._jmzqSuperEventCatchupId = event.id;
     injectSuperEventStage3(event, stage3Text, sd);
