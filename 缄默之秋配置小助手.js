@@ -1,11 +1,11 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.4/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.3';
-const WORLDBOOK_NAME = '缄默之秋-3.0-世界书';
-const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书'];
+const JMZQ_VERSION = '2.0.4';
+const WORLDBOOK_NAME = '缄默之秋3.0';
+const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书', '缄默之秋-3.0-世界书'];
 const p = window.parent || window;
 
 // 防重复加载
@@ -1033,8 +1033,8 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao'];
 
 function checkConfig() {
   try {
@@ -2988,6 +2988,8 @@ const NPC_UPDATE_ENTRIES = {
   全员恶人型: '[mvu_update]NPC-全员恶人型',
 };
 const RECIPE_REVIEW_ENTRY = '[mvu_update]配方审核-总则';
+const CAMP_PERSISTENT_UPDATE_ENTRY = '[mvu_update]活动-营地经营';
+const CAMP_PERSISTENT_PLOT_ENTRY = '机制-营地经营';
 const RECIPE_CATEGORY_ENTRIES = {
   '食物与水': '[mvu_update]配方规范-生存与食品',
   '医疗药品': '[mvu_update]配方规范-医疗与化工',
@@ -3022,13 +3024,186 @@ const ACTIVITY_ENTRIES = {
   进食: ['机制-饱食度，饱水度与体重'],
 };
 
-function buildEnableSet(sd) {
+// 这些条目体量小、依赖当轮动作，长期保持可触发；不等待 /当前活动 写回后再开关。
+const NATIVE_GREEN_KEYWORDS = Object.freeze({
+  '[mvu_update]活动-钓鱼': ['钓鱼','垂钓','下钩','收线','抛竿','鱼竿','鱼饵','浮漂','上鱼','起鱼'],
+  '[mvu_update]活动-驾驶乘车': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','赶路','车内','车上','摩托','船只'],
+  '[mvu_update]活动-建造': ['建造','搭建','修建','施工','扩建','加固','修缮','砌墙','铺设','安装设施','拆除建筑'],
+  '[mvu_update]活动-交易': ['交易','购买','出售','买下','卖掉','买卖','交换物资','以物易物','讨价还价','付款','收款','成交'],
+  '[mvu_update]活动-进食': ['进食','用餐','吃下','喝下','饮水','食用','吞下','吃饭','喝水','喝酒','补充水分','填饱肚子'],
+  '[mvu_update]活动-搜刮': ['搜刮','搜索物资','翻找','搜寻物资','拾取','捡起','拿走','带走','掠夺物资','清点战利品','搜索房间'],
+  '[mvu_update]活动-探索潜行': ['探索','侦察','潜行','隐蔽前进','观察周围','查看附近','前往','移动到','进入','离开','绕行','追踪','勘察'],
+  '[mvu_update]活动-休息睡眠': ['休息','睡觉','睡眠','小憩','打盹','过夜','躺下','闭眼','入睡','醒来','守夜','轮班休息'],
+  '[mvu_update]活动-医疗': ['治疗','包扎','止血','手术','用药','服药','急救','清创','缝合','换药','检查伤口','处理伤势'],
+  '[mvu_update]活动-战斗': ['攻击','开火','射击','战斗','交战','搏斗','格斗','反击','击杀','投掷武器','挥砍','刺击','躲避','格挡','敌袭'],
+  '[mvu_update]活动-制造': ['制造','制作','合成','加工','改装','维修','修理','保养','工作台','研究配方','组装','拆解设备'],
+  '[mvu_update]活动-种植': ['种植','播种','浇水','施肥','收获作物','耕地','除草','育苗','移栽','翻土','农田'],
+  '机制-休息与睡眠': ['休息','睡觉','睡眠','小憩','打盹','过夜','躺下','闭眼','入睡','醒来','守夜','轮班休息'],
+  '机制-探索': ['探索','侦察','潜行','隐蔽前进','观察周围','查看附近','前往','移动到','进入','离开','绕行','追踪','勘察'],
+  '机制-钓鱼': ['钓鱼','垂钓','下钩','收线','抛竿','鱼竿','鱼饵','浮漂','上鱼','起鱼'],
+  '机制-交易': ['交易','购买','出售','买下','卖掉','买卖','交换物资','以物易物','讨价还价','付款','收款','成交'],
+  '机制-驾驶与乘车': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','赶路','车内','车上','摩托','船只'],
+  '机制-通讯': ['通讯','无线电','电台','广播','发送消息','收到消息','联络','呼叫','回复消息','接听','频道','终端','电话'],
+  '机制-舒适度': ['舒适','难受','寒冷','炎热','潮湿','噪音','床铺','座椅','庇护所','室内','露营','休息'],
+  '机制-体力': ['体力','疲劳','劳累','奔跑','攀爬','搬运','战斗','探索','驾驶','建造','制造','休息'],
+  '机制-负重': ['负重','重量','背包','携带','搬运','拾取','搜刮','装载','卸货','超重'],
+  '机制-毁伤': ['武器','杀伤','毁伤','损伤','攻击','射击','挥砍','爆炸','护甲','命中'],
+  '机制-饱食度，饱水度与体重': ['进食','用餐','吃下','喝下','饮水','食用','吞下','吃饭','喝水','喝酒','补充水分','填饱肚子'],
+  '机制-沉浸式体验': ['探索','侦察','潜行','观察','环境','进入','离开','搜索','追踪','勘察'],
+  '机制-搜刮物资': ['搜刮','搜索物资','翻找','搜寻物资','拾取','捡起','拿走','带走','掠夺物资','清点战利品','搜索房间'],
+  '杂项-搜刮结果动态生成': ['搜刮','搜索物资','翻找','搜寻物资','拾取','捡起','拿走','带走','掠夺物资','清点战利品','搜索房间'],
+  '机制-建造庇护所': ['建造','搭建','修建','施工','扩建','加固','修缮','砌墙','铺设','安装设施','拆除建筑'],
+  '机制-种田！我要种田！': ['种植','播种','浇水','施肥','收获作物','耕地','除草','育苗','移栽','翻土','农田'],
+  '[mvu_update]物品完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','使用工具'],
+});
+
+const REQUIRED_BLUE_ENTRIES = new Set([
+  '[mvu_update]变量更新规则',
+  '[mvu_update]变量输出格式',
+  '[mvu_update]活动-共通结算',
+  '[mvu_update]通讯-公共',
+  '[mvu_update]通讯-私人',
+  '[mvu_update]物品分类',
+  '机制-活动叠加与冲突',
+]);
+
+function readGameTimestamp(value) {
+  const parts = String(value || '').match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
+  if (!parts) return null;
+  const stamp = Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] || 0), Number(parts[5] || 0));
+  return Number.isFinite(stamp) ? stamp : null;
+}
+
+// 每个既有势力都有独立速度和起步条件。base 是爆发瞬间保留下来的组织基础，
+// start 是爆发后开始实际发展的小时数，rate 是每游戏小时的自然推进量。
+const FACTION_DEFINITIONS = Object.freeze({
+  华国: [
+    { id:'解放军残部', detail:'华国-华国人民解放军行为', base:30, start:0, rate:1.05 },
+    { id:'血煞', detail:'世界观-无序者-华国血煞团体', base:1, start:2, rate:1.15 },
+    { id:'月影', detail:'世界观-无序者-华国月影团体', base:1, start:3, rate:1.0 },
+  ],
+  美利坚国: [
+    { id:'五角大楼指挥部', detail:'世界观-美利坚军方残余', base:32, start:0, rate:1.0 },
+    { id:'生命线', detail:'世界观-生命线', base:28, start:0, rate:0.95 },
+    { id:'方舟', detail:'世界观-方舟科技集团', base:24, start:0, rate:0.9 },
+    { id:'铁冠帮', detail:'世界观-无序者-美利坚国铁冠帮', base:1, start:1, rate:1.25 },
+    { id:'净世圣殿', detail:'世界观-无序者-美利坚国净世神殿', base:0, start:30, rate:0.72 },
+  ],
+  日本国: [
+    { id:'警视厅安全区', detail:'世界观-安全区-警视厅', base:26, start:0, rate:0.95 },
+    { id:'樱丘女子高中', detail:'世界观-幸存者-樱丘女子高中', base:8, start:1, rate:0.9 },
+    { id:'藤美学园', detail:'世界观-幸存者-藤美学园', base:10, start:1, rate:1.0 },
+    { id:'弗兰秀秀', detail:'世界观-幸存者-弗兰秀秀', base:1, start:8, rate:0.7 },
+    { id:'狩人之牙', detail:'世界观-无序者-日本国狩人之牙', base:1, start:5, rate:1.05 },
+    { id:'绝望残党', detail:'世界观-无序者-日本国绝望残党', base:1, start:12, rate:0.82 },
+  ],
+  大毛国: [
+    { id:'统一党', detail:'世界观-统一党爆发后', base:30, start:0, rate:0.95 },
+    { id:'新布尔什维克党', detail:'世界观-新布尔什维克党爆发后', base:24, start:0, rate:0.88 },
+    { id:'工人钢铁会', detail:'世界观-工人钢铁会爆发后', base:22, start:0, rate:0.82 },
+    { id:'黑雪', detail:'世界观-黑雪势力', base:1, start:4, rate:1.0 },
+    { id:'零度教', detail:'世界观-零度教势力', base:0, start:18, rate:0.7 },
+  ],
+  法国: [
+    { id:'白鹿堡', detail:'世界观-白鹿堡', base:20, start:0, rate:0.72 },
+    { id:'戴高乐号流亡政府', detail:'世界观-戴高乐号流亡政府', base:38, start:0, rate:0.75 },
+    { id:'混乱骑士团', detail:'世界观-混乱骑士团', base:1, start:6, rate:0.92 },
+    { id:'圣公教会', detail:'世界观-圣公教会', base:18, start:0, rate:0.7 },
+    { id:'铁王冠领', detail:'世界观-铁王冠领', base:17, start:0, rate:0.82 },
+    { id:'鸢尾堡', detail:'世界观-鸢尾堡', base:16, start:0, rate:0.72 },
+    { id:'自由联合民', detail:'世界观-自由联合民', base:12, start:0, rate:0.78 },
+  ],
+});
+const FACTION_DETAIL_INDEX = new Map(Object.entries(FACTION_DEFINITIONS).flatMap(([country, defs]) => defs.map(def => [def.detail, { ...def, country }])));
+const factionStageName = progress => progress >= 75 ? '成型' : progress >= 50 ? '立旗' : progress >= 25 ? '结伙' : '萌芽';
+const factionStageNumber = record => record?.已覆灭 ? 0 : ((Number(record?.进展) || 0) >= 75 ? 4 : (Number(record?.进展) || 0) >= 50 ? 3 : (Number(record?.进展) || 0) >= 25 ? 2 : (Number(record?.进展) || 0) > 0 ? 1 : 0);
+const factionStageEntry = (country, id, stage) => stage > 0 ? `势力发展/${country}/${id}/阶段${stage}-${['','萌芽','结伙','立旗','成型'][stage]}` : '';
+
+async function reconcileFactionDevelopment(sd) {
+  if (!sd || sd.世界阶段 === '秩序期') return sd;
+  const country = readNationality(sd);
+  const defs = FACTION_DEFINITIONS[country] || [];
+  if (!defs.length) return sd;
+  const currentText = String(sd?.环境?.时间 || '');
+  const currentStamp = readGameTimestamp(currentText);
+  if (currentStamp == null) return sd;
+  const outbreakStamp = Date.UTC(2030, 7, 24, 12, 0);
+  const outbreakHours = Math.max(0, (currentStamp - outbreakStamp) / 3600000);
+  const data = cloneData(getLatestMvuData());
+  if (!data?.stat_data) return sd;
+  const rawStates = data.stat_data.势力发展 && typeof data.stat_data.势力发展 === 'object' ? data.stat_data.势力发展 : {};
+  const states = Object.fromEntries(defs.filter(def => rawStates[def.id] && typeof rawStates[def.id] === 'object').map(def => [def.id, rawStates[def.id]]));
+  let changed = Object.keys(rawStates).length !== Object.keys(states).length;
+  for (const def of defs) {
+    const old = states[def.id];
+    let progress;
+    if (!old || typeof old !== 'object') {
+      progress = outbreakHours < def.start ? 0 : Math.min(100, Math.max(0, def.base + (outbreakHours - def.start) * def.rate));
+    } else if (old.已覆灭 === true) {
+      progress = Math.max(0, Math.min(100, Number(old.进展) || 0));
+    } else {
+      const lastStamp = readGameTimestamp(old.最近结算时间);
+      const lastHours = lastStamp == null ? outbreakHours : Math.max(0, (lastStamp - outbreakStamp) / 3600000);
+      if ((Number(old.进展) || 0) <= 0 && lastHours < def.start && outbreakHours >= def.start) {
+        progress = def.base + (outbreakHours - def.start) * def.rate;
+      } else {
+        const elapsed = Math.max(0, outbreakHours - Math.max(lastHours, def.start));
+        progress = Math.min(100, Math.max(0, Number(old.进展) || 0) + elapsed * def.rate);
+      }
+    }
+    progress = Math.round(progress * 10) / 10;
+    const next = {
+      国家: country,
+      阶段: old?.已覆灭 === true ? '覆灭' : factionStageName(progress),
+      进展: progress,
+      已覆灭: old?.已覆灭 === true,
+      最近结算时间: currentText,
+    };
+    if (JSON.stringify(old || null) !== JSON.stringify(next)) { states[def.id] = next; changed = true; }
+  }
+  // 结构隔离：只写回当前国家定义过的势力，错国记录和未知键不进入后续路由。
+  if (!changed) return sd;
+  data.stat_data.势力发展 = states;
+  try { await p.Mvu.replaceMvuData(data, MVU_LATEST_MESSAGE); return data.stat_data; } catch (e) { return sd; }
+}
+
+// 大体量机制使用“双判定”路由：既看持续状态，也看生成前已经出现的当前动作文本，避免首次行动晚一拍。
+const BIG_ROUTE_KEYWORDS = Object.freeze({
+  '机制-战斗': ['攻击','开火','射击','战斗','交战','搏斗','格斗','反击','击杀','挥砍','刺击','敌袭'],
+  '机制-伤病与医疗': ['受伤','伤口','流血','骨折','疼痛','感染','治疗','包扎','止血','手术','用药','急救','清创','缝合'],
+  '机制-完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','工具'],
+  '机制-制造': ['制造','制作','合成','加工','改装','维修','修理','保养','工作台','研究配方','组装','拆解设备'],
+  '物品-载具': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','车内','车上','摩托','船只'],
+});
+
+function readRecentTriggerText() {
+  try {
+    const context = p.SillyTavern?.getContext?.() || p.getContext?.() || null;
+    const chat = context?.chat || p.chat;
+    if (!Array.isArray(chat)) return '';
+    return chat.slice(-2).map(message => String(message?.mes ?? message?.message ?? message?.text ?? '')).join('\n');
+  } catch (e) {
+    return '';
+  }
+}
+
+function buildEnableSet(sd, triggerText = '') {
   const enable = new Set();
   const nat           = readNationality(sd);
   const phase         = sd?.世界阶段 ?? '秩序期';
   const infMode       = sd?.感染者行为模式 ?? '狂病型';
   const npcMode       = sd?.NPC行为模式 ?? '正常型';
   const extra         = sd?.扩展内容 ?? {};
+	const factionDefs = FACTION_DEFINITIONS[nat] || [];
+	if (phase === '爆发期' || phase === '末世期') {
+	  enable.add('[mvu_update]势力发展');
+	  factionDefs.forEach(def => {
+	    const stage = factionStageNumber(sd?.势力发展?.[def.id]);
+	    const stageEntry = factionStageEntry(nat, def.id, stage);
+	    if (stageEntry) enable.add(stageEntry);
+	    if (stage === 4) enable.add(def.detail);
+	  });
+	}
 
   if (extra.超事件 === true && phase === '末世期' && sd?.超事件?.事件ID && !sd?.超事件?.已解决) {
     enable.add(SUPER_EVENT_UPDATE_ENTRY);
@@ -3042,6 +3217,10 @@ function buildEnableSet(sd) {
     enable.add(INFECTED_UPDATE_ENTRIES[infMode]);
   }
   if (NPC_UPDATE_ENTRIES[npcMode]) enable.add(NPC_UPDATE_ENTRIES[npcMode]);
+  if (sd?.营地?.已建立 === true) {
+    enable.add(CAMP_PERSISTENT_UPDATE_ENTRY);
+    enable.add(CAMP_PERSISTENT_PLOT_ENTRY);
+  }
 
   if (extra.业火归途 === true) {
     YEHuo_EXTRA_ENTRIES.forEach(e => enable.add(e));
@@ -3075,6 +3254,13 @@ function buildEnableSet(sd) {
 
   const activeActivities = Array.isArray(sd?.当前活动) ? sd.当前活动 : [];
   const activitySet = new Set(activeActivities);
+
+  const currentText = String(triggerText || '');
+  if (currentText) {
+    for (const [entryName, keywords] of Object.entries(BIG_ROUTE_KEYWORDS)) {
+      if (keywords.some(keyword => currentText.includes(keyword))) enable.add(entryName);
+    }
+  }
   // 已建档人物跨国籍也要保持详情条目可被酒馆关键词扫描；选择性条目不会因此自动注入全文。
   const activeCharacterNames = new Set([
     ...Object.keys(sd?.NPC ?? {}),
@@ -3228,6 +3414,9 @@ function buildEnableSet(sd) {
       enable.add('世界观-美利坚爆发前');
     } else if (phase === '爆发期' || phase === '末世期') {
       enable.add('世界观-美利坚爆发后势力格局');
+      if (factionDefs.some(def => ['铁冠帮', '净世圣殿'].includes(def.id) && factionStageNumber(sd?.势力发展?.[def.id]) > 0)) {
+        enable.add('世界观-美利坚特色无序者总体设定');
+      }
     }
   }
   if (nat === '大毛国') {
@@ -3269,6 +3458,7 @@ var MANAGED_ENTRIES = new Set([
   ...Object.values(PHASE_UPDATE_ENTRIES),
   ...Object.values(INFECTED_UPDATE_ENTRIES),
   ...Object.values(NPC_UPDATE_ENTRIES),
+  CAMP_PERSISTENT_UPDATE_ENTRY,
   RECIPE_REVIEW_ENTRY,
   ...Object.values(RECIPE_CATEGORY_ENTRIES),
   '[mvu_update]威胁压力','[mvu_update]恐慌','[mvu_update]物品完整度',
@@ -3294,6 +3484,7 @@ var MANAGED_ENTRIES = new Set([
   '华国已定义NPC摘要','美利坚国已定义NPC摘要','日本国已定义NPC摘要',
   '大毛国已定义NPC摘要','法国已定义NPC摘要',
   '世界观-日本国暗线','世界观-美利坚爆发前','世界观-美利坚爆发后势力格局',
+  '世界观-美利坚特色无序者总体设定',
   '世界观-大毛生活图景','世界观-大毛国爆发前','世界观-势力爆发前',
   '世界观-大毛国爆发后概览',
   '世界观-法国爆发前','世界观-爆发期的法国','世界观-末世期的法国',
@@ -3305,6 +3496,11 @@ var MANAGED_ENTRIES = new Set([
   '暗线主角/约修亚/基础信息',
   '暗线主角/林青/基础信息',
   '[mvu_plot]暗线主角-引入与退场',
+	'[mvu_update]势力发展',
+	...Object.entries(FACTION_DEFINITIONS).flatMap(([country, defs]) => defs.flatMap(def => [
+	  def.detail,
+	  ...[1,2,3,4].map(stage => factionStageEntry(country, def.id, stage)),
+	])),
   '机制-活动叠加与冲突','机制-休息与睡眠','机制-探索','机制-钓鱼','机制-交易','机制-驾驶与乘车','机制-通讯','机制-营地经营',
   '机制-舒适度','机制-体力','机制-负重','机制-毁伤','机制-饱食度，饱水度与体重','物品-载具',
   ...YEHuo_EXTRA_ENTRIES,
@@ -3316,7 +3512,7 @@ var MANAGED_ENTRIES = new Set([
   SUPER_EVENT_UPDATE_ENTRY,
 ]);
 
-async function applyToWorldbook(enableSet, wbName, nat) {
+async function applyToWorldbook(enableSet, wbName, nat, sd) {
   if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
     throw new Error('TavernHelper 世界书接口不可用，请确认酒馆助手已启用');
   }
@@ -3338,7 +3534,7 @@ async function applyToWorldbook(enableSet, wbName, nat) {
 
   for (const entry of entries) {
     const entryName = entry.comment || entry.name || entry.title || '';
-    const anchor = entryName.match(/｜([^｜]+)·(专有条目|角色绿灯)/);
+    const anchor = entryName.match(/｜([^｜]+)·(专有条目|势力发展|角色绿灯)/);
     if (anchor) {
       sectionCountry = supportedCountries.has(anchor[1]) ? anchor[1] : null;
       sectionKind = anchor[2];
@@ -3349,13 +3545,43 @@ async function applyToWorldbook(enableSet, wbName, nat) {
       sectionKind = null;
     }
 
+    const nativeGreenKeys = NATIVE_GREEN_KEYWORDS[entryName];
+    const isNativeGreen = Array.isArray(nativeGreenKeys);
+    const isRequiredBlue = REQUIRED_BLUE_ENTRIES.has(entryName);
     const isManaged = MANAGED_ENTRIES.has(entryName);
-    const isCountryExclusive = sectionKind === '专有条目' && !!sectionCountry;
-    if (!isManaged && !isCountryExclusive) continue;
+    const isCountryExclusive = (sectionKind === '专有条目' || sectionKind === '势力发展') && !!sectionCountry;
+    const factionDetail = FACTION_DETAIL_INDEX.get(entryName);
+    if (!isManaged && !isCountryExclusive && !isNativeGreen && !isRequiredBlue) continue;
 
-    let shouldEnable = isManaged ? enableSet.has(entryName) : true;
+    let shouldEnable = (isNativeGreen || isRequiredBlue) ? true : (isManaged ? enableSet.has(entryName) : true);
     if (isCountryExclusive) {
       shouldEnable = sectionCountry === nat && (!isManaged || enableSet.has(entryName));
+	  if (factionDetail) {
+	    const stage = factionDetail.country === nat ? factionStageNumber(sd?.势力发展?.[factionDetail.id]) : 0;
+	    shouldEnable = stage === 4 && enableSet.has(entryName);
+	  }
+    }
+    let configMismatch = false;
+    if (isNativeGreen) {
+      const expectedKeys = [...new Set(nativeGreenKeys)];
+      configMismatch = entry.constant !== false || entry.selective !== true ||
+        JSON.stringify(entry.key || []) !== JSON.stringify(expectedKeys) ||
+        Number(entry.scanDepth) !== 2 || entry.caseSensitive !== false || entry.matchWholeWords !== false;
+      entry.constant = false;
+      entry.selective = true;
+      entry.key = expectedKeys;
+      entry.keysecondary = [];
+      entry.scanDepth = 2;
+      entry.caseSensitive = false;
+      entry.matchWholeWords = false;
+      entry.probability = 100;
+      entry.useProbability = true;
+    } else if (isRequiredBlue) {
+      configMismatch = entry.constant !== true || entry.selective !== false || (entry.key || []).length !== 0;
+      entry.constant = true;
+      entry.selective = false;
+      entry.key = [];
+      entry.keysecondary = [];
     }
     const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
     if (stateMismatch) {
@@ -3364,6 +3590,7 @@ async function applyToWorldbook(enableSet, wbName, nat) {
       changed = true;
       (shouldEnable ? enabledList : disabledList).push(entryName);
     }
+    if (configMismatch) changed = true;
   }
 
   // 人物详情由原生绿灯关键词触发；这里只隔离国籍，不在运行时拼接正则脚本。
@@ -3427,18 +3654,21 @@ async function autoSwitch() {
         throw new Error('未读取到最新消息的 MVU 变量，请先确认当前消息已经初始化变量');
       }
 
+	  // 当前国家的每个势力独立按游戏时间推进；玩家和剧情造成的增减保留在各自记录中。
+	  sd = await reconcileFactionDevelopment(sd);
+
       // 超事件是独立状态机：末世期才随机一次；第三阶段才打开对应剧情条目。
       const superState = await reconcileSuperEvent(sd);
       sd = superState.sd || sd;
 
-      const enableSet = buildEnableSet(sd);
+      const enableSet = buildEnableSet(sd, readRecentTriggerText());
       SUPER_EVENT_POOL.forEach(e => enableSet.delete(e.entry));
       if (superState.event && superEventStage(sd.超事件?.进展, sd.超事件?.已解决) === 3) {
         enableSet.add(superState.event.entry);
       }
       const wbName = await api_resolveWorldbookName();
       const nationality = readNationality(sd);
-      const result = await applyToWorldbook(enableSet, wbName, nationality);
+	  const result = await applyToWorldbook(enableSet, wbName, nationality, sd);
       // 同步输出格式强化条目状态
       await syncOutputFormatFlag().catch(() => {});
       const logSummary = result.log.map(l =>
@@ -3571,7 +3801,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const expected = 447;
+    const expected = 562;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
@@ -3830,7 +4060,8 @@ const statPollTimer = setInterval(() => {
       .sort()
       .join(',');
     const superEventKey = `${sd.扩展内容?.超事件 === true}|${sd.超事件?.事件ID || ''}|${sd.超事件?.进展 ?? 0}|${sd.超事件?.已解决 === true}`;
-    const key = `${sd.世界阶段}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
+    const factionKey = Object.entries(sd.势力发展 || {}).map(([name, value]) => `${name}:${value?.阶段 || ''}:${value?.进展 ?? 0}:${value?.已覆灭 === true}`).sort().join(',');
+    const key = `${sd.世界阶段}|${sd.环境?.时间 || ''}|${factionKey}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
     if (key !== _lastStatKey) {
       _lastStatKey = key;
       autoSwitch();
