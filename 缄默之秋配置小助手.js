@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.4/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.4';
+const JMZQ_VERSION = '2.0.5';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书', '缄默之秋-3.0-世界书'];
 const p = window.parent || window;
@@ -3064,6 +3064,8 @@ const REQUIRED_BLUE_ENTRIES = new Set([
   '[mvu_update]通讯-公共',
   '[mvu_update]通讯-私人',
   '[mvu_update]物品分类',
+  '[mvu_update]人物-建档与关系',
+  '[mvu_update]制造-科技与配方',
   '机制-活动叠加与冲突',
 ]);
 
