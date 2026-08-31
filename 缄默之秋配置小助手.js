@@ -1,11 +1,11 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.5/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.6/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.5';
+const JMZQ_VERSION = '2.0.6';
 const WORLDBOOK_NAME = '缄默之秋3.0';
-const WORLDBOOK_ALIASES = [WORLDBOOK_NAME, '缄默之秋3.0-世界书', '缄默之秋-3.0-世界书'];
+const WORLDBOOK_ALIASES = [WORLDBOOK_NAME];
 const p = window.parent || window;
 
 // 防重复加载
@@ -80,9 +80,17 @@ function runInParent(fnString, timeoutMs = 10000) {
 let _jmzqManualWbName = null;  // 用户手动选择的世界书名（自动检测失败后的兜底）
 let _mvuOutputFormatEnabled = false; // 随AI输出模式下的输出格式强化条目是否开启
 
-// v2.0-db: 输出格式强化条目已随 MVU 迁移删除，始终视为关闭
+// 输出格式强化仅供“随AI输出”模式使用；额外模型模式已有末端强制任务，必须关闭以免重复。
 async function syncOutputFormatFlag() {
-  _mvuOutputFormatEnabled = false;
+  try {
+    const wbName = await api_resolveWorldbookName();
+    const entries = wbName ? await api_getWorldbook(wbName) : [];
+    const entry = entries.find(x => (x.comment || x.name || x.title) === '[mvu_update]变量输出格式强化');
+    _mvuOutputFormatEnabled = !!entry && (entry.enabled === true || entry.disable === false);
+  } catch (_) {
+    _mvuOutputFormatEnabled = false;
+  }
+  return _mvuOutputFormatEnabled;
 }
 
 // 类型归一化：getCharWorldbookNames / getWorldbookNames 返回值可能是
@@ -1034,7 +1042,7 @@ function showToast(msg) {
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
 
 function checkConfig() {
   try {
@@ -3026,6 +3034,13 @@ const ACTIVITY_ENTRIES = {
 
 // 这些条目体量小、依赖当轮动作，长期保持可触发；不等待 /当前活动 写回后再开关。
 const NATIVE_GREEN_KEYWORDS = Object.freeze({
+  '杂项-角色创建': ['幸存者档案','角色创建','开局设定','末日前职业','初始技能生成要求','S.P.E.C.I.A.L.基础属性','剧情阶段'],
+  '杂项-云上瑶池与玖柒(联动彩蛋)': ['云上瑶池','九天瑶池','玖柒','普罗林修斯','沈青','超凡进化','瑶池审判'],
+  '机制-大果嚼嚼嚼(彩蛋)': ['大果嚼嚼嚼','大果','槟榔','5000果','五千果','和成天下'],
+  '机制-海上漂': ['海上','远洋','船上','海面','海岛','变异虎鲸','变异海鸥','超级章鱼'],
+  '物品-疫苗': ['COVID-30疫苗','疫苗','灭杀疫苗','免疫针','疫苗运输车','疫苗注射'],
+  '物品-武器与弹药': ['武器','弹药','枪械','手枪','步枪','机枪','霰弹枪','狙击枪','冷兵器','爆炸物'],
+  '物品-载具': ['载具','车辆','汽车','摩托','自行车','船只','飞机','坦克','房车','移动堡垒','飞艇'],
   '[mvu_update]活动-钓鱼': ['钓鱼','垂钓','下钩','收线','抛竿','鱼竿','鱼饵','浮漂','上鱼','起鱼'],
   '[mvu_update]活动-驾驶乘车': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','赶路','车内','车上','摩托','船只'],
   '[mvu_update]活动-建造': ['建造','搭建','修建','施工','扩建','加固','修缮','砌墙','铺设','安装设施','拆除建筑'],
@@ -3061,13 +3076,57 @@ const REQUIRED_BLUE_ENTRIES = new Set([
   '[mvu_update]变量更新规则',
   '[mvu_update]变量输出格式',
   '[mvu_update]活动-共通结算',
+  '[mvu_update]环境-时地与事件',
+  '[mvu_update]状态-身心与技能',
   '[mvu_update]通讯-公共',
   '[mvu_update]通讯-私人',
   '[mvu_update]物品分类',
   '[mvu_update]人物-建档与关系',
+  '[mvu_update]载具建筑-位置与库存',
   '[mvu_update]制造-科技与配方',
   '机制-活动叠加与冲突',
 ]);
+
+// 提示词分层：灯效只决定是否触发，位置和深度决定触发后的注意力。
+// MVU 自身会在变量模型末端注入强制任务，只有最短的格式保险占 depth 0。
+const PROMPT_LAYER_PROFILES = Object.freeze({
+  '[mvu_update]变量输出格式强化': { position: 4, depth: 0, role: 0, order: 1000 },
+  '[mvu_update]变量输出格式': { position: 4, depth: 1, role: 0, order: 999 },
+  '[mvu_update]变量更新规则': { position: 4, depth: 2, role: 0, order: 998 },
+  '[mvu_update]人物-建档与关系': { position: 4, depth: 3, role: 0, order: 970 },
+  '[mvu_update]通讯-公共': { position: 4, depth: 3, role: 0, order: 969 },
+  '[mvu_update]通讯-私人': { position: 4, depth: 3, role: 0, order: 968 },
+  '[mvu_update]物品分类': { position: 4, depth: 3, role: 0, order: 967 },
+  '[mvu_update]制造-科技与配方': { position: 4, depth: 3, role: 0, order: 966 },
+  '[mvu_update]活动-共通结算': { position: 4, depth: 3, role: 0, order: 965 },
+  '[mvu_update]环境-时地与事件': { position: 4, depth: 3, role: 0, order: 964 },
+  '[mvu_update]状态-身心与技能': { position: 4, depth: 3, role: 0, order: 963 },
+  '[mvu_update]载具建筑-位置与库存': { position: 4, depth: 3, role: 0, order: 962 },
+  '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)': { position: 4, depth: 0, role: 0, order: 1000 },
+  '[mvu_plot]正文操作请求处理': { position: 4, depth: 1, role: 0, order: 990 },
+  '[mvu_plot]杂项-合理性审查': { position: 4, depth: 2, role: 0, order: 900 },
+  '[mvu_plot]普通审查': { position: 4, depth: 2, role: 0, order: 900 },
+});
+
+function getPromptLayerProfile(entryName, entry) {
+  if (PROMPT_LAYER_PROFILES[entryName]) return PROMPT_LAYER_PROFILES[entryName];
+  if (/^\[mvu_update\]/i.test(entryName)) {
+    const isKeywordRule = Array.isArray(NATIVE_GREEN_KEYWORDS[entryName]) || (entry && entry.constant === false);
+    return { position: 1, depth: 4, role: null, order: isKeywordRule ? 760 : 720 };
+  }
+  return null;
+}
+
+function applyPromptLayerProfile(entry, profile) {
+  if (!profile) return false;
+  const mismatch = Number(entry.position) !== profile.position || Number(entry.depth) !== profile.depth ||
+    entry.role !== profile.role || Number(entry.order) !== profile.order;
+  entry.position = profile.position;
+  entry.depth = profile.depth;
+  entry.role = profile.role;
+  entry.order = profile.order;
+  return mismatch;
+}
 
 function readGameTimestamp(value) {
   const parts = String(value || '').match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
@@ -3453,10 +3512,6 @@ function buildEnableSet(sd, triggerText = '') {
 
 var MANAGED_ENTRIES = new Set([
   ...ALWAYS_UPDATE_ENTRIES,
-  '[mvu_update]基础状态结算',
-  // 旧卡遗留：已被阶段专项规则与标准更新协议取代，始终保持关闭。
-  '[mvu_update]世界观-大爆发',
-  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
   ...Object.values(PHASE_UPDATE_ENTRIES),
   ...Object.values(INFECTED_UPDATE_ENTRIES),
   ...Object.values(NPC_UPDATE_ENTRIES),
@@ -3536,6 +3591,21 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
 
   for (const entry of entries) {
     const entryName = entry.comment || entry.name || entry.title || '';
+    if (applyPromptLayerProfile(entry, getPromptLayerProfile(entryName, entry))) changed = true;
+    if (entryName === '[mvu_update]变量输出格式强化') {
+      const shouldEnable = getMvuCfg()?.更新方式 === '随AI输出';
+      const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
+      entry.constant = true;
+      entry.selective = false;
+      entry.key = [];
+      entry.keysecondary = [];
+      entry.enabled = shouldEnable;
+      if ('disable' in entry) entry.disable = !shouldEnable;
+      _mvuOutputFormatEnabled = shouldEnable;
+      if (stateMismatch) changed = true;
+      (shouldEnable ? enabledList : disabledList).push(entryName);
+      continue;
+    }
     const anchor = entryName.match(/｜([^｜]+)·(专有条目|势力发展|角色绿灯)/);
     if (anchor) {
       sectionCountry = supportedCountries.has(anchor[1]) ? anchor[1] : null;
