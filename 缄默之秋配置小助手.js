@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.6/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.7/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.6';
+const JMZQ_VERSION = '2.0.7';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME];
 const p = window.parent || window;
@@ -3709,6 +3709,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
 var _runningPromise = null;
 var _pendingSwitch  = false;
 var _debounceTimer  = null;
+var _postUpdateTimer = null;
 
 async function autoSwitch() {
   if (_runningPromise) {
@@ -3793,6 +3794,10 @@ function onCriticalEvent() {
 function onSecondaryEvent() {
   clearTimeout(_debounceTimer);
   _debounceTimer = setTimeout(autoSwitch, 200);
+  // MESSAGE_RECEIVED 与 MVU 的额外模型解析并行派发。200ms 预切换用于及时准备
+  // 当前请求；延迟复核等待变量模型写回最新 stat_data，修正阶段/营地/配方等路由。
+  clearTimeout(_postUpdateTimer);
+  _postUpdateTimer = setTimeout(autoSwitch, 3600);
 }
 function onSuperEventGenerationFinished() {
   if (!p._jmzqSuperEventCatchupId) return;
@@ -3824,8 +3829,10 @@ if (typeof eventOn === 'function') {
   for (const evt of ['character_message_rendered', 'CHARACTER_MESSAGE_RENDERED', 'message_received', 'MESSAGE_RECEIVED']) {
     try { eventOn(evt, onSuperEventGenerationFinished); } catch(e) {}
   }
-  p._jmzqCleanup = function() {
-    clearSuperEventPrompt();
+p._jmzqCleanup = function() {
+  clearSuperEventPrompt();
+  clearTimeout(_debounceTimer);
+  clearTimeout(_postUpdateTimer);
     delete p._jmzqSuperEventCatchupId;
     p.document.getElementById('jmzq-super-event-modal')?.remove();
     if (typeof eventOff === 'function') {
@@ -4155,6 +4162,7 @@ p._jmzqCleanup = function() {
   try { if (typeof cleanupMvuEvents === 'function') cleanupMvuEvents(); } catch (_) {}
   clearTimeout(jmzqEdgeTimer);
   clearTimeout(_debounceTimer);
+  clearTimeout(_postUpdateTimer);
   clearInterval(configPollTimer);
   clearInterval(statPollTimer);
   p.document.removeEventListener('mousedown', onOutsidePanelPress);
