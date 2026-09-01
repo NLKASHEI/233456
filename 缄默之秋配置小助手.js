@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.10/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.0/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.10';
+const JMZQ_VERSION = '2.1.0';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -2745,6 +2745,389 @@ function cloneData(v) { try { return structuredClone(v); } catch (e) { return JS
 function getLatestMvuData() {
   try { return p.Mvu?.getMvuData?.(MVU_LATEST_MESSAGE); } catch (e) { return null; }
 }
+
+// ═══════════════ SPECIAL 对抗判定 ═══════════════
+// 正文只提交最短判定标签；本地助手读取玩家SPECIAL并完成稳定计算。
+// 结果写回产生标签的当前消息页，下一次正文生成时再作为尾部system提示注入。
+const CONTEST_PROMPT_ID = 'jmzq-special-contest-result';
+const CONTEST_RAW_RE = /<DY_CONTEST>([\s\S]*?)<\/DY_CONTEST>/g;
+const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+id="([^"]+)"\s+type="([^"]+)"\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
+const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR\s+id="([^"]*)">([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
+const CONTEST_APPLIED_RE = /<DY_CONTEST_APPLIED\s+id="([^"]+)"\s*\/>/g;
+const CONTEST_ATTR = Object.freeze({
+  S: '力量', P: '感知', E: '耐力', C: '魅力', I: '智力', A: '敏捷', L: '意志',
+});
+const CONTEST_CHANCE = Object.freeze({
+  '-7': 0, '-6': 1, '-5': 3, '-4': 8, '-3': 15, '-2': 27, '-1': 40,
+  '0': 50, '1': 60, '2': 73, '3': 85, '4': 92, '5': 97, '6': 99, '7': 100,
+});
+const CONTEST_RESULT_MEANING = Object.freeze({
+  '大成功': '行动以显著优势完成，并获得符合现场条件的额外收益；额外收益不能凭空造物或越过既有能力边界。',
+  '小成功': '行动达成主要目标，但过程、代价或收益保持克制，不追加无依据的完美结果。',
+  '两败俱伤': '双方都未取得完整目标，且各自承担清晰、对等而可追踪的代价；不能把它偷换成单方面胜利。',
+  '小失败': '行动没有达成主要目标并承受合理后果，但保留符合现场因果的继续应对空间。',
+  '大失败': '行动遭到决定性挫败并触发严重且有现场依据的后果；不得额外追加与本次冲突无关的惩罚。',
+});
+let _contestScanTimer = null;
+let _contestPromptActive = false;
+let _contestProcessing = false;
+const _contestReadRetries = new Map();
+
+function contestApi() {
+  try {
+    if (typeof TavernHelper !== 'undefined') return TavernHelper;
+  } catch (e) {}
+  return p.TavernHelper || null;
+}
+function contestContext() {
+  try { return p.SillyTavern?.getContext?.() || p.getCurrentContext?.() || null; } catch (e) { return null; }
+}
+function contestChatId() {
+  try { return p.SillyTavern?.getCurrentChatId?.() || p.getCurrentChatId?.() || contestContext()?.chatId || 'default'; }
+  catch (e) { return 'default'; }
+}
+function contestEscapeText(value, max = 240) {
+  return String(value ?? '')
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[<>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, max);
+}
+function contestEscapeAttr(value, max = 120) {
+  return contestEscapeText(value, max).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+}
+function contestClamp(value, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.min(max, Math.max(min, number)) : min;
+}
+function contestSignedRound(value) {
+  const number = Number(value) || 0;
+  return number < 0 ? -Math.round(Math.abs(number)) : Math.round(number);
+}
+function contestHash(value) {
+  let hash = 0x811c9dc5;
+  const text = String(value ?? '');
+  for (let i = 0; i < text.length; i += 1) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+function contestStableRoll(seed) { return (contestHash(seed) % 100) + 1; }
+function contestGap(delta) {
+  const absolute = Math.abs(delta);
+  if (absolute <= 2) return '同级博弈';
+  if (absolute <= 4) return '跨一级';
+  if (absolute <= 6) return '跨两级';
+  return '绝对差距';
+}
+function contestOutcome(chance, roll) {
+  if (chance <= 0) return '大失败';
+  if (chance >= 100) return '大成功';
+  const margin = chance - roll;
+  if (margin >= 30) return '大成功';
+  if (margin >= 0) return '小成功';
+  if (margin >= -5) return '两败俱伤';
+  if (margin >= -30) return '小失败';
+  return '大失败';
+}
+function contestReadPlayerSpecial(type) {
+  const data = getLatestMvuData();
+  const stat = data?.stat_data || data;
+  const special = stat?.SPECIAL;
+  if (!special || typeof special !== 'object') return null;
+  // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
+  const raw = type === 'L' ? (special.L ?? special.W) : special[type];
+  const number = Number(raw);
+  return Number.isFinite(number) ? contestClamp(number, -10, 10) : null;
+}
+function contestValidatePayload(raw) {
+  let value;
+  try { value = JSON.parse(raw); } catch (e) { throw new Error('判定标签中的JSON无法解析'); }
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('判定内容必须是JSON对象');
+  const id = String(value.id ?? '').trim();
+  if (!/^[A-Za-z0-9_.:-]{1,80}$/.test(id)) throw new Error('判定id只能使用字母、数字、点、冒号、下划线或短横线');
+  const type = String(value.type ?? '').toUpperCase();
+  if (!Object.prototype.hasOwnProperty.call(CONTEST_ATTR, type)) throw new Error('type必须是S/P/E/C/I/A/L之一');
+  const scene = contestEscapeText(value.scene, 180);
+  if (!scene) throw new Error('scene不能为空');
+  const playerMod = value.playerMod == null ? 0 : Number(value.playerMod);
+  if (!Number.isInteger(playerMod) || playerMod < -3 || playerMod > 3) throw new Error('playerMod必须是-3至3的整数');
+  if (!Array.isArray(value.enemies) || value.enemies.length < 1 || value.enemies.length > 30) throw new Error('enemies必须包含1至30名直接参与者');
+  const enemies = value.enemies.map((enemy, index) => {
+    if (!enemy || typeof enemy !== 'object' || Array.isArray(enemy)) throw new Error(`第${index + 1}名敌人格式无效`);
+    const name = contestEscapeText(enemy.name, 48);
+    if (!name) throw new Error(`第${index + 1}名敌人缺少name`);
+    const enemyValue = Number(enemy.value);
+    if (!Number.isFinite(enemyValue) || enemyValue < -10 || enemyValue > 10) throw new Error(`${name}的value必须在-10至10之间`);
+    const mod = enemy.mod == null ? 0 : Number(enemy.mod);
+    if (!Number.isInteger(mod) || mod < -3 || mod > 3) throw new Error(`${name}的mod必须是-3至3的整数`);
+    return { name, value: enemyValue, mod };
+  });
+  return { id, type, scene, playerMod, enemies };
+}
+function contestCurrentSwipe(message) {
+  const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
+  const text = Array.isArray(message?.swipes) ? message.swipes[swipeId] : message?.message;
+  return { swipeId, text: String(text ?? '') };
+}
+function contestListMessages() {
+  const api = contestApi();
+  if (typeof api?.getChatMessages === 'function') {
+    try { return api.getChatMessages('0-{{lastMessageId}}', { include_swipes: true }) || []; } catch (e) {}
+  }
+  const chat = contestContext()?.chat;
+  return Array.isArray(chat) ? chat.map((item, index) => ({
+    message_id: index,
+    role: item?.is_user ? 'user' : 'assistant',
+    swipe_id: item?.swipe_id,
+    swipes: item?.swipes,
+    message: item?.mes,
+  })) : [];
+}
+async function contestReplaceCurrentSwipe(message, nextText) {
+  const api = contestApi();
+  if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
+  await api.setChatMessages([{ message_id: message.message_id, message: nextText }], { refresh: 'affected' });
+}
+function contestStoreKey() { return `jmzq-contest-v1:${contestChatId()}`; }
+function contestReadStore() {
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(contestStoreKey()) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) { return []; }
+}
+function contestWriteStore(records) {
+  try { p.localStorage?.setItem(contestStoreKey(), JSON.stringify(records.slice(-50))); } catch (e) {}
+}
+function contestSaveRecord(record) {
+  const records = contestReadStore().filter(item => item?.key !== record.key);
+  records.push(record);
+  contestWriteStore(records);
+}
+function contestHasDuplicateId(id, sourceMessageId, sourceSwipeId) {
+  return contestListMessages().some(message => {
+    const current = contestCurrentSwipe(message);
+    if (message.message_id === sourceMessageId && current.swipeId === sourceSwipeId) return false;
+    CONTEST_RESULT_RE.lastIndex = 0;
+    return [...current.text.matchAll(CONTEST_RESULT_RE)].some(match => match[1] === id);
+  });
+}
+function contestResultTag(result) {
+  const delta = result.delta > 0 ? `+${result.delta}` : String(result.delta);
+  return `<DY_CONTEST_RESULT id="${contestEscapeAttr(result.id)}" type="${result.type}·${CONTEST_ATTR[result.type]}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
+}
+function contestErrorTag(id, reason) {
+  return `<DY_CONTEST_ERROR id="${contestEscapeAttr(id || 'invalid')}">${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
+}
+function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, raw) {
+  const playerEffective = contestClamp(playerBase + payload.playerMod, -10, 10);
+  const enemyValues = payload.enemies.map(enemy => contestClamp(enemy.value + enemy.mod, -10, 10));
+  const enemyAverage = enemyValues.reduce((sum, value) => sum + value, 0) / enemyValues.length;
+  const deltaRaw = playerEffective - enemyAverage;
+  const delta = contestClamp(contestSignedRound(deltaRaw), -7, 7);
+  const chance = CONTEST_CHANCE[String(delta)];
+  const contentHash = contestHash(raw);
+  const seed = `${contestChatId()}|${sourceMessageId}|${sourceSwipeId}|${payload.id}|${contentHash}`;
+  const roll = contestStableRoll(seed);
+  const outcome = contestOutcome(chance, roll);
+  const computedAt = Date.now();
+  return {
+    id: payload.id, type: payload.type, scene: payload.scene,
+    playerBase, playerMod: payload.playerMod, playerEffective,
+    enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: enemyValues[index] })),
+    enemyCount: payload.enemies.length, enemyAverage: Math.round(enemyAverage * 10) / 10,
+    deltaRaw: Math.round(deltaRaw * 10) / 10, delta,
+    gap: contestGap(delta), gapTier: contestGap(delta),
+    advantageSide: delta > 0 ? '玩家优势' : delta < 0 ? '玩家劣势' : '势均力敌',
+    chance, roll, outcome, contentHash,
+    sourceMessageId, sourceSwipeId, computedAt, createdAt: computedAt,
+  };
+}
+async function contestProcessMessage(message) {
+  if (!message || message.role !== 'assistant') return false;
+  const { swipeId, text } = contestCurrentSwipe(message);
+  CONTEST_RAW_RE.lastIndex = 0;
+  const matches = [...text.matchAll(CONTEST_RAW_RE)];
+  if (!matches.length) return false;
+  if (matches.length !== 1) {
+    const next = text.replace(CONTEST_RAW_RE, contestErrorTag('multiple', '一条正文只能提交一次对抗判定'));
+    await contestReplaceCurrentSwipe(message, next);
+    return true;
+  }
+  const raw = matches[0][1].trim();
+  const retryKey = `${message.message_id}:${swipeId}:${contestHash(raw)}`;
+  let replacement;
+  try {
+    const payload = contestValidatePayload(raw);
+    if (contestHasDuplicateId(payload.id, message.message_id, swipeId)) throw new Error('判定id已在其他消息中使用，请为新对抗生成唯一id');
+    const playerBase = contestReadPlayerSpecial(payload.type);
+    if (playerBase == null) {
+      const retry = (_contestReadRetries.get(retryKey) || 0) + 1;
+      _contestReadRetries.set(retryKey, retry);
+      if (retry <= 4) { contestScheduleScan(350 * retry); return true; }
+      throw new Error(`无法读取玩家SPECIAL.${payload.type}，请确认开局变量已完成初始化`);
+    }
+    _contestReadRetries.delete(retryKey);
+    const result = contestCalculate(payload, playerBase, message.message_id, swipeId, raw);
+    replacement = contestResultTag(result);
+    contestSaveRecord({ ...result, key: `${message.message_id}:${swipeId}:${contestHash(raw)}` });
+    p._jmzqLastContest = result;
+  } catch (error) {
+    _contestReadRetries.delete(retryKey);
+    let id = 'invalid';
+    try { id = String(JSON.parse(raw)?.id || 'invalid'); } catch (e) {}
+    replacement = contestErrorTag(id, error?.message || error);
+    console.warn('[JMZQ] SPECIAL判定未执行：', error);
+  }
+  const next = text.slice(0, matches[0].index) + replacement + text.slice(matches[0].index + matches[0][0].length);
+  await contestReplaceCurrentSwipe(message, next);
+  return true;
+}
+async function contestScanRecent() {
+  if (_contestProcessing) return;
+  _contestProcessing = true;
+  try {
+    const messages = contestListMessages();
+    const recent = messages.filter(message => message?.role === 'assistant').slice(-8).reverse();
+    for (const message of recent) {
+      if (await contestProcessMessage(message)) break;
+    }
+  } finally { _contestProcessing = false; }
+}
+function contestScheduleScan(delay = 80) {
+  clearTimeout(_contestScanTimer);
+  _contestScanTimer = setTimeout(() => {
+    contestScanRecent().catch(error => console.warn('[JMZQ] SPECIAL判定扫描失败：', error));
+  }, delay);
+}
+function contestParseResultFromText(text, messageId, swipeId) {
+  CONTEST_RESULT_RE.lastIndex = 0;
+  const matches = [...String(text ?? '').matchAll(CONTEST_RESULT_RE)];
+  if (!matches.length) return null;
+  const match = matches[matches.length - 1];
+  return {
+    id: match[1], typeLabel: match[2], delta: match[3], gap: match[4],
+    chance: Number(match[5]), roll: Number(match[6]), outcome: match[7], scene: contestEscapeText(match[8], 180),
+    sourceMessageId: messageId, sourceSwipeId: swipeId,
+  };
+}
+function contestFindInjectableResult(isRegeneration) {
+  const messages = contestListMessages();
+  const assistants = messages.filter(message => message?.role === 'assistant');
+  if (!assistants.length) return null;
+  const lastAssistant = assistants[assistants.length - 1];
+  for (let i = assistants.length - 1; i >= 0; i -= 1) {
+    const message = assistants[i];
+    const { swipeId, text } = contestCurrentSwipe(message);
+    const result = contestParseResultFromText(text, message.message_id, swipeId);
+    if (!result) continue;
+    // 正常下一轮：判定来源就是最后一条助手消息，应注入。
+    // 只有明确重生成该来源层时，旧页结果才必须隔离。
+    if (message.message_id === lastAssistant.message_id) return isRegeneration ? null : result;
+    const laterAssistants = assistants.filter(item => item.message_id > message.message_id);
+    if (laterAssistants.length === 0) return result;
+    // 重生成承接结果的第一条正文时忽略旧页确认标记，继续注入同一结果。
+    if (isRegeneration && laterAssistants.length === 1 && laterAssistants[0].message_id === lastAssistant.message_id) return result;
+    // 只有正文明确确认已落实结果才消费；生成中断或模型漏承接时保留原掷值。
+    const applied = laterAssistants.some(item => {
+      const current = contestCurrentSwipe(item);
+      CONTEST_APPLIED_RE.lastIndex = 0;
+      return [...current.text.matchAll(CONTEST_APPLIED_RE)].some(match => match[1] === result.id);
+    });
+    return applied ? null : result;
+  }
+  return null;
+}
+function contestClearPrompt() {
+  let cleared = false;
+  try {
+    const fn = p.uninjectPrompts || (typeof uninjectPrompts === 'function' ? uninjectPrompts : null);
+    if (typeof fn === 'function') { fn([CONTEST_PROMPT_ID]); cleared = true; }
+  } catch (e) {}
+  if (!cleared) {
+    try { contestContext()?.setExtensionPrompt?.(CONTEST_PROMPT_ID, '', 1, 0, false, 0); } catch (e) {}
+  }
+  _contestPromptActive = false;
+}
+function contestInjectResult(result) {
+  contestClearPrompt();
+  if (!result) return;
+  const meaning = CONTEST_RESULT_MEANING[result.outcome] || '';
+  const content = `<对抗判定结果 id="${contestEscapeAttr(result.id)}">\n场景：${result.scene}\n检定：${result.typeLabel}｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<DY_CONTEST_APPLIED id="${contestEscapeAttr(result.id)}"/>；该确认标记不属于叙事内容。\n</对抗判定结果>`;
+  try {
+    const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
+    if (typeof fn === 'function') {
+      fn([{ id: CONTEST_PROMPT_ID, position: 'in_chat', depth: 0, role: 'system', content, should_scan: false }], { once: true });
+      _contestPromptActive = true;
+      p._jmzqInjectedContest = result;
+      return;
+    }
+  } catch (e) { console.warn('[JMZQ] SPECIAL判定结果注入失败：', e); }
+  try {
+    const context = contestContext();
+    if (typeof context?.setExtensionPrompt === 'function') {
+      context.setExtensionPrompt(CONTEST_PROMPT_ID, content, 1, 0, false, 0);
+      _contestPromptActive = true;
+      p._jmzqInjectedContest = result;
+    }
+  } catch (e) { console.warn('[JMZQ] SPECIAL判定结果回退注入失败：', e); }
+}
+function contestIsRegeneration(args) {
+  try { return /regenerat|swipe|retry|重新|重试/i.test(JSON.stringify(args)); } catch (e) { return false; }
+}
+function onContestBeforeGeneration(...args) {
+  contestInjectResult(contestFindInjectableResult(contestIsRegeneration(args)));
+}
+function onContestGenerationFinished() {
+  contestClearPrompt();
+  contestScheduleScan(120);
+  setTimeout(() => contestScheduleScan(0), 700);
+}
+
+const CONTEST_RESULT_REGEX = Object.freeze({
+  id: 'jmzq-special-contest-result-card',
+  scriptName: '缄默之秋-SPECIAL对抗判定结果',
+  findRegex: '/<DY_CONTEST_RESULT\\s+id="([^"]+)"\\s+type="([^"]+)"\\s+delta="([^"]+)"\\s+gap="([^"]+)"\\s+chance="(\\d+)"\\s+roll="(\\d+)"\\s+result="([^"]+)">([\\s\\S]*?)<\\/DY_CONTEST_RESULT>/g',
+  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:14px 16px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 55%,transparent);border-left:4px solid var(--SmartThemeQuoteColor,#d04a43);border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 92%,transparent),color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 8%,var(--SmartThemeBlurTintColor,#111820)));color:var(--SmartThemeBodyColor,#e8edf1);box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.5px;color:var(--SmartThemeQuoteColor,#e05a52);font-weight:800">SPECIAL CONTEST · $1</div><div style="margin-top:5px;font-size:20px;font-weight:800">$7</div></div><div style="padding:5px 9px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 35%,transparent);border-radius:999px;font-size:12px">$2 · $4</div></div><div style="margin-top:10px;line-height:1.7;font-size:14px">$8</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;font-size:12px"><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">差级 <b>$3</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">成功率 <b>$5%</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">掷值 <b>$6</b></span></div></div>',
+  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
+  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
+});
+const CONTEST_ERROR_REGEX = Object.freeze({
+  id: 'jmzq-special-contest-error-card',
+  scriptName: '缄默之秋-SPECIAL对抗判定错误',
+  findRegex: '/<DY_CONTEST_ERROR\\s+id="([^"]*)">([\\s\\S]*?)<\\/DY_CONTEST_ERROR>/g',
+  replaceString: '<div style="margin:10px 0;padding:11px 13px;border:1px solid #c94242;border-radius:8px;background:rgba(150,30,30,.12);color:var(--SmartThemeBodyColor,#eee);font-family:Inter,\'Microsoft YaHei\',sans-serif"><b style="color:#ef6464">判定未执行 · $1</b><div style="margin-top:5px;font-size:13px;line-height:1.6">$2</div></div>',
+  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
+  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
+});
+const CONTEST_APPLIED_REGEX = Object.freeze({
+  id: 'jmzq-special-contest-applied-hide',
+  scriptName: '缄默之秋-SPECIAL对抗判定确认隐藏',
+  findRegex: '/<DY_CONTEST_APPLIED\\s+id="([^"]+)"\\s*\\/>/g',
+  replaceString: '',
+  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
+  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
+});
+async function ensureContestRegexes() {
+  try {
+    await api_updateTavernRegexes(regexes => {
+      if (!Array.isArray(regexes)) return;
+      for (const wanted of [CONTEST_RESULT_REGEX, CONTEST_ERROR_REGEX, CONTEST_APPLIED_REGEX]) {
+        const index = regexes.findIndex(item => item?.id === wanted.id || item?.scriptName === wanted.scriptName);
+        if (index >= 0) regexes[index] = { ...regexes[index], ...wanted };
+        else regexes.push({ ...wanted });
+      }
+    });
+  } catch (error) { console.warn('[JMZQ] SPECIAL判定显示正则同步失败：', error); }
+}
+p._jmzqContestDebug = {
+  scan: contestScanRecent,
+  calculate: contestCalculate,
+  chance: CONTEST_CHANCE,
+  last: () => p._jmzqLastContest || null,
+};
 function showSuperEventPopup(event, stage, text) {
   const doc = p.document;
   const old = doc.getElementById('jmzq-super-event-modal'); if (old) old.remove();
@@ -3834,6 +4217,18 @@ const SECONDARY_EVENTS = [
 ];
 
 const ALL_EVENTS = [...CRITICAL_EVENTS, ...SECONDARY_EVENTS];
+const CONTEST_BEFORE_EVENTS = [
+  // 该事件会携带normal/regenerate/swipe等生成类型，可可靠隔离重生成来源页。
+  'generation_after_commands', 'GENERATION_AFTER_COMMANDS',
+];
+const CONTEST_FINISH_EVENTS = [
+  'generation_ended', 'GENERATION_ENDED',
+  'generation_stopped', 'GENERATION_STOPPED',
+  'message_received', 'MESSAGE_RECEIVED',
+  'character_message_rendered', 'CHARACTER_MESSAGE_RENDERED',
+  'message_swiped', 'MESSAGE_SWIPED',
+  'message_edited', 'MESSAGE_EDITED',
+];
 
 if (typeof eventOn === 'function') {
   for (const evt of CRITICAL_EVENTS) {
@@ -3845,8 +4240,16 @@ if (typeof eventOn === 'function') {
   for (const evt of ['character_message_rendered', 'CHARACTER_MESSAGE_RENDERED', 'message_received', 'MESSAGE_RECEIVED']) {
     try { eventOn(evt, onSuperEventGenerationFinished); } catch(e) {}
   }
+  for (const evt of CONTEST_BEFORE_EVENTS) {
+    try { eventOn(evt, onContestBeforeGeneration); } catch(e) {}
+  }
+  for (const evt of CONTEST_FINISH_EVENTS) {
+    try { eventOn(evt, onContestGenerationFinished); } catch(e) {}
+  }
 p._jmzqCleanup = function() {
   clearSuperEventPrompt();
+  contestClearPrompt();
+  clearTimeout(_contestScanTimer);
   clearTimeout(_debounceTimer);
   clearTimeout(_postUpdateTimer);
     delete p._jmzqSuperEventCatchupId;
@@ -3857,6 +4260,8 @@ p._jmzqCleanup = function() {
       for (const evt of ['character_message_rendered', 'CHARACTER_MESSAGE_RENDERED', 'message_received', 'MESSAGE_RECEIVED']) {
         try { eventOff(evt, onSuperEventGenerationFinished); } catch(e) {}
       }
+      for (const evt of CONTEST_BEFORE_EVENTS) { try { eventOff(evt, onContestBeforeGeneration); } catch(e) {} }
+      for (const evt of CONTEST_FINISH_EVENTS) { try { eventOff(evt, onContestGenerationFinished); } catch(e) {} }
     }
   };
 } else {
@@ -4168,6 +4573,8 @@ const statPollTimer = setInterval(() => {
 
 refreshMvuConfigStatus();
 checkEjsTemplate();
+ensureContestRegexes();
+contestScheduleScan(500);
 
 // 注册世界书状态刷新事件
 const onJmzqDone = () => { refreshUI(); checkWorldbookCount(); };
