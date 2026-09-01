@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.7/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.8/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.7';
+const JMZQ_VERSION = '2.0.8';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 const WORLDBOOK_ALIASES = [WORLDBOOK_NAME];
 const p = window.parent || window;
@@ -2731,6 +2731,8 @@ const SUPER_EVENT_CONTINENT_PREFIX = '【超事件动态】'; // 旧版单行标
 const SUPER_EVENT_CONTINENT_START = '【超事件动态·开始】';
 const SUPER_EVENT_CONTINENT_END = '【超事件动态·结束】';
 const SUPER_EVENT_UPDATE_ENTRY = '[mvu_update][extra]超事件-状态推进';
+// 变量模型需要先看到可选事件的合法 ID，正文专属条目本身不会发送给变量模型。
+const SUPER_EVENT_CATALOG_ENTRY = '[mvu_update][extra]超事件-事件目录';
 const MVU_LATEST_MESSAGE = { type: 'message', message_id: -1 };
 
 function cloneData(v) { try { return structuredClone(v); } catch (e) { return JSON.parse(JSON.stringify(v)); } }
@@ -3266,6 +3268,10 @@ function buildEnableSet(sd, triggerText = '') {
 	  });
 	}
 
+  if (extra.超事件 === true) {
+    // 目录在扩展开启后常驻，确保变量模型知道合法事件 ID；状态推进仍只在末世期且已选事件时启用。
+    enable.add(SUPER_EVENT_CATALOG_ENTRY);
+  }
   if (extra.超事件 === true && phase === '末世期' && sd?.超事件?.事件ID && !sd?.超事件?.已解决) {
     enable.add(SUPER_EVENT_UPDATE_ENTRY);
   }
@@ -3566,7 +3572,7 @@ var MANAGED_ENTRIES = new Set([
   ...ADULT_EXTRA_PREGNANCY_ENTRIES,
   ...CONTRACT_MODE_ENTRIES,
   ...SUPER_EVENT_POOL.map(e => e.entry),
-  SUPER_EVENT_UPDATE_ENTRY,
+  SUPER_EVENT_UPDATE_ENTRY, SUPER_EVENT_CATALOG_ENTRY,
 ]);
 
 async function applyToWorldbook(enableSet, wbName, nat, sd) {
@@ -3880,7 +3886,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    const expected = 562;
+    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 567 条（含锚点）。
+    // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
+    const expected = 567;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
