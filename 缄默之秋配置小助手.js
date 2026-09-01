@@ -1,11 +1,17 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.8/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.9/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.8';
+const JMZQ_VERSION = '2.0.9';
 const WORLDBOOK_NAME = '缄默之秋3.0';
-const WORLDBOOK_ALIASES = [WORLDBOOK_NAME];
+// 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
+const WORLDBOOK_ALIASES = [
+  WORLDBOOK_NAME,
+  '缄默之秋-3.0-世界书',
+  '缄默之秋3.0世界书',
+  '缄默之秋-3.0',
+];
 const p = window.parent || window;
 
 // 防重复加载
