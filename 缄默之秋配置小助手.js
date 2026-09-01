@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.1';
+const JMZQ_VERSION = '2.1.2';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3496,19 +3496,19 @@ const REQUIRED_BLUE_ENTRIES = new Set([
 // MVU 自身会在变量模型末端注入强制任务，只有最短的格式保险占 depth 0。
 const PROMPT_LAYER_PROFILES = Object.freeze({
   '[mvu_update]变量输出格式强化': { position: 4, depth: 0, role: 0, order: 1000 },
-  '[mvu_update]变量输出格式': { position: 4, depth: 1, role: 0, order: 999 },
-  '[mvu_update]变量更新规则': { position: 4, depth: 2, role: 0, order: 998 },
-  '[mvu_update]人物-建档与关系': { position: 4, depth: 3, role: 0, order: 970 },
-  '[mvu_update]通讯-公共': { position: 4, depth: 3, role: 0, order: 969 },
-  '[mvu_update]通讯-私人': { position: 4, depth: 3, role: 0, order: 968 },
-  '[mvu_update]物品分类': { position: 4, depth: 3, role: 0, order: 967 },
-  '[mvu_update]制造-科技与配方': { position: 4, depth: 3, role: 0, order: 966 },
-  '[mvu_update]活动-共通结算': { position: 4, depth: 3, role: 0, order: 965 },
-  '[mvu_update]环境-时地与事件': { position: 4, depth: 3, role: 0, order: 964 },
-  '[mvu_update]状态-身心与技能': { position: 4, depth: 3, role: 0, order: 963 },
-  '[mvu_update]载具建筑-位置与库存': { position: 4, depth: 3, role: 0, order: 962 },
+  '[mvu_update]变量输出格式': { position: 4, depth: 0, role: 0, order: 999 },
+  '[mvu_update]变量更新规则': { position: 4, depth: 1, role: 0, order: 998 },
+  '[mvu_update]人物-建档与关系': { position: 1, depth: 4, role: null, order: 970 },
+  '[mvu_update]通讯-公共': { position: 1, depth: 4, role: null, order: 969 },
+  '[mvu_update]通讯-私人': { position: 1, depth: 4, role: null, order: 968 },
+  '[mvu_update]物品分类': { position: 1, depth: 4, role: null, order: 967 },
+  '[mvu_update]制造-科技与配方': { position: 1, depth: 4, role: null, order: 966 },
+  '[mvu_update]活动-共通结算': { position: 1, depth: 4, role: null, order: 965 },
+  '[mvu_update]环境-时地与事件': { position: 1, depth: 4, role: null, order: 964 },
+  '[mvu_update]状态-身心与技能': { position: 1, depth: 4, role: null, order: 963 },
+  '[mvu_update]载具建筑-位置与库存': { position: 1, depth: 4, role: null, order: 962 },
   '[mvu_plot]合理性审查与对抗判定': { position: 4, depth: 0, role: 0, order: 1000 },
-  '[mvu_plot]正文操作请求处理': { position: 4, depth: 1, role: 0, order: 990 },
+  '[mvu_plot]正文操作请求处理': { position: 0, depth: 4, role: null, order: 990 },
   '[mvu_plot]杂项-合理性审查': { position: 0, depth: 4, role: null, order: 400 },
   '[mvu_plot]普通审查': { position: 0, depth: 4, role: null, order: 400 },
 });
