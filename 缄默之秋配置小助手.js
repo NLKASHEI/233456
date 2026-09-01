@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.0/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.1/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.0';
+const JMZQ_VERSION = '2.1.1';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -2951,8 +2951,12 @@ async function contestProcessMessage(message) {
   CONTEST_RAW_RE.lastIndex = 0;
   const matches = [...text.matchAll(CONTEST_RAW_RE)];
   if (!matches.length) return false;
+  // 原始请求永久保留给第一条显示正则；同楼已有结果或错误即代表已经结算，不能重复计算。
+  CONTEST_RESULT_RE.lastIndex = 0;
+  CONTEST_ERROR_RE.lastIndex = 0;
+  if (CONTEST_RESULT_RE.test(text) || CONTEST_ERROR_RE.test(text)) return false;
   if (matches.length !== 1) {
-    const next = text.replace(CONTEST_RAW_RE, contestErrorTag('multiple', '一条正文只能提交一次对抗判定'));
+    const next = `${text}${text.endsWith('\n') ? '' : '\n'}${contestErrorTag('multiple', '一条正文只能提交一次对抗判定')}`;
     await contestReplaceCurrentSwipe(message, next);
     return true;
   }
@@ -2981,7 +2985,8 @@ async function contestProcessMessage(message) {
     replacement = contestErrorTag(id, error?.message || error);
     console.warn('[JMZQ] SPECIAL判定未执行：', error);
   }
-  const next = text.slice(0, matches[0].index) + replacement + text.slice(matches[0].index + matches[0][0].length);
+  // 计算结果作为第二枚标签追加到正文末尾；不替换模型原始的待判定标签。
+  const next = `${text}${text.endsWith('\n') ? '' : '\n'}${replacement}`;
   await contestReplaceCurrentSwipe(message, next);
   return true;
 }
@@ -3086,6 +3091,14 @@ function onContestGenerationFinished() {
   setTimeout(() => contestScheduleScan(0), 700);
 }
 
+const CONTEST_PENDING_REGEX = Object.freeze({
+  id: 'jmzq-special-contest-pending-card',
+  scriptName: '缄默之秋-SPECIAL对抗判定请求',
+  findRegex: '/<DY_CONTEST>\\s*\\{\\s*"id"\\s*:\\s*"([^"]+)"\\s*,\\s*"type"\\s*:\\s*"([SPECIAL])"\\s*,\\s*"scene"\\s*:\\s*"([^"]+)"[\\s\\S]*?<\\/DY_CONTEST>/g',
+  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:13px 15px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 30%,transparent);border-left:4px solid #d99a35;border-radius:10px;background:color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 94%,#d99a35 6%);color:var(--SmartThemeBodyColor,#e8edf1);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.3px;color:#d99a35;font-weight:800">SPECIAL CONTEST · REQUEST</div><div style="margin-top:5px;font-size:16px;font-weight:750">$3</div></div><span style="padding:5px 9px;border:1px solid color-mix(in srgb,#d99a35 45%,transparent);border-radius:999px;font-size:12px;color:#d99a35">$2 · 待判定</span></div><div style="margin-top:8px;font-size:11px;opacity:.62">判定编号 $1</div></div>',
+  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
+  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
+});
 const CONTEST_RESULT_REGEX = Object.freeze({
   id: 'jmzq-special-contest-result-card',
   scriptName: '缄默之秋-SPECIAL对抗判定结果',
@@ -3114,7 +3127,7 @@ async function ensureContestRegexes() {
   try {
     await api_updateTavernRegexes(regexes => {
       if (!Array.isArray(regexes)) return;
-      for (const wanted of [CONTEST_RESULT_REGEX, CONTEST_ERROR_REGEX, CONTEST_APPLIED_REGEX]) {
+      for (const wanted of [CONTEST_PENDING_REGEX, CONTEST_RESULT_REGEX, CONTEST_ERROR_REGEX, CONTEST_APPLIED_REGEX]) {
         const index = regexes.findIndex(item => item?.id === wanted.id || item?.scriptName === wanted.scriptName);
         if (index >= 0) regexes[index] = { ...regexes[index], ...wanted };
         else regexes.push({ ...wanted });
@@ -3464,6 +3477,7 @@ const NATIVE_GREEN_KEYWORDS = Object.freeze({
 });
 
 const REQUIRED_BLUE_ENTRIES = new Set([
+  '[mvu_plot]合理性审查与对抗判定',
   '[mvu_update]变量更新规则',
   '[mvu_update]变量输出格式',
   '[mvu_update]活动-共通结算',
@@ -3493,10 +3507,10 @@ const PROMPT_LAYER_PROFILES = Object.freeze({
   '[mvu_update]环境-时地与事件': { position: 4, depth: 3, role: 0, order: 964 },
   '[mvu_update]状态-身心与技能': { position: 4, depth: 3, role: 0, order: 963 },
   '[mvu_update]载具建筑-位置与库存': { position: 4, depth: 3, role: 0, order: 962 },
-  '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)': { position: 4, depth: 0, role: 0, order: 1000 },
+  '[mvu_plot]合理性审查与对抗判定': { position: 4, depth: 0, role: 0, order: 1000 },
   '[mvu_plot]正文操作请求处理': { position: 4, depth: 1, role: 0, order: 990 },
-  '[mvu_plot]杂项-合理性审查': { position: 4, depth: 2, role: 0, order: 900 },
-  '[mvu_plot]普通审查': { position: 4, depth: 2, role: 0, order: 900 },
+  '[mvu_plot]杂项-合理性审查': { position: 0, depth: 4, role: null, order: 400 },
+  '[mvu_plot]普通审查': { position: 0, depth: 4, role: null, order: 400 },
 });
 
 function getPromptLayerProfile(entryName, entry) {
@@ -3909,6 +3923,8 @@ function buildEnableSet(sd, triggerText = '') {
 }
 
 var MANAGED_ENTRIES = new Set([
+  // 旧版重复裁决锁仅用于识别并关闭；新版唯一入口是“合理性审查与对抗判定”。
+  '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
   ...ALWAYS_UPDATE_ENTRIES,
   ...Object.values(PHASE_UPDATE_ENTRIES),
   ...Object.values(INFECTED_UPDATE_ENTRIES),
