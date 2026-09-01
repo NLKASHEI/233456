@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.9/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.0.10/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.0.9';
+const JMZQ_VERSION = '2.0.10';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3263,6 +3263,7 @@ function buildEnableSet(sd, triggerText = '') {
   const infMode       = sd?.感染者行为模式 ?? '狂病型';
   const npcMode       = sd?.NPC行为模式 ?? '正常型';
   const extra         = sd?.扩展内容 ?? {};
+  const noDefinedRoleMode = sd?.无定义角色模式 === true;
 	const factionDefs = FACTION_DEFINITIONS[nat] || [];
 	if (phase === '爆发期' || phase === '末世期') {
 	  enable.add('[mvu_update]势力发展');
@@ -3307,7 +3308,7 @@ function buildEnableSet(sd, triggerText = '') {
     const hasPregnancyFlow = physiology.some(v => v && ['孕早期', '孕中期', '孕晚期', '分娩期', '产后恢复期', '哺乳期'].includes(v.阶段));
     if (hasPregnancyFlow) ADULT_EXTRA_PREGNANCY_ENTRIES.forEach(e => enable.add(e));
   }
-  if (extra.暗线主角 === true) DARKLINE_ENTRIES.forEach(e => enable.add(e));
+  if (extra.暗线主角 === true && !noDefinedRoleMode) DARKLINE_ENTRIES.forEach(e => enable.add(e));
 
   // 配方规范只在存在待审核项时加载，并按申请类别精确路由；审核完成删除
   // 预审项后自动关闭，避免日常制造长期携带整套配方知识。
@@ -3341,10 +3342,12 @@ function buildEnableSet(sd, triggerText = '') {
     ...Object.keys(sd?.营地?.成员 ?? {}),
   ]);
   const characterCountries = ['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非'];
-  activeCharacterNames.forEach(name => characterCountries.forEach(country => {
-    enable.add(`${country}/角色/${name}/基础信息`);
-    enable.add(`${country}/人物/${name}/基础信息`);
-  }));
+  if (!noDefinedRoleMode) {
+    activeCharacterNames.forEach(name => characterCountries.forEach(country => {
+      enable.add(`${country}/角色/${name}/基础信息`);
+      enable.add(`${country}/人物/${name}/基础信息`);
+    }));
+  }
   if (activeActivities.length > 0) {
     enable.add('机制-活动叠加与冲突');
   }
@@ -3476,7 +3479,7 @@ function buildEnableSet(sd, triggerText = '') {
     '日本国':'日本国已定义NPC摘要', '大毛国':'大毛国已定义NPC摘要',
     '法国':'法国已定义NPC摘要',
   };
-  if (summaryMap[nat]) enable.add(summaryMap[nat]);
+  if (!noDefinedRoleMode && summaryMap[nat]) enable.add(summaryMap[nat]);
 
   // 人物详情、势力、地点与彩蛋由酒馆原生关键词/递归配置负责；小助手不扫描正文关键词。
   if (nat === '日本国') {
@@ -3587,6 +3590,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
   }
 
   let entries;
+  const noDefinedRoleMode = sd?.无定义角色模式 === true;
   try {
     entries = await TavernHelper.getWorldbook(wbName);
   } catch (error) {
@@ -3686,7 +3690,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
       !!parts[0] && !!parts[2] && parts[3] === '基础信息';
     if (!isCharacterDetail) continue;
 
-    const shouldEnable = !!nat && (parts[0] === nat || enableSet.has(detailName));
+    const shouldEnable = !noDefinedRoleMode && !!nat && (parts[0] === nat || enableSet.has(detailName));
     const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
     if (stateMismatch) {
       entry.enabled = shouldEnable;
