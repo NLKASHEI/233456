@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.1';
+const JMZQ_VERSION = '2.2.2';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3757,6 +3757,8 @@ function buildEnableSet(sd, triggerText = '') {
       '大爆发前/规则-社会秩序', '大爆发前/规则-冲突与应对',
     ]) enable.add(e);
   } else if (phase === '爆发期' || phase === '末世期') {
+    // 世界崩溃后的高压因果对所有创角配点档位一致生效；不把叙事模式误作难度开关。
+    enable.add('机制-高压后果与失败延续');
     enable.add('[mvu_update]威胁压力');
     if (sd?.衍生状态?.camp === '流浪') enable.add('世界观-流浪者');
     if (activitySet.has('探索') || activitySet.has('搜刮')) enable.add('杂项-幸存者据点动态生成');
@@ -3910,7 +3912,7 @@ var MANAGED_ENTRIES = new Set([
   '杂项-搜刮结果动态生成','杂项-幸存者NPC关系推进',
   '机制-搜刮物资','机制-半感染者生存机制','机制-沉浸式体验','机制-种田！我要种田！',
   '世界观-末世期','世界观-COVID-30变体感染者',
-  '机制-官方安全区行为','机制-痛啊好痛啊！','机制-死亡',
+  '机制-官方安全区行为','机制-痛啊好痛啊！','机制-死亡','机制-高压后果与失败延续',
   '世界观-COVID-30感染者行为总纲','[mvu_plot]杂项-合理性审查','杂项-场景强化(可选)',
   '世界观-爆发期','机制-动态威胁与安逸惩罚','杂项-感染者遭遇动态生成',
   '普通丧尸COVID-30感染者','[mvu_plot]普通审查','普通场景强化(可选)',
@@ -4282,9 +4284,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 576 条（含锚点）。
+    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 577 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-      const expected = 576;
+      const expected = 577;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
