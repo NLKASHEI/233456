@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.4/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.3';
+const JMZQ_VERSION = '2.1.4';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -191,15 +191,6 @@ async function api_replaceWorldbook(name, entriesModifier) {
   await entriesModifier(entries);
   await TavernHelper.replaceWorldbook(name, entries);
   return await api_getWorldbook(name);
-}
-
-// 正则操作（角色级别）
-async function api_getTavernRegexes() {
-  return await TavernHelper.getTavernRegexes({ type: 'character' });
-}
-async function api_updateTavernRegexes(modifier) {
-  if (typeof modifier !== 'function') throw new TypeError('正则修改器必须是函数');
-  return await TavernHelper.updateTavernRegexesWith(modifier, { type: 'character' });
 }
 
 // 角色脚本树操作
@@ -2751,9 +2742,9 @@ function getLatestMvuData() {
 // 结果写回产生标签的当前消息页，下一次正文生成时再作为尾部system提示注入。
 const CONTEST_PROMPT_ID = 'jmzq-special-contest-result';
 const CONTEST_RAW_RE = /<DY_CONTEST>([\s\S]*?)<\/DY_CONTEST>/g;
-const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+id="([^"]+)"\s+type="([^"]+)"\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
-const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR\s+id="([^"]*)">([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
-const CONTEST_APPLIED_RE = /<DY_CONTEST_APPLIED\s+id="([^"]+)"\s*\/>/g;
+const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+type="([^"]+)"\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
+const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR>([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
+const CONTEST_APPLIED_RE = /<!--DY_CONTEST_APPLIED-->/g;
 const CONTEST_ATTR = Object.freeze({
   S: '力量', P: '感知', E: '耐力', C: '魅力', I: '智力', A: '敏捷', L: '意志',
 });
@@ -2846,8 +2837,6 @@ function contestValidatePayload(raw) {
   let value;
   try { value = JSON.parse(raw); } catch (e) { throw new Error('判定标签中的JSON无法解析'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('判定内容必须是JSON对象');
-  const id = String(value.id ?? '').trim();
-  if (!/^[A-Za-z0-9_.:-]{1,80}$/.test(id)) throw new Error('判定id只能使用字母、数字、点、冒号、下划线或短横线');
   const type = String(value.type ?? '').toUpperCase();
   if (!Object.prototype.hasOwnProperty.call(CONTEST_ATTR, type)) throw new Error('type必须是S/P/E/C/I/A/L之一');
   const scene = contestEscapeText(value.scene, 180);
@@ -2865,7 +2854,7 @@ function contestValidatePayload(raw) {
     if (!Number.isInteger(mod) || mod < -3 || mod > 3) throw new Error(`${name}的mod必须是-3至3的整数`);
     return { name, value: enemyValue, mod };
   });
-  return { id, type, scene, playerMod, enemies };
+  return { type, scene, playerMod, enemies };
 }
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
@@ -2906,20 +2895,15 @@ function contestSaveRecord(record) {
   records.push(record);
   contestWriteStore(records);
 }
-function contestHasDuplicateId(id, sourceMessageId, sourceSwipeId) {
-  return contestListMessages().some(message => {
-    const current = contestCurrentSwipe(message);
-    if (message.message_id === sourceMessageId && current.swipeId === sourceSwipeId) return false;
-    CONTEST_RESULT_RE.lastIndex = 0;
-    return [...current.text.matchAll(CONTEST_RESULT_RE)].some(match => match[1] === id);
-  });
-}
 function contestResultTag(result) {
   const delta = result.delta > 0 ? `+${result.delta}` : String(result.delta);
-  return `<DY_CONTEST_RESULT id="${contestEscapeAttr(result.id)}" type="${result.type}·${CONTEST_ATTR[result.type]}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
+  return `<DY_CONTEST_RESULT type="${result.type}·${CONTEST_ATTR[result.type]}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
 }
-function contestErrorTag(id, reason) {
-  return `<DY_CONTEST_ERROR id="${contestEscapeAttr(id || 'invalid')}">${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
+function contestInternalId(sourceMessageId, sourceSwipeId, raw) {
+  return `c_${Number(sourceMessageId) || 0}_${Number(sourceSwipeId) || 0}_${contestHash(raw).toString(36)}`;
+}
+function contestErrorTag(reason) {
+  return `<DY_CONTEST_ERROR>${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
 }
 function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, raw) {
   const playerEffective = contestClamp(playerBase + payload.playerMod, -10, 10);
@@ -2929,12 +2913,13 @@ function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, r
   const delta = contestClamp(contestSignedRound(deltaRaw), -7, 7);
   const chance = CONTEST_CHANCE[String(delta)];
   const contentHash = contestHash(raw);
-  const seed = `${contestChatId()}|${sourceMessageId}|${sourceSwipeId}|${payload.id}|${contentHash}`;
+  const id = contestInternalId(sourceMessageId, sourceSwipeId, raw);
+  const seed = `${contestChatId()}|${sourceMessageId}|${sourceSwipeId}|${contentHash}`;
   const roll = contestStableRoll(seed);
   const outcome = contestOutcome(chance, roll);
   const computedAt = Date.now();
   return {
-    id: payload.id, type: payload.type, scene: payload.scene,
+    id, type: payload.type, scene: payload.scene,
     playerBase, playerMod: payload.playerMod, playerEffective,
     enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: enemyValues[index] })),
     enemyCount: payload.enemies.length, enemyAverage: Math.round(enemyAverage * 10) / 10,
@@ -2955,17 +2940,12 @@ async function contestProcessMessage(message) {
   CONTEST_RESULT_RE.lastIndex = 0;
   CONTEST_ERROR_RE.lastIndex = 0;
   if (CONTEST_RESULT_RE.test(text) || CONTEST_ERROR_RE.test(text)) return false;
-  if (matches.length !== 1) {
-    const next = `${text}${text.endsWith('\n') ? '' : '\n'}${contestErrorTag('multiple', '一条正文只能提交一次对抗判定')}`;
-    await contestReplaceCurrentSwipe(message, next);
-    return true;
-  }
-  const raw = matches[0][1].trim();
+  // 推理区与最终正文可能各带一份相同标签；始终只取最后一份（最终正文）计算。
+  const raw = matches[matches.length - 1][1].trim();
   const retryKey = `${message.message_id}:${swipeId}:${contestHash(raw)}`;
   let replacement;
   try {
     const payload = contestValidatePayload(raw);
-    if (contestHasDuplicateId(payload.id, message.message_id, swipeId)) throw new Error('判定id已在其他消息中使用，请为新对抗生成唯一id');
     const playerBase = contestReadPlayerSpecial(payload.type);
     if (playerBase == null) {
       const retry = (_contestReadRetries.get(retryKey) || 0) + 1;
@@ -2980,9 +2960,7 @@ async function contestProcessMessage(message) {
     p._jmzqLastContest = result;
   } catch (error) {
     _contestReadRetries.delete(retryKey);
-    let id = 'invalid';
-    try { id = String(JSON.parse(raw)?.id || 'invalid'); } catch (e) {}
-    replacement = contestErrorTag(id, error?.message || error);
+    replacement = contestErrorTag(error?.message || error);
     console.warn('[JMZQ] SPECIAL判定未执行：', error);
   }
   // 计算结果作为第二枚标签追加到正文末尾；不替换模型原始的待判定标签。
@@ -3013,8 +2991,9 @@ function contestParseResultFromText(text, messageId, swipeId) {
   if (!matches.length) return null;
   const match = matches[matches.length - 1];
   return {
-    id: match[1], typeLabel: match[2], delta: match[3], gap: match[4],
-    chance: Number(match[5]), roll: Number(match[6]), outcome: match[7], scene: contestEscapeText(match[8], 180),
+    id: contestInternalId(messageId, swipeId, match[0]),
+    typeLabel: match[1], delta: match[2], gap: match[3],
+    chance: Number(match[4]), roll: Number(match[5]), outcome: match[6], scene: contestEscapeText(match[7], 180),
     sourceMessageId: messageId, sourceSwipeId: swipeId,
   };
 }
@@ -3039,7 +3018,7 @@ function contestFindInjectableResult(isRegeneration) {
     const applied = laterAssistants.some(item => {
       const current = contestCurrentSwipe(item);
       CONTEST_APPLIED_RE.lastIndex = 0;
-      return [...current.text.matchAll(CONTEST_APPLIED_RE)].some(match => match[1] === result.id);
+      return CONTEST_APPLIED_RE.test(current.text);
     });
     return applied ? null : result;
   }
@@ -3060,7 +3039,7 @@ function contestInjectResult(result) {
   contestClearPrompt();
   if (!result) return;
   const meaning = CONTEST_RESULT_MEANING[result.outcome] || '';
-  const content = `<对抗判定结果 id="${contestEscapeAttr(result.id)}">\n场景：${result.scene}\n检定：${result.typeLabel}｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<DY_CONTEST_APPLIED id="${contestEscapeAttr(result.id)}"/>；该确认标记不属于叙事内容。\n</对抗判定结果>`;
+  const content = `<对抗判定结果>\n场景：${result.scene}\n检定：${result.typeLabel}｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<!--DY_CONTEST_APPLIED-->；该确认标记不属于叙事内容。\n</对抗判定结果>`;
   try {
     const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
     if (typeof fn === 'function') {
@@ -3091,50 +3070,6 @@ function onContestGenerationFinished() {
   setTimeout(() => contestScheduleScan(0), 700);
 }
 
-const CONTEST_PENDING_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-pending-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定请求',
-  findRegex: '/<DY_CONTEST>\\s*\\{\\s*"id"\\s*:\\s*"([^"]+)"\\s*,\\s*"type"\\s*:\\s*"([SPECIAL])"\\s*,\\s*"scene"\\s*:\\s*"([^"]+)"[\\s\\S]*?<\\/DY_CONTEST>/g',
-  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:13px 15px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 30%,transparent);border-left:4px solid #d99a35;border-radius:10px;background:color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 94%,#d99a35 6%);color:var(--SmartThemeBodyColor,#e8edf1);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.3px;color:#d99a35;font-weight:800">SPECIAL CONTEST · REQUEST</div><div style="margin-top:5px;font-size:16px;font-weight:750">$3</div></div><span style="padding:5px 9px;border:1px solid color-mix(in srgb,#d99a35 45%,transparent);border-radius:999px;font-size:12px;color:#d99a35">$2 · 待判定</span></div><div style="margin-top:8px;font-size:11px;opacity:.62">判定编号 $1</div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_RESULT_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-result-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定结果',
-  findRegex: '/<DY_CONTEST_RESULT\\s+id="([^"]+)"\\s+type="([^"]+)"\\s+delta="([^"]+)"\\s+gap="([^"]+)"\\s+chance="(\\d+)"\\s+roll="(\\d+)"\\s+result="([^"]+)">([\\s\\S]*?)<\\/DY_CONTEST_RESULT>/g',
-  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:14px 16px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 55%,transparent);border-left:4px solid var(--SmartThemeQuoteColor,#d04a43);border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 92%,transparent),color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 8%,var(--SmartThemeBlurTintColor,#111820)));color:var(--SmartThemeBodyColor,#e8edf1);box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.5px;color:var(--SmartThemeQuoteColor,#e05a52);font-weight:800">SPECIAL CONTEST · $1</div><div style="margin-top:5px;font-size:20px;font-weight:800">$7</div></div><div style="padding:5px 9px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 35%,transparent);border-radius:999px;font-size:12px">$2 · $4</div></div><div style="margin-top:10px;line-height:1.7;font-size:14px">$8</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;font-size:12px"><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">差级 <b>$3</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">成功率 <b>$5%</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">掷值 <b>$6</b></span></div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_ERROR_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-error-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定错误',
-  findRegex: '/<DY_CONTEST_ERROR\\s+id="([^"]*)">([\\s\\S]*?)<\\/DY_CONTEST_ERROR>/g',
-  replaceString: '<div style="margin:10px 0;padding:11px 13px;border:1px solid #c94242;border-radius:8px;background:rgba(150,30,30,.12);color:var(--SmartThemeBodyColor,#eee);font-family:Inter,\'Microsoft YaHei\',sans-serif"><b style="color:#ef6464">判定未执行 · $1</b><div style="margin-top:5px;font-size:13px;line-height:1.6">$2</div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_APPLIED_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-applied-hide',
-  scriptName: '缄默之秋-SPECIAL对抗判定确认隐藏',
-  findRegex: '/<DY_CONTEST_APPLIED\\s+id="([^"]+)"\\s*\\/>/g',
-  replaceString: '',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-async function ensureContestRegexes() {
-  try {
-    await api_updateTavernRegexes(regexes => {
-      if (!Array.isArray(regexes)) return;
-      for (const wanted of [CONTEST_PENDING_REGEX, CONTEST_RESULT_REGEX, CONTEST_ERROR_REGEX, CONTEST_APPLIED_REGEX]) {
-        const index = regexes.findIndex(item => item?.id === wanted.id || item?.scriptName === wanted.scriptName);
-        if (index >= 0) regexes[index] = { ...regexes[index], ...wanted };
-        else regexes.push({ ...wanted });
-      }
-    });
-  } catch (error) { console.warn('[JMZQ] SPECIAL判定显示正则同步失败：', error); }
-}
 p._jmzqContestDebug = {
   scan: contestScanRecent,
   calculate: contestCalculate,
@@ -4547,7 +4482,6 @@ const statPollTimer = setInterval(() => {
 
 refreshMvuConfigStatus();
 checkEjsTemplate();
-ensureContestRegexes();
 contestScheduleScan(500);
 
 // 注册世界书状态刷新事件
