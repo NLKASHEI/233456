@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.0/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.1/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.0';
+const JMZQ_VERSION = '2.2.1';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3361,7 +3361,8 @@ const CONTRACT_MODE_ENTRIES = [
   '[mvu_plot]魅魔契约-审查', '魅魔契约-契约诅咒',
   '魅魔契约-异能-sp_charm_aura', '魅魔契约-异能-sp_pheromone_control',
   '魅魔契约-异能-sp_dream_weave', '魅魔契约-异能-sp_touch_read',
-  '魅魔契约-异能-sp_soul_anchor', '地狱模式-变种感染者',
+  '魅魔契约-异能-sp_soul_anchor', '[mvu_plot]地狱模式-叙事审查',
+  '地狱模式-枪声寂灭与资源荒漠', '地狱模式-变种感染者',
 ];
 const DARKLINE_ENTRIES = [
   '暗线主角已定义NPC摘要',
@@ -3743,6 +3744,8 @@ function buildEnableSet(sd, triggerText = '') {
     Object.entries(powerEntries).forEach(([name, entry]) => { if (String(selected).includes(name)) enable.add(entry); });
   }
   if (narrativeMode === '地狱' || customTraits.some(v => String(v).startsWith('[地狱异能]'))) {
+    enable.add('[mvu_plot]地狱模式-叙事审查');
+    enable.add('地狱模式-枪声寂灭与资源荒漠');
     enable.add('地狱模式-变种感染者');
   }
 
@@ -4279,9 +4282,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 574 条（含锚点）。
+    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 576 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-      const expected = 574;
+      const expected = 576;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
