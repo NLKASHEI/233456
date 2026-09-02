@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.7/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.8/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.7';
+const JMZQ_VERSION = '2.1.8';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -2742,12 +2742,18 @@ function getLatestMvuData() {
 // 结果写回产生标签的当前消息页，下一次正文生成时再作为尾部system提示注入。
 const CONTEST_PROMPT_ID = 'jmzq-special-contest-result';
 const CONTEST_RAW_RE = /<DY_CONTEST>([\s\S]*?)<\/DY_CONTEST>/g;
-const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+type="([^"]+)"\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
+const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+type="([^"]+)"(?:\s+mode="([^"]+)")?\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
 const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR>([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
 const CONTEST_APPLIED_RE = /<!--DY_CONTEST_APPLIED-->/g;
 const CONTEST_ATTR = Object.freeze({
   S: '力量', P: '感知', E: '耐力', C: '魅力', I: '智力', A: '敏捷', L: '意志',
 });
+const CONTEST_WEIGHTS = Object.freeze({
+  1: [1],
+  2: [0.7, 0.3],
+  3: [0.6, 0.25, 0.15],
+});
+const CONTEST_MODE_LABEL = Object.freeze({ single: '单项', blend: '综合', gate: '门槛' });
 const CONTEST_CHANCE = Object.freeze({
   '-7': 0, '-6': 1, '-5': 3, '-4': 8, '-3': 15, '-2': 27, '-1': 40,
   '0': 50, '1': 60, '2': 73, '3': 85, '4': 92, '5': 97, '6': 99, '7': 100,
@@ -2828,17 +2834,54 @@ function contestReadPlayerSpecial(type) {
   const stat = data?.stat_data || data;
   const special = stat?.SPECIAL;
   if (!special || typeof special !== 'object') return null;
-  // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
-  const raw = type === 'L' ? (special.L ?? special.W) : special[type];
-  const number = Number(raw);
-  return Number.isFinite(number) ? contestClamp(number, -10, 10) : null;
+  const result = {};
+  for (const attr of String(type || '')) {
+    // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
+    const raw = attr === 'L' ? (special.L ?? special.W) : special[attr];
+    const number = Number(raw);
+    if (!Number.isFinite(number)) return null;
+    result[attr] = contestClamp(number, -10, 10);
+  }
+  return type.length === 1 ? result[type] : result;
+}
+function contestTypeLabel(type) {
+  const attrs = String(type || '').split('');
+  if (attrs.length === 1) return `${attrs[0]}·${CONTEST_ATTR[attrs[0]]}`;
+  return attrs.map((attr, index) => `${attr}·${CONTEST_ATTR[attr]}${index === 0 ? '主' : index === 1 ? '辅' : '补'}`).join(' / ');
+}
+function contestNormalizeValues(raw, attrs, owner) {
+  if (attrs.length === 1) {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < -10 || value > 10) throw new Error(`${owner}的value必须在-10至10之间`);
+    return { [attrs[0]]: value };
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`${owner}的values必须包含${attrs.join('/')}对应数值`);
+  const result = {};
+  for (const attr of attrs) {
+    const value = Number(raw[attr]);
+    if (!Number.isFinite(value) || value < -10 || value > 10) throw new Error(`${owner}的values.${attr}必须在-10至10之间`);
+    result[attr] = value;
+  }
+  return result;
+}
+function contestCompositeScore(values, attrs, mode) {
+  const weights = CONTEST_WEIGHTS[attrs.length];
+  const weighted = attrs.reduce((sum, attr, index) => sum + contestClamp(values[attr], -10, 10) * weights[index], 0);
+  if (mode !== 'gate' || attrs.length === 1) return weighted;
+  const bottleneck = Math.min(...attrs.map(attr => contestClamp(values[attr], -10, 10)));
+  return bottleneck * 0.65 + weighted * 0.35;
 }
 function contestValidatePayload(raw) {
   let value;
   try { value = JSON.parse(raw); } catch (e) { throw new Error('判定标签中的JSON无法解析'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('判定内容必须是JSON对象');
   const type = String(value.type ?? '').toUpperCase();
-  if (!Object.prototype.hasOwnProperty.call(CONTEST_ATTR, type)) throw new Error('type必须是S/P/E/C/I/A/L之一');
+  const attrs = type.split('');
+  if (attrs.length < 1 || attrs.length > 3 || new Set(attrs).size !== attrs.length || attrs.some(attr => !Object.prototype.hasOwnProperty.call(CONTEST_ATTR, attr))) {
+    throw new Error('type必须由1至3个不重复的S/P/E/C/I/A/L组成');
+  }
+  const mode = attrs.length === 1 ? 'single' : String(value.mode ?? 'blend').toLowerCase();
+  if (!['single', 'blend', 'gate'].includes(mode) || (attrs.length > 1 && mode === 'single')) throw new Error('复合判定mode必须是blend或gate');
   const scene = contestEscapeText(value.scene, 180);
   if (!scene) throw new Error('scene不能为空');
   const playerMod = value.playerMod == null ? 0 : Number(value.playerMod);
@@ -2848,13 +2891,12 @@ function contestValidatePayload(raw) {
     if (!enemy || typeof enemy !== 'object' || Array.isArray(enemy)) throw new Error(`第${index + 1}名敌人格式无效`);
     const name = contestEscapeText(enemy.name, 48);
     if (!name) throw new Error(`第${index + 1}名敌人缺少name`);
-    const enemyValue = Number(enemy.value);
-    if (!Number.isFinite(enemyValue) || enemyValue < -10 || enemyValue > 10) throw new Error(`${name}的value必须在-10至10之间`);
+    const values = contestNormalizeValues(attrs.length === 1 ? enemy.value : enemy.values, attrs, name);
     const mod = enemy.mod == null ? 0 : Number(enemy.mod);
     if (!Number.isInteger(mod) || mod < -3 || mod > 3) throw new Error(`${name}的mod必须是-3至3的整数`);
-    return { name, value: enemyValue, mod };
+    return attrs.length === 1 ? { name, value: values[attrs[0]], mod } : { name, values, mod };
   });
-  return { type, scene, playerMod, enemies };
+  return { type, attrs, mode, scene, playerMod, enemies };
 }
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
@@ -2897,7 +2939,7 @@ function contestSaveRecord(record) {
 }
 function contestResultTag(result) {
   const delta = result.delta > 0 ? `+${result.delta}` : String(result.delta);
-  return `<DY_CONTEST_RESULT type="${result.type}·${CONTEST_ATTR[result.type]}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
+  return `<DY_CONTEST_RESULT type="${contestEscapeAttr(result.typeLabel)}" mode="${contestEscapeAttr(result.modeLabel)}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
 }
 function contestInternalId(sourceMessageId, sourceSwipeId, raw) {
   return `c_${Number(sourceMessageId) || 0}_${Number(sourceSwipeId) || 0}_${contestHash(raw).toString(36)}`;
@@ -2906,9 +2948,16 @@ function contestErrorTag(reason) {
   return `<DY_CONTEST_ERROR>${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
 }
 function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, raw) {
-  const playerEffective = contestClamp(playerBase + payload.playerMod, -10, 10);
-  const enemyValues = payload.enemies.map(enemy => contestClamp(enemy.value + enemy.mod, -10, 10));
-  const enemyAverage = enemyValues.reduce((sum, value) => sum + value, 0) / enemyValues.length;
+  const attrs = payload.attrs || payload.type.split('');
+  const mode = payload.mode || (attrs.length === 1 ? 'single' : 'blend');
+  const playerValues = attrs.length === 1 ? { [attrs[0]]: Number(playerBase) } : playerBase;
+  const playerComposite = contestCompositeScore(playerValues, attrs, mode);
+  const playerEffective = contestClamp(playerComposite + payload.playerMod, -10, 10);
+  const enemyScores = payload.enemies.map(enemy => {
+    const values = attrs.length === 1 ? { [attrs[0]]: enemy.value } : enemy.values;
+    return contestClamp(contestCompositeScore(values, attrs, mode) + enemy.mod, -10, 10);
+  });
+  const enemyAverage = enemyScores.reduce((sum, value) => sum + value, 0) / enemyScores.length;
   const deltaRaw = playerEffective - enemyAverage;
   const delta = contestClamp(contestSignedRound(deltaRaw), -7, 7);
   const chance = CONTEST_CHANCE[String(delta)];
@@ -2919,9 +2968,10 @@ function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, r
   const outcome = contestOutcome(chance, roll);
   const computedAt = Date.now();
   return {
-    id, type: payload.type, scene: payload.scene,
-    playerBase, playerMod: payload.playerMod, playerEffective,
-    enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: enemyValues[index] })),
+    id, type: payload.type, typeLabel: contestTypeLabel(payload.type), mode, modeLabel: CONTEST_MODE_LABEL[mode], scene: payload.scene,
+    attrs, weights: CONTEST_WEIGHTS[attrs.length], playerBase, playerComposite: Math.round(playerComposite * 10) / 10,
+    playerMod: payload.playerMod, playerEffective: Math.round(playerEffective * 10) / 10,
+    enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: Math.round(enemyScores[index] * 10) / 10 })),
     enemyCount: payload.enemies.length, enemyAverage: Math.round(enemyAverage * 10) / 10,
     deltaRaw: Math.round(deltaRaw * 10) / 10, delta,
     gap: contestGap(delta), gapTier: contestGap(delta),
@@ -2992,8 +3042,8 @@ function contestParseResultFromText(text, messageId, swipeId) {
   const match = matches[matches.length - 1];
   return {
     id: contestInternalId(messageId, swipeId, match[0]),
-    typeLabel: match[1], delta: match[2], gap: match[3],
-    chance: Number(match[4]), roll: Number(match[5]), outcome: match[6], scene: contestEscapeText(match[7], 180),
+    typeLabel: match[1], modeLabel: match[2] || '单项', delta: match[3], gap: match[4],
+    chance: Number(match[5]), roll: Number(match[6]), outcome: match[7], scene: contestEscapeText(match[8], 180),
     sourceMessageId: messageId, sourceSwipeId: swipeId,
   };
 }
@@ -3039,7 +3089,7 @@ function contestInjectResult(result) {
   contestClearPrompt();
   if (!result) return;
   const meaning = CONTEST_RESULT_MEANING[result.outcome] || '';
-  const content = `<对抗判定结果>\n场景：${result.scene}\n检定：${result.typeLabel}｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<!--DY_CONTEST_APPLIED-->；该确认标记不属于叙事内容。\n</对抗判定结果>`;
+  const content = `<对抗判定结果>\n场景：${result.scene}\n检定：${result.typeLabel}｜${result.modeLabel}判定｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<!--DY_CONTEST_APPLIED-->；该确认标记不属于叙事内容。\n</对抗判定结果>`;
   try {
     const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
     if (typeof fn === 'function') {
