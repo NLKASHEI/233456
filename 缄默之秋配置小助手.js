@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.2/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.2';
+const JMZQ_VERSION = '2.2.3';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3759,6 +3759,7 @@ function buildEnableSet(sd, triggerText = '') {
   } else if (phase === '爆发期' || phase === '末世期') {
     // 世界崩溃后的高压因果对所有创角配点档位一致生效；不把叙事模式误作难度开关。
     enable.add('机制-高压后果与失败延续');
+    enable.add('机制-死亡');
     enable.add('[mvu_update]威胁压力');
     if (sd?.衍生状态?.camp === '流浪') enable.add('世界观-流浪者');
     if (activitySet.has('探索') || activitySet.has('搜刮')) enable.add('杂项-幸存者据点动态生成');
