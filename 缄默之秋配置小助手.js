@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.8/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.9/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.8';
+const JMZQ_VERSION = '2.1.9';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -4271,9 +4271,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 567 条（含锚点）。
+    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 570 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-    const expected = 567;
+    const expected = 570;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
