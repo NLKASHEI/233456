@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.4/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.4';
+const JMZQ_VERSION = '2.1.5';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3412,7 +3412,10 @@ const NATIVE_GREEN_KEYWORDS = Object.freeze({
 });
 
 const REQUIRED_BLUE_ENTRIES = new Set([
-  '[mvu_plot]合理性审查与对抗判定',
+  '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_plot]合理性审查',
+  '[mvu_plot]SPECIAL对抗判定协议',
   '[mvu_update]变量更新规则',
   '[mvu_update]变量输出格式',
   '[mvu_update]活动-共通结算',
@@ -3817,8 +3820,9 @@ function buildEnableSet(sd, triggerText = '') {
 }
 
 var MANAGED_ENTRIES = new Set([
-  // 旧版重复裁决锁仅用于识别并关闭；新版唯一入口是“合理性审查与对抗判定”。
+  // 两个肘击条目是玩家自定义的常驻槽位；只保证开启，不写入内容或改动深度。
   '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
   ...ALWAYS_UPDATE_ENTRIES,
   ...Object.values(PHASE_UPDATE_ENTRIES),
   ...Object.values(INFECTED_UPDATE_ENTRIES),
