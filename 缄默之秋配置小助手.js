@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.9/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.0/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.9';
+const JMZQ_VERSION = '2.2.0';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3594,6 +3594,7 @@ const BIG_ROUTE_KEYWORDS = Object.freeze({
   '机制-完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','工具'],
   '机制-制造': ['制造','制作','合成','加工','改装','维修','修理','保养','工作台','研究配方','组装','拆解设备'],
   '物品-载具': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','车内','车上','摩托','船只'],
+  '机制-复仇与宿敌': ['复仇','报复','寻仇','宿敌','死敌','旧怨','追杀','清算','敌对','仇人','血仇'],
 });
 
 function readRecentTriggerText() {
@@ -3799,7 +3800,7 @@ function buildEnableSet(sd, triggerText = '') {
       enable.add('机制-动态威胁与安逸惩罚');
       enable.add('[mvu_update]威胁压力');
     }
-    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('杂项-感染者遭遇动态生成');
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('杂项-感染者遭遇动态生成');
   } else if (infMode === '普通型') {
     enable.add('[mvu_plot]普通审查');
     if (activitySet.has('探索') || activitySet.has('战斗') || activitySet.has('潜行')) enable.add('普通场景强化(可选)');
@@ -3813,16 +3814,22 @@ function buildEnableSet(sd, triggerText = '') {
       for (const e of ['普通感染者多样性', '普通-机制-丧尸尸潮', '普通的动态威胁与安逸惩罚']) enable.add(e);
       enable.add('[mvu_update]威胁压力');
     }
-    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('普通感染者遭遇');
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('普通感染者遭遇');
   }
 
-  const npcRelevant = activitySet.has('对话') || activitySet.has('交易') || activitySet.has('探索') || Object.keys(sd?.NPC ?? {}).length > 0;
+  const npcTextRelevant = /遇见|碰见|结识|陌生人|幸存者|路人|居民|军人|警察|医生|队伍|团伙|交谈|询问|求助|招募|救人/.test(currentText);
+  const npcRelevant = activitySet.has('对话') || activitySet.has('交易') || activitySet.has('探索') || npcTextRelevant || Object.keys(sd?.NPC ?? {}).length > 0;
   if (npcMode === '正常型') {
-    if (npcRelevant) enable.add('杂项-NPC动态生成');
+    if (npcRelevant) enable.add(phase === '秩序期' ? 'NPC生成-正常型-秩序期' : 'NPC生成-正常型-爆发期与末世期');
     if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('杂项-末世社交互动法则');
   } else if (npcMode === '全员恶人型') {
-    if (npcRelevant) enable.add('恶意的NPC生成');
+    if (npcRelevant) enable.add(phase === '秩序期' ? 'NPC生成-恶意型-秩序期' : 'NPC生成-恶意型-爆发期与末世期');
     if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('恶意社交法则');
+  }
+
+  const hasContinuingEnemy = Object.values(sd?.NPC ?? {}).some(v => v && Number(v.relation) <= -15);
+  if (hasContinuingEnemy || BIG_ROUTE_KEYWORDS['机制-复仇与宿敌'].some(keyword => currentText.includes(keyword))) {
+    enable.add('机制-复仇与宿敌');
   }
 
   const summaryMap = {
@@ -3906,7 +3913,8 @@ var MANAGED_ENTRIES = new Set([
   '普通丧尸COVID-30感染者','[mvu_plot]普通审查','普通场景强化(可选)',
   '普通爆发期','普通感染者多样性','普通-机制-丧尸尸潮',
   '普通的动态威胁与安逸惩罚','普通感染者遭遇',
-  '杂项-NPC动态生成','杂项-末世社交互动法则','恶意的NPC生成','恶意社交法则',
+  'NPC生成-正常型-秩序期','NPC生成-正常型-爆发期与末世期','杂项-末世社交互动法则',
+  'NPC生成-恶意型-秩序期','NPC生成-恶意型-爆发期与末世期','恶意社交法则','机制-复仇与宿敌',
   '华国已定义NPC摘要','美利坚国已定义NPC摘要','日本国已定义NPC摘要',
   '大毛国已定义NPC摘要','法国已定义NPC摘要',
   '世界观-日本国暗线','世界观-美利坚爆发前','世界观-美利坚爆发后势力格局',
@@ -4271,9 +4279,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 570 条（含锚点）。
+    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 574 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-    const expected = 570;
+      const expected = 574;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
