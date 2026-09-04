@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.3';
+const JMZQ_VERSION = '2.2.5';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -1192,19 +1192,8 @@ function getMainApiUrl() {
         const spUrl = sp && sp['api-url'];
         if (spUrl && typeof spUrl === 'string' && spUrl.startsWith('http')) return spUrl;
       }
-      // 读取 MVU 额外模型的 API 地址，用于排除
-      let extraUrl = '';
-      try {
-        const mvuCfg = SillyTavern.extensionSettings.mvu_settings;
-        if (mvuCfg && mvuCfg.额外模型解析配置 && mvuCfg.额外模型解析配置.api地址) {
-          extraUrl = mvuCfg.额外模型解析配置.api地址.replace(/\/+$/, '').toLowerCase();
-        }
-      } catch(e) {}
-      // 返回第一个不等于额外模型 URL 的 profile
-      for (const prof of profiles) {
-        const profUrl = (prof['api-url'] || '').replace(/\/+$/, '').toLowerCase();
-        if (profUrl && profUrl !== extraUrl) return prof['api-url'];
-      }
+      // selectedProfile 尚未恢复时不能随便取列表第一项；那可能是旧配置或
+      // MVU额外模型，开局阶段会造成一次性的黑名单误判。
     }
     // 2. chatCompletionSettings（跳过 ST 本地代理地址，只取真实第三方 API URL）
     const cs = SillyTavern.chatCompletionSettings || {};
@@ -1929,31 +1918,67 @@ function makeFakeCompletion(init) {
   }
 }
 
+function ewcReadRequestMeta(init) {
+  const result = { model: '', apiUrl: '' };
+  try {
+    if (!init || typeof init.body !== 'string' || !init.body.trim()) return result;
+    const body = JSON.parse(init.body);
+    const modelKeys = ['model', 'chat_completion_model', 'custom_model', 'openai_model', 'claude_model'];
+    const urlKeys = ['reverse_proxy', 'server_url', 'custom_url', 'api_url', 'base_url'];
+    for (const key of modelKeys) {
+      if (typeof body?.[key] === 'string' && body[key].trim()) { result.model = body[key].trim(); break; }
+    }
+    for (const key of urlKeys) {
+      if (typeof body?.[key] === 'string' && body[key].trim()) { result.apiUrl = body[key].trim(); break; }
+    }
+  } catch (e) {}
+  return result;
+}
+
 // ── Fetch 劫持：黑名单命中时返回伪造的空 OpenAI 响应 ──
 function ewcInjectFetchHook() {
-  const _origFetch = p.fetch.bind(p);
-  p.fetch = function(input, init) {
+  if (typeof p.fetch !== 'function') return;
+  // 同一页面脚本重建时先拆掉自己的上一层，防止旧配置继续拦截新请求。
+  if (p._jmzqFetchHook && p.fetch === p._jmzqFetchHook && typeof p._jmzqFetchOriginal === 'function') {
+    p.fetch = p._jmzqFetchOriginal;
+  }
+  const originalFetch = p.fetch.bind(p);
+  const fetchHook = function(input, init) {
     try {
       const url = typeof input === 'string' ? input : (input?.url || '');
       const isChatReq = url.includes('/api/backends/chat-completions/') || url.includes('/api/connections/generate');
-      if (!isChatReq) return _origFetch(input, init);
+      if (!isChatReq) return originalFetch(input, init);
 
-      const apiUrl = getMainApiUrl().toLowerCase();
-      if (!apiUrl) return _origFetch(input, init);
+      // 一次请求自己的配置最可靠；全局配置只作为缺省回退。
+      const requestMeta = ewcReadRequestMeta(init);
+      const apiUrl = String(requestMeta.apiUrl || getMainApiUrl() || '').toLowerCase();
+      const requestModel = String(requestMeta.model || ((SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '')).toLowerCase();
+      if (!apiUrl && !requestModel) return originalFetch(input, init);
       // 1) URL白名单优先 → 官方源直接放行
-      if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) return _origFetch(input, init);
+      if (apiUrl && CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) return originalFetch(input, init);
       // 2) URL黑名单检测 → 伪造空响应
-      if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return makeFakeCompletion(init);
+      if (apiUrl && CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return makeFakeCompletion(init);
 
-      const mainModel = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
-      const isBlocked = CONFIG_BLACKLIST.some(kw => mainModel.includes(kw));
-      if (!isBlocked) return _origFetch(input, init);
+      const isBlocked = CONFIG_BLACKLIST.some(kw => requestModel.includes(String(kw).toLowerCase()));
+      if (!isBlocked) return originalFetch(input, init);
 
       // 模型名命中黑名单 → 伪造空响应
       return makeFakeCompletion(init);
     } catch(e) {}
-    return _origFetch(input, init);
+    return originalFetch(input, init);
   };
+  p._jmzqFetchOriginal = originalFetch;
+  p._jmzqFetchHook = fetchHook;
+  p.fetch = fetchHook;
+}
+function ewcRestoreFetchHook() {
+  try {
+    if (p._jmzqFetchHook && p.fetch === p._jmzqFetchHook && typeof p._jmzqFetchOriginal === 'function') {
+      p.fetch = p._jmzqFetchOriginal;
+    }
+    delete p._jmzqFetchHook;
+    delete p._jmzqFetchOriginal;
+  } catch (e) {}
 }
 
 // 保存到磁盘
@@ -2871,9 +2896,32 @@ function contestCompositeScore(values, attrs, mode) {
   const bottleneck = Math.min(...attrs.map(attr => contestClamp(values[attr], -10, 10)));
   return bottleneck * 0.65 + weighted * 0.35;
 }
+function contestNormalizeJsonSource(raw) {
+  let text = String(raw ?? '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u200B-\u200D\u2060]/g, '')
+    .trim();
+  // 酒馆或 Markdown 渲染链有时会把标签内部包成代码围栏/粗体。
+  text = text
+    .replace(/^\*{1,2}\s*/, '')
+    .replace(/\s*\*{1,2}$/, '')
+    .replace(/^```(?:json|javascript|js)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .trim();
+  // getChatMessages 在部分酒馆/助手版本中可能返回实体化后的正文。
+  if (/&(?:quot|apos|amp|lt|gt|#34|#39|#x22|#x27);/i.test(text)) {
+    const textarea = p.document.createElement('textarea');
+    textarea.innerHTML = text;
+    text = textarea.value.trim();
+  }
+  return text;
+}
 function contestValidatePayload(raw) {
   let value;
-  try { value = JSON.parse(raw); } catch (e) { throw new Error('判定标签中的JSON无法解析'); }
+  const source = contestNormalizeJsonSource(raw);
+  try { value = JSON.parse(source); }
+  catch (e) { throw new Error('判定标签中的JSON无法解析'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('判定内容必须是JSON对象');
   const type = String(value.type ?? '').toUpperCase();
   const attrs = type.split('');
@@ -4573,6 +4621,7 @@ p._jmzqCleanup = function() {
   clearTimeout(_postUpdateTimer);
   clearInterval(configPollTimer);
   clearInterval(statPollTimer);
+  ewcRestoreFetchHook();
   p.document.removeEventListener('mousedown', onOutsidePanelPress);
   p.document.removeEventListener('touchstart', onOutsidePanelPress);
   p.document.removeEventListener('pointermove', onBubbleMove);
