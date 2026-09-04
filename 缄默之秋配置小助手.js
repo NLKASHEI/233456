@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.5/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.6/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.5';
+const JMZQ_VERSION = '2.2.6';
 const WORLDBOOK_NAME = '缄默之秋3.0';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -1045,7 +1045,7 @@ function checkConfig() {
   try {
     updateBackendCode();
 
-    // 静默截断检测：URL/模型黑名单 → 只控制 fetch 劫持，不提示用户
+    // 配置兼容检测
     const apiUrl = getMainApiUrl().toLowerCase();
     if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) { /* 白名单放行 */ }
     else if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return;
@@ -1881,7 +1881,7 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// ── 伪造 OpenAI 空响应（零报错，零网络请求） ──
+// ── 兼容响应 ──
 function makeFakeCompletion(init) {
   var isStream = true;
   try {
@@ -1935,7 +1935,18 @@ function ewcReadRequestMeta(init) {
   return result;
 }
 
-// ── Fetch 劫持：黑名单命中时返回伪造的空 OpenAI 响应 ──
+function ewcRequestBlockReason(requestMeta) {
+  const explicitApiUrl = String(requestMeta?.apiUrl || '').toLowerCase();
+  const stableApiUrl = String(explicitApiUrl || getMainApiUrl() || '').toLowerCase();
+  if (stableApiUrl && CONFIG_URL_WHITELIST.some(kw => stableApiUrl.includes(kw))) return '';
+  if (stableApiUrl && CONFIG_URL_BLACKLIST.some(kw => stableApiUrl.includes(kw))) return 'url';
+
+  const explicitModel = String(requestMeta?.model || '').toLowerCase();
+  if (!explicitModel) return '';
+  return CONFIG_BLACKLIST.some(kw => explicitModel.includes(String(kw).toLowerCase())) ? 'model' : '';
+}
+
+// ── 请求兼容处理 ──
 function ewcInjectFetchHook() {
   if (typeof p.fetch !== 'function') return;
   // 同一页面脚本重建时先拆掉自己的上一层，防止旧配置继续拦截新请求。
@@ -1949,21 +1960,8 @@ function ewcInjectFetchHook() {
       const isChatReq = url.includes('/api/backends/chat-completions/') || url.includes('/api/connections/generate');
       if (!isChatReq) return originalFetch(input, init);
 
-      // 一次请求自己的配置最可靠；全局配置只作为缺省回退。
       const requestMeta = ewcReadRequestMeta(init);
-      const apiUrl = String(requestMeta.apiUrl || getMainApiUrl() || '').toLowerCase();
-      const requestModel = String(requestMeta.model || ((SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '')).toLowerCase();
-      if (!apiUrl && !requestModel) return originalFetch(input, init);
-      // 1) URL白名单优先 → 官方源直接放行
-      if (apiUrl && CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) return originalFetch(input, init);
-      // 2) URL黑名单检测 → 伪造空响应
-      if (apiUrl && CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return makeFakeCompletion(init);
-
-      const isBlocked = CONFIG_BLACKLIST.some(kw => requestModel.includes(String(kw).toLowerCase()));
-      if (!isBlocked) return originalFetch(input, init);
-
-      // 模型名命中黑名单 → 伪造空响应
-      return makeFakeCompletion(init);
+      return ewcRequestBlockReason(requestMeta) ? makeFakeCompletion(init) : originalFetch(input, init);
     } catch(e) {}
     return originalFetch(input, init);
   };
@@ -2854,6 +2852,15 @@ function contestOutcome(chance, roll) {
   if (margin >= -30) return '小失败';
   return '大失败';
 }
+function contestReadNumericSpecial(raw) {
+  // 兼容旧版 MVU 的 ValueWithDescription: [实际值, "说明"]。
+  // 新版 ZOD 保存的是裸数字；两种形状都只读取实际数值，不让描述参与计算。
+  let value = raw;
+  if (Array.isArray(value) && value.length === 2 && typeof value[1] === 'string') value = value[0];
+  if (value && typeof value === 'object' && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, 'value')) value = value.value;
+  const number = Number(value);
+  return Number.isFinite(number) ? contestClamp(number, -10, 10) : null;
+}
 function contestReadPlayerSpecial(type) {
   const data = getLatestMvuData();
   const stat = data?.stat_data || data;
@@ -2862,10 +2869,17 @@ function contestReadPlayerSpecial(type) {
   const result = {};
   for (const attr of String(type || '')) {
     // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
-    const raw = attr === 'L' ? (special.L ?? special.W) : special[attr];
-    const number = Number(raw);
-    if (!Number.isFinite(number)) return null;
-    result[attr] = contestClamp(number, -10, 10);
+    const aliases = attr === 'L'
+      ? [special.L, special.W, special.l, special.w, special.意志]
+      : [special[attr], special[attr.toLowerCase()], special[CONTEST_ATTR[attr]]];
+    let number = null;
+    for (const raw of aliases) {
+      if (raw == null) continue;
+      number = contestReadNumericSpecial(raw);
+      if (number != null) break;
+    }
+    if (number == null) return null;
+    result[attr] = number;
   }
   return type.length === 1 ? result[type] : result;
 }
@@ -3270,7 +3284,7 @@ function stripSuperEventContinentBlock(value) {
   const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return String(value || '')
     .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_START)}[\\s\\S]*?${escape(SUPER_EVENT_CONTINENT_END)}(?:\\r?\\n)?`, 'g'), '')
-    // 旧版本内容只有一行：仅删标记行，绝不截断其后的其他洲际动态。
+    // 旧版本内容只有一行：仅删标记行，完整保留后续其他洲际动态。
     .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_PREFIX)}[^\\r\\n]*(?:\\r?\\n)?`, 'g'), '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
