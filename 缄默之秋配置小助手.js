@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.4/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.5/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.4';
+const JMZQ_VERSION = '3.1.5';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3231,7 +3231,7 @@ p._jmzqContestDebug = {
 
 // ═══════════════ 隐式剧情导演：变量事实 → 正文重点提醒 ═══════════════
 // 世界书是规则源，MVU是事实源，buildEnableSet是生效路由真源。
-// 导演按重要度最多压缩四项后果，在本层MVU完成后写入当前助手正文尾部；
+// 导演按重要度最多压缩三项紧急后果，在本层MVU完成后写入当前助手正文尾部；
 // 由显示正则隐藏，下一轮模型随聊天上下文读取，不占用扩展提示缓存。
 const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
 const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
@@ -3249,9 +3249,9 @@ const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
   world: true,
 });
 const DIRECTOR_INTENSITY = Object.freeze({
-  restrained: { chance: 0.72, globalCooldown: 3, categoryCooldown: 6 },
-  strict: { chance: 1, globalCooldown: 2, categoryCooldown: 4 },
-  brutal: { chance: 1.24, globalCooldown: 1, categoryCooldown: 3 },
+  restrained: { chance: 0.72, ambientChance: 14, globalCooldown: 3, categoryCooldown: 6 },
+  strict: { chance: 1, ambientChance: 22, globalCooldown: 2, categoryCooldown: 4 },
+  brutal: { chance: 1.24, ambientChance: 30, globalCooldown: 1, categoryCooldown: 3 },
 });
 let _directorWriteChain = Promise.resolve();
 let _directorWritingMessage = false;
@@ -3854,7 +3854,10 @@ function directorCandidateCoolingDown(candidate, source, store, intensity) {
   if (candidate.mandatory || candidate.priority === 0) return false;
   const history = store.history || [];
   const last = history[history.length - 1];
-  if (last && source.turn - Number(last.turn || 0) < intensity.globalCooldown) return true;
+  // 日常随机项必须共享硬冷却，不能靠NPC/感染者/环境等分类轮流绕过。
+  const priorityFloor = candidate.priority >= 3 ? 3 : candidate.priority === 2 ? 2 : 1;
+  const globalCooldown = Math.max(priorityFloor, Number(intensity.globalCooldown) || 0);
+  if (last && source.turn - Number(last.turn || 0) < globalCooldown) return true;
   const categoryLast = [...history].reverse().find(item => item.category === candidate.category);
   const categoryCooldown = candidate.cooldown ?? intensity.categoryCooldown;
   if (categoryLast && source.turn - Number(categoryLast.turn || 0) < categoryCooldown) return true;
@@ -3912,6 +3915,7 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   const narrativeChance = String(sd?.叙事模式 || '') === '地狱' ? 1.24 : 1;
   const candidates = directorApplyThresholdCrossings(directorBuildCandidates(sd, source, config), sd, beforeSd);
   const eligible = candidates.filter(candidate => {
+    if (candidate.priority >= 3) return false;
     if (candidate.lockKey && store.locks[candidate.lockKey]) return false;
     if (directorCandidateCoolingDown(candidate, source, store, intensity)) return false;
     if (candidate.mandatory) return true;
@@ -3920,11 +3924,27 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   });
   const ranked = directorRankCandidates(eligible, sourceKey);
   const urgent = ranked.filter(candidate => candidate.priority <= 1);
-  // 有P0/P1时只发紧急后果，绝不拿日常随机项凑满；否则P2最多两项、P3最多一项。
+  // 有P0/P1时只发紧急后果且最多三项；否则P2、P3都只取一项，避免复合注入过长。
   const selected = urgent.length
-    ? urgent.slice(0, 4)
-    : ranked.filter(candidate => candidate.priority === 2).slice(0, 2);
-  if (!selected.length) selected.push(...ranked.filter(candidate => candidate.priority === 3).slice(0, 1));
+    ? urgent.slice(0, 3)
+    : ranked.filter(candidate => candidate.priority === 2).slice(0, 1);
+  if (!selected.length) {
+    const ambientPool = candidates.filter(candidate =>
+      candidate.priority === 3
+      && !(candidate.lockKey && store.locks[candidate.lockKey])
+      && !directorCandidateCoolingDown(candidate, source, store, intensity)
+    );
+    // P3只做一次整组抽签，避免多个约20%候选叠加成高频必出；命中后最多选一项。
+    const ambientChance = contestClamp(Math.round((intensity.ambientChance || 0) * narrativeChance), 0, 100);
+    if (ambientPool.length && (contestHash(`${sourceKey}|ambient-gate`) % 100) < ambientChance) {
+      const weightedPool = ambientPool.map(candidate => ({
+        ...candidate,
+        weight: Math.max(1, Math.round((Number(candidate.weight) || 1) * Math.max(1, Number(candidate.chance) || 1) / 25)),
+      }));
+      const picked = directorPickStable(weightedPool, `${sourceKey}|ambient-pick`);
+      if (picked) selected.push(picked);
+    }
+  }
   if (!selected.length) return null;
   const items = selected.map(candidate => ({
     category: candidate.category,
