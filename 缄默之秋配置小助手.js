@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.1';
+const JMZQ_VERSION = '3.1.2';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3384,7 +3384,6 @@ function directorStateFingerprint(sd) {
     ...Object.entries(sd?.NPC || {}).map(([name, value]) => ['N', name, value?.relation, value?.status, value?.current_goal]),
     ...Object.entries(sd?.队友 || {}).map(([name, value]) => ['T', name, value?.favor, value?.status, value?.current_goal]),
   ].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
-  const requests = Object.entries(sd?.操作请求 || {}).map(([id, value]) => [id, value?.类型, value?.行动, value?.状态]).sort();
   const vehicles = Object.entries(sd?.载具 || {}).map(([name, value]) => [name, value?.condition, value?.fuel, value?.status, value?.location]).sort();
   const shelters = Object.entries(sd?.建筑 || {}).map(([name, value]) => [name, value?.condition, value?.status, value?.location]).sort();
   const tasks = (Array.isArray(sd?.任务队列) ? sd.任务队列 : []).map(value => [value?.目标, value?.优先级, value?.进度, value?.状态]);
@@ -3398,14 +3397,14 @@ function directorStateFingerprint(sd) {
     physical: sd?.衍生状态?.physical_status, mental: sd?.衍生状态?.mental_status,
     env: { location: env.location, time: env.时间, weather: env.天气, temperature: env.temperature, radiation: env.radiation, threat: env.threat_level, noise: env.noise, comfort: env.comfort, hatred: env.hatred },
     camp: { built: camp.已建立, access: camp.可访问, morale: camp.士气, operation: camp.经营 },
-    factions, people, requests, vehicles, shelters, tasks, communications,
+    factions, people, vehicles, shelters, tasks, communications,
     events: Object.keys(sd?.世界事件 || {}), nearby: Object.keys(sd?.周围地点 || {}),
     extra: sd?.扩展内容, superEvent: sd?.超事件,
   })).toString(36);
 }
 function directorSourceKey(sd, source) {
   if (!source) return '';
-  return `${contestChatId()}|${source.messageId}|${source.swipeId}|${directorStateFingerprint(sd)}|v1`;
+  return `${contestChatId()}|${source.messageId}|${source.swipeId}|${directorStateFingerprint(sd)}|v2`;
 }
 function directorCandidate(id, category, priority, chance, weight, directive, supportEntries = [], options = {}) {
   return {
@@ -3461,10 +3460,12 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   const location = directorSafeText(env.location || '当前地点', 60) || '当前地点';
   const activity = Array.isArray(sd?.当前活动) ? sd.当前活动.map(v => String(v)) : [];
   const activitySet = new Set(activity);
-  const hp = directorNumber(core.hp_current), hpRatio = directorRatio(core.hp_current, core.hp_max);
-  const stamina = directorNumber(core.stamina_current), staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
-  const hunger = directorNumber(core.hunger_current), thirst = directorNumber(core.thirst_current);
-  const morale = directorNumber(core.morale_current), infection = directorNumber(core.infection_current);
+  const hp = directorNumber(core.hp_current), hpMax = directorNumber(core.hp_max), hpRatio = directorRatio(core.hp_current, core.hp_max);
+  const stamina = directorNumber(core.stamina_current), staminaMax = directorNumber(core.stamina_max), staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
+  const hunger = directorNumber(core.hunger_current), hungerMax = directorNumber(core.hunger_max);
+  const thirst = directorNumber(core.thirst_current), thirstMax = directorNumber(core.thirst_max);
+  const morale = directorNumber(core.morale_current), moraleMax = directorNumber(core.morale_max);
+  const infection = directorNumber(core.infection_current), infectionMax = directorNumber(core.infection_max);
   const radiation = directorNumber(env.radiation) ?? 0, hatred = directorNumber(env.hatred) ?? 0;
   const locks = directorReadStore().locks;
 
@@ -3473,7 +3474,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     if (!config.fatal || locks['fatal:player-hp-zero']) return [];
     return [directorCandidate(
       'fatal/player-hp-zero', 'fatal', 0, 100, 100,
-      '{{user}}的生命已经耗尽。本轮必须将死亡作为既成且不可撤销的事实自然写入剧情，并描写现场反应与直接遗留后果；不得改写为普通昏迷、巧合获救、无依据复活或数值仍可行动。',
+      `{{user}}当前生命值为0${hpMax != null ? `/${hpMax}` : ''}，生命已经耗尽。本轮必须将死亡作为既成且不可撤销的事实自然写入剧情，并描写现场反应与直接遗留后果；不得改写为普通昏迷、巧合获救、无依据复活或仍可行动。`,
       postOutbreak ? ['机制-死亡', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
       { mandatory: true, lockKey: 'fatal:player-hp-zero' }
     )];
@@ -3484,7 +3485,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected && !locks['fatal:infection-transform']) {
     candidates.push(directorCandidate(
       'fatal/infection-transform', 'fatal', 0, 100, 95,
-      `{{user}}的感染进程已经越过不可逆转的转化界线。本轮必须让转化事实及其最直接的身体与现场后果落地，并按当前“${directorSafeText(sd?.感染者行为模式 || '狂病型', 12)}”表现；不得用普通药物、意志或巧合无因逆转。`,
+      `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，且未记录半感染、抗体或免疫停滞状态，感染已越过不可逆转的转化界线。本轮必须让转化的身体变化与现场后果落地，并按“${directorSafeText(sd?.感染者行为模式 || '狂病型', 12)}”表现；不得无因逆转。`,
       ['机制-COVID-30感染', '[mvu_update]感染进程'],
       { mandatory: true, lockKey: 'fatal:infection-transform' }
     ));
@@ -3494,13 +3495,13 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     const condition = physical && !/^健康/.test(physical) ? `当前伤情为“${physical}”` : '身体已经处于严重失血或损伤边缘';
     candidates.push(directorCandidate(
       'critical/health-collapse', 'critical', 1, 96, 94,
-      `{{user}}已经濒临生命极限，${condition}。本轮必须让伤势明显限制行动并继续产生迫近后果；若没有及时、真实且条件充分的救治，不得让状态自行稳定或被无代价救场。`,
+      `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}，${condition}。本轮必须让伤势具体限制移动、发力、意识或止血，并继续产生迫近后果；没有及时且条件充分的救治，不得自行稳定。`,
       postOutbreak ? ['机制-伤病与医疗', '机制-毁伤', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康']
     ));
   } else if (config.survival && hpRatio != null && hpRatio <= 0.3) {
     candidates.push(directorCandidate(
       'critical/serious-injury', 'critical', 1, 72, 78,
-      `{{user}}的生命状态已经降至危险区${physical && !/^健康/.test(physical) ? `，当前伤情为“${physical}”` : ''}。本轮必须在动作能力、疼痛、失血、恢复或恶化中落实至少一项直接影响，并让处理伤势占据真实时间与条件。`,
+      `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}${physical && !/^健康/.test(physical) ? `，伤情为“${physical}”` : ''}。本轮必须在动作能力、疼痛、失血、恢复或恶化中落实至少一项直接影响，并让处理伤势占据真实时间与条件。`,
       ['机制-伤病与医疗', '机制-毁伤']
     ));
   }
@@ -3509,13 +3510,13 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   if (config.survival && stamina === 0 && exhausting) {
     candidates.push(directorCandidate(
       'critical/stamina-empty-active', 'critical', 1, 100, 91,
-      `{{user}}已经耗尽体力，却仍处于“${directorSafeText(activity.join('、') || '高强度行动', 48)}”之中。本轮必须写出脱力对速度、反应和持续行动的实质阻断；继续强撑必须损害生命或身体状态。`,
+      `{{user}}当前体力为0${staminaMax != null ? `/${staminaMax}` : ''}，却仍处于“${directorSafeText(activity.join('、') || '高强度行动', 48)}”。本轮必须写出脱力对速度、反应和持续行动的实质阻断；继续强撑必须损害生命或身体状态。`,
       ['机制-体力', '机制-活动叠加与冲突'], { mandatory: true }
     ));
   } else if (config.survival && staminaRatio != null && staminaRatio <= 0.15) {
     candidates.push(directorCandidate(
       'critical/stamina-near-empty', 'critical', 1, 72, 72,
-      '{{user}}的体力已接近耗尽。本轮必须让动作迟缓、失误风险或被迫停顿自然进入剧情；不得继续以满状态完成连续高强度行动。',
+      `{{user}}当前体力为${stamina}${staminaMax != null ? `/${staminaMax}` : ''}，已接近耗尽。本轮必须让动作迟缓、失误风险或被迫停顿自然进入剧情；不得继续以满状态完成连续高强度行动。`,
       ['机制-体力']
     ));
   }
@@ -3523,35 +3524,35 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   if (config.survival && thirst != null && thirst <= 10) {
     candidates.push(directorCandidate(
       'critical/dehydration', 'critical', 1, 90, 88,
-      '{{user}}正处于严重脱水状态。本轮必须让眩晕、虚弱、判断下降或行动能力衰退成为现实压力，并让寻找可饮用水或承受继续恶化成为无法忽略的问题。',
+      `{{user}}当前饱水值为${thirst}${thirstMax != null ? `/${thirstMax}` : ''}，已处于严重脱水状态。本轮必须让眩晕、虚弱、判断下降或行动能力衰退成为现实压力，并让饮水或继续恶化成为无法忽略的问题。`,
       ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
     ));
   }
   if (config.survival && hunger != null && hunger <= 10) {
     candidates.push(directorCandidate(
       'critical/starvation', 'critical', 1, 82, 80,
-      '{{user}}已经陷入重度饥饿。本轮必须把虚弱、恢复停滞、专注下降或身体恶化写成实际影响；不得靠意志长期无视进食需求。',
+      `{{user}}当前饱食值为${hunger}${hungerMax != null ? `/${hungerMax}` : ''}，已经陷入重度饥饿。本轮必须把虚弱、恢复停滞、专注下降或身体恶化写成实际影响；不得靠意志长期无视进食需求。`,
       ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
     ));
   }
   if (config.survival && config.infected && postOutbreak && infection != null && infection >= 60 && infection < 90) {
     candidates.push(directorCandidate(
       'critical/infection-danger', 'critical', 1, 78, 82,
-      `{{user}}的感染症状正在进入失控前的危险阶段。本轮必须让发热、疼痛、感官异常或行为控制恶化影响现场，并强化治疗时间正在缩短的压力；不得无因停滞或自愈。`,
+      `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，感染症状正在进入失控前的危险阶段。本轮必须让发热、疼痛、感官异常或行为控制恶化影响现场，并强化治疗时间正在缩短的压力；不得无因停滞或自愈。`,
       ['机制-COVID-30感染', '[mvu_update]感染进程']
     ));
   }
   if (config.survival && radiation >= 50) {
     candidates.push(directorCandidate(
       'critical/radiation-danger', 'environment', 1, 88, 84,
-      `{{user}}目前身处${location}的危险辐射环境。本轮必须让暴露造成可感知的身体或装备压力，并迫使角色面对缩短停留、寻找屏蔽或继续承受剂量的现实取舍。`,
+      `{{user}}目前身处${location}，环境辐射值为${radiation}。本轮必须让暴露造成可感知的身体或装备压力，并迫使角色面对缩短停留、寻找屏蔽或继续承受剂量的现实取舍。`,
       ['机制-天气与地质变化', '机制-伤病与医疗']
     ));
   }
   if (config.survival && morale != null && morale <= 15) {
     candidates.push(directorCandidate(
       'critical/morale-break', 'relationship', 1, 72, 68,
-      `{{user}}的情绪值已跌入崩溃危险区${mental && !/^冷静/.test(mental) ? `，当前状态为“${mental}”` : ''}。本轮必须让注意力、判断、交流或临场反应受到相称影响，但不得无因永久剥夺角色控制权。`,
+      `{{user}}当前情绪值为${morale}${moraleMax != null ? `/${moraleMax}` : ''}${mental && !/^冷静/.test(mental) ? `，心理状态为“${mental}”` : ''}。本轮必须让注意力、判断、交流或临场反应受到相称影响，但不得无因永久剥夺角色控制权。`,
       ['机制-恐慌（默认不开，因为哈基米会绝望）', '[mvu_update]恐慌']
     ));
   }
@@ -3560,27 +3561,12 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   if (config.npc && hostilePeople.length) {
     const picked = directorPickStable(hostilePeople.map(([name, value]) => ({ name, value, weight: Math.max(1, Math.abs(directorNumber(value.relation) || -15)) })), `${seed}|hostile`);
     const name = directorSafeText(picked?.name || '既有敌人', 48);
+    const relation = directorNumber(picked?.value?.relation);
     const goal = directorSafeText(picked?.value?.current_goal || picked?.value?.thoughts || '', 90);
     candidates.push(directorCandidate(
       `situation/hostile-${contestHash(name).toString(36)}`, 'relationship', 2, 52, 63,
-      `${name}与{{user}}之间的敌意必须继续产生后果。本轮让其依据自身已知信息、现实位置和${goal ? `当前目标“${goal}”` : '既有动机'}采取一项可追溯行动；不得隔空锁定、读取玩家心理或凭空获得压倒性援军。`,
+      `${name}与{{user}}的当前关系值为${relation ?? '负值'}${goal ? `，其已记录目标是“${goal}”` : ''}。本轮让这份既有敌意通过其现实位置和有限信息产生一项可追溯行动；不得隔空锁定、读取玩家心理或凭空获得压倒性援军。`,
       ['机制-复仇与宿敌']
-    ));
-  }
-
-  const pendingRequests = Object.entries(sd?.操作请求 || {}).filter(([, value]) => value && value.状态 === '待处理');
-  if (pendingRequests.length) {
-    const picked = directorPickStable(pendingRequests.map(([id, value]) => ({ id, value, weight: 1 })), `${seed}|request`);
-    const requestType = directorSafeText(picked?.value?.类型 || '剧情行动', 24);
-    const action = directorSafeText(picked?.value?.行动 || picked?.value?.说明 || picked?.id || '待处理行动', 120);
-    const requestSupport = {
-      研究: ['机制-制造'], 制造: ['机制-制造'], 建造: ['机制-建造庇护所'], 维修: ['机制-制造'],
-      拆除: ['机制-制造'], 营地经营: ['机制-营地经营'],
-    }[requestType] || [];
-    candidates.push(directorCandidate(
-      `critical/request-${contestHash(String(picked?.id || action)).toString(36)}`, 'event', 1, 100, 92,
-      `{{user}}刚提交了“${requestType}：${action}”。本轮必须在现场条件允许的范围内明确推进或阻断这项请求，写清可观察结果与即时后果；不得跳过、擅自改成另一项行动，也不得把尚未完成的操作直接判为成功。`,
-      requestSupport, { mandatory: true }
     ));
   }
 
@@ -3591,10 +3577,11 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   if (config.npc && endangeredTeammates.length) {
     const picked = directorPickStable(endangeredTeammates.map(([name, value]) => ({ name, value, weight: Math.max(1, 101 - (directorNumber(value?.hp) ?? 50)) })), `${seed}|teammate-danger`);
     const name = directorSafeText(picked?.name || '同行者', 48);
+    const personHp = directorNumber(picked?.value?.hp);
     const status = directorSafeText(picked?.value?.status || '情况危急', 100);
     candidates.push(directorCandidate(
       `situation/teammate-${contestHash(name).toString(36)}`, 'relationship', 2, 76, 74,
-      `${name}当前“${status}”，不能继续只留在人物档案中。本轮必须让这一处境影响队伍行动、交流或时间压力，并给{{user}}留下真实的应对空间；不得无因自愈、瞬间归队或用陌生救援抹去后果。`,
+      `${name}当前${personHp != null ? `生命值为${personHp}，` : ''}状态为“${status}”。本轮必须让这一具体处境影响队伍行动、交流或时间压力，并给{{user}}留下真实的应对空间；不得无因自愈、瞬间归队或用陌生救援抹去后果。`,
       ['杂项-幸存者NPC关系推进', '机制-伤病与医疗']
     ));
   }
@@ -3614,11 +3601,20 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     );
     const bottleneck = directorSafeText(operation.当前瓶颈 || camp.运作情况 || '供需与人手', 88);
     if (stress >= 60) {
+      const campFacts = [
+        directorNumber(operation.维护压力) >= 60 ? `维护压力${directorNumber(operation.维护压力)}` : '',
+        directorNumber(operation.噪音风险) >= 60 ? `噪音风险${directorNumber(operation.噪音风险)}` : '',
+        directorNumber(operation.稳定度) != null && directorNumber(operation.稳定度) <= 40 ? `稳定度${directorNumber(operation.稳定度)}` : '',
+        directorNumber(camp.人数) > (directorNumber(operation.床位) || 0) ? `人数${directorNumber(camp.人数)}、床位${directorNumber(operation.床位) || 0}` : '',
+        directorNumber(operation.食水日净值) < 0 ? `食水日净值${directorNumber(operation.食水日净值)}` : '',
+        directorNumber(operation.医疗日净值) < 0 ? `医疗日净值${directorNumber(operation.医疗日净值)}` : '',
+        directorNumber(operation.燃料日净值) < 0 ? `燃料日净值${directorNumber(operation.燃料日净值)}` : '',
+      ].filter(Boolean).join('、');
       candidates.push(directorCandidate(
         'situation/camp-pressure', 'camp', 2, 64, Math.round(stress),
         campAccessible
-          ? `${directorSafeText(camp.名称 || '营地', 48)}当前的“${bottleneck}”必须在本轮形成一项具体经营后果或成员反应。结合现有配给、警戒、人手、设施和资源表现代价，不得替{{user}}修改长期方针，也不得凭空发动外敌袭击。`
-          : `${directorSafeText(camp.名称 || '营地', 48)}当前的“${bottleneck}”正在形成压力，但{{user}}不在可直接管理营地的位置。本轮只能通过可靠通讯、延迟报告或远方可观察后果体现影响；不得让{{user}}隔空搬运、维修、治疗、调度或改变成员状态。`,
+          ? `${directorSafeText(camp.名称 || '营地', 48)}当前瓶颈为“${bottleneck}”${campFacts ? `，具体记录：${campFacts}` : ''}。本轮必须让其中一项形成对应的经营后果或成员反应；不得替{{user}}修改长期方针，也不得凭空发动外敌袭击。`
+          : `${directorSafeText(camp.名称 || '营地', 48)}当前瓶颈为“${bottleneck}”${campFacts ? `，具体记录：${campFacts}` : ''}，且{{user}}目前无法直接管理。本轮只能通过可靠通讯、延迟报告或远方可观察后果体现；不得让{{user}}隔空操作营地。`,
         ['机制-营地经营', '[mvu_update]活动-营地经营']
       ));
     } else {
@@ -3707,9 +3703,10 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     const picked = directorPickStable(factions.map(([name, value]) => ({ name, value, weight: Math.max(1, directorNumber(value.进展) || 1) })), `${seed}|faction`);
     const factionName = directorSafeText(picked?.name || '当前势力', 48);
     const stage = directorSafeText(picked?.value?.阶段 || '发展中', 16);
+    const progress = directorNumber(picked?.value?.进展);
     candidates.push(directorCandidate(
       `ambient/faction-${contestHash(factionName).toString(36)}`, 'faction', 3, 26, 28,
-      `让${factionName}当前“${stage}”阶段的影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次。规模必须匹配其现有阶段，不得把后台进展直接告诉{{user}}。`,
+      `${factionName}当前阶段为“${stage}”${progress != null ? `、进展${progress}` : ''}。让其影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次；规模必须匹配现状，不得把后台数值直接告诉{{user}}。`,
       []
     ));
   }
@@ -3865,7 +3862,7 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
     lockKey: candidate.lockKey || '',
   }));
   return {
-    version: 2,
+    version: 3,
     sourceKey,
     sourceMessageId: source.messageId,
     sourceSwipeId: source.swipeId,
