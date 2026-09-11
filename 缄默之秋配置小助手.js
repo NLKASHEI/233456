@@ -1,13 +1,18 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.2.6/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.0/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.2.6';
-const WORLDBOOK_NAME = '缄默之秋3.0';
+const JMZQ_VERSION = '3.1.0';
+const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋-3.1-世界书',
+  '缄默之秋3.1世界书',
+  '缄默之秋-3.1',
+  // 兼容仍沿用旧文件名的既有存档。
+  '缄默之秋3.0',
   '缄默之秋-3.0-世界书',
   '缄默之秋3.0世界书',
   '缄默之秋-3.0',
@@ -776,6 +781,30 @@ p.document.body.insertAdjacentHTML('beforeend', `
           </div>
         </div>
       </div>
+      <div class="jmzq-section" id="jmzq-director-section">
+        <div class="jmzq-section-title">隐式剧情导演</div>
+        <label class="jmzq-mvu-check-row">
+          <input type="checkbox" id="jmzq-director-enabled"><span class="jmzq-mvu-check-box"></span><span>启用正文重点提醒</span>
+        </label>
+        <div class="jmzq-mvu-row" style="margin-top:7px;">
+          <label class="jmzq-mvu-label">导演强度</label>
+          <select class="jmzq-mvu-select" id="jmzq-director-intensity">
+            <option value="restrained">克制</option>
+            <option value="strict">严苛</option>
+            <option value="brutal">残酷</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;margin-top:5px;">
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-fatal"><span class="jmzq-mvu-check-box"></span><span>致命后果</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-survival"><span class="jmzq-mvu-check-box"></span><span>生存压力</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-infected"><span class="jmzq-mvu-check-box"></span><span>感染者</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-npc"><span class="jmzq-mvu-check-box"></span><span>人物关系</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-camp"><span class="jmzq-mvu-check-box"></span><span>营地经营</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-world"><span class="jmzq-mvu-check-box"></span><span>环境局势</span></label>
+        </div>
+        <button class="jmzq-btn xs" id="jmzq-director-preview" style="width:100%;margin-top:8px;">预览当前提醒</button>
+        <div id="jmzq-director-status" style="font-size:10px;color:#8a7060;margin-top:7px;line-height:1.6;overflow-wrap:anywhere;">静默待机</div>
+      </div>
       <div class="jmzq-section">
         <div class="jmzq-section-title">提示词模板</div>
         <button class="jmzq-btn primary" id="jmzq-ejs-optimize" style="margin-bottom:4px;">一键最优配置</button>
@@ -969,6 +998,16 @@ const themeToggle = p.document.getElementById('jmzq-theme-toggle');
 const refreshBtn = p.document.getElementById('jmzq-refresh');
 const configStatus = p.document.getElementById('jmzq-config-status');
 const backendCode = p.document.getElementById('jmzq-backend-code');
+const directorEnabledInput = p.document.getElementById('jmzq-director-enabled');
+const directorIntensityInput = p.document.getElementById('jmzq-director-intensity');
+const directorFatalInput = p.document.getElementById('jmzq-director-fatal');
+const directorSurvivalInput = p.document.getElementById('jmzq-director-survival');
+const directorInfectedInput = p.document.getElementById('jmzq-director-infected');
+const directorNpcInput = p.document.getElementById('jmzq-director-npc');
+const directorCampInput = p.document.getElementById('jmzq-director-camp');
+const directorWorldInput = p.document.getElementById('jmzq-director-world');
+const directorPreviewBtn = p.document.getElementById('jmzq-director-preview');
+const directorStatus = p.document.getElementById('jmzq-director-status');
 const mvuSection = p.document.getElementById('jmzq-mvu-section');
 const mvuUpdateMode = p.document.getElementById('jmzq-mvu-update-mode');
 const mvuModelSource = p.document.getElementById('jmzq-mvu-model-source');
@@ -2846,7 +2885,8 @@ function contestOutcome(chance, roll) {
   if (chance <= 0) return '大失败';
   if (chance >= 100) return '大成功';
   const margin = chance - roll;
-  if (margin >= 30) return '大成功';
+  // 大成功必须有明显余裕，避免中高成功率下频繁泛滥；普通成功仍按达到成功线处理。
+  if (margin >= 40) return '大成功';
   if (margin >= 0) return '小成功';
   if (margin >= -5) return '两败俱伤';
   if (margin >= -30) return '小失败';
@@ -3188,6 +3228,913 @@ p._jmzqContestDebug = {
   chance: CONTEST_CHANCE,
   last: () => p._jmzqLastContest || null,
 };
+
+// ═══════════════ 隐式剧情导演：变量事实 → 正文重点提醒 ═══════════════
+// 世界书是规则源，MVU是事实源，buildEnableSet是生效路由真源。
+// 导演按重要度最多压缩四项后果为depth 0系统提醒，不解释规则、不更新变量。
+const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
+const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
+const DIRECTOR_CONFIG_KEY = 'jmzq-director-config-v1';
+const DIRECTOR_STORE_VERSION = 1;
+const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
+  enabled: true,
+  intensity: 'strict',
+  fatal: true,
+  survival: true,
+  infected: true,
+  npc: true,
+  camp: true,
+  world: true,
+});
+const DIRECTOR_INTENSITY = Object.freeze({
+  restrained: { chance: 0.72, globalCooldown: 3, categoryCooldown: 6 },
+  strict: { chance: 1, globalCooldown: 2, categoryCooldown: 4 },
+  brutal: { chance: 1.24, globalCooldown: 1, categoryCooldown: 3 },
+});
+let _directorPromptActive = false;
+let _directorRouteTimer = null;
+
+function directorReadConfig() {
+  try {
+    const raw = JSON.parse(p.localStorage?.getItem(DIRECTOR_CONFIG_KEY) || '{}');
+    const intensity = Object.prototype.hasOwnProperty.call(DIRECTOR_INTENSITY, raw?.intensity) ? raw.intensity : DIRECTOR_DEFAULT_CONFIG.intensity;
+    const next = { ...DIRECTOR_DEFAULT_CONFIG, ...(raw && typeof raw === 'object' ? raw : {}), intensity };
+    for (const key of ['enabled', 'fatal', 'survival', 'infected', 'npc', 'camp', 'world']) next[key] = next[key] !== false;
+    return next;
+  } catch (e) { return { ...DIRECTOR_DEFAULT_CONFIG }; }
+}
+function directorWriteConfig(next) {
+  const config = { ...DIRECTOR_DEFAULT_CONFIG, ...(next || {}) };
+  try { p.localStorage?.setItem(DIRECTOR_CONFIG_KEY, JSON.stringify(config)); } catch (e) {}
+  return config;
+}
+function directorStoreKey() { return `jmzq-director-v${DIRECTOR_STORE_VERSION}:${contestChatId()}`; }
+function directorReadStore() {
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(directorStoreKey()) || '{}');
+    return parsed && typeof parsed === 'object'
+      ? { history: Array.isArray(parsed.history) ? parsed.history : [], locks: parsed.locks && typeof parsed.locks === 'object' ? parsed.locks : {} }
+      : { history: [], locks: {} };
+  } catch (e) { return { history: [], locks: {} }; }
+}
+function directorWriteStore(store) {
+  try {
+    p.localStorage?.setItem(directorStoreKey(), JSON.stringify({
+      history: (store?.history || []).slice(-60),
+      locks: store?.locks || {},
+    }));
+  } catch (e) {}
+}
+function directorNumber(value) {
+  if (Array.isArray(value)) value = value[0];
+  if (value && typeof value === 'object') value = value.current ?? value.value ?? value.currentValue ?? value.当前值;
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function directorRatio(current, maximum) {
+  const c = directorNumber(current), m = directorNumber(maximum);
+  return c == null || m == null || m <= 0 ? null : contestClamp(c / m, 0, 1);
+}
+function directorSafeText(value, max = 96) {
+  return contestEscapeText(value, max)
+    .replace(/[<>]/g, '')
+    .replace(/JMZQ_DIRECTOR/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function directorClipFragment(value, max) {
+  const text = directorSafeText(value, Math.max(max * 8, 320));
+  if (text.length <= max) return text;
+  if (max <= 1) return '…';
+  let head = text.slice(0, max - 1).trimEnd();
+  const boundaries = ['。', '；', '，', '、', '：', ' '];
+  const cut = Math.max(...boundaries.map(mark => head.lastIndexOf(mark)));
+  if (cut >= Math.floor(max * 0.58)) head = head.slice(0, cut + 1).trimEnd();
+  let suffix = '…';
+  if ((head.match(/“/g) || []).length > (head.match(/”/g) || []).length) suffix += '”';
+  if ((head.match(/（/g) || []).length > (head.match(/）/g) || []).length) suffix += '）';
+  return `${head.slice(0, Math.max(0, max - suffix.length)).trimEnd()}${suffix}`;
+}
+function directorCompactDirective(value, max) {
+  const text = directorSafeText(value, 900);
+  if (text.length <= max) return text;
+  const markers = ['本轮必须', '本轮只能', '本轮让', '必须', '只能'];
+  const markerAt = markers
+    .map(mark => text.indexOf(mark))
+    .filter(index => index > 0)
+    .sort((a, b) => a - b)[0];
+  if (markerAt == null) return directorClipFragment(text, max);
+  const contextMax = Math.min(44, Math.max(24, Math.floor(max * 0.38)));
+  const context = directorClipFragment(text.slice(0, markerAt), contextMax);
+  const joiner = /[。；，：！？]$/.test(context) ? '' : '；';
+  const instruction = text.slice(markerAt).trim();
+  const instructionMax = Math.max(24, max - context.length - joiner.length);
+  if (instruction.length <= instructionMax) return `${context}${joiner}${instruction}`.slice(0, max);
+  const finalMarkers = ['不得', '不可', '不能', '绝不'];
+  const finalAt = Math.max(...finalMarkers.map(mark => instruction.lastIndexOf(mark)));
+  if (finalAt > 0) {
+    const ending = instruction.slice(finalAt);
+    const endingMax = Math.min(Math.floor(instructionMax * 0.45), ending.length);
+    const preservedEnding = ending.length <= endingMax ? ending : `…${ending.slice(-(endingMax - 1))}`;
+    const leadingMax = Math.max(12, instructionMax - preservedEnding.length);
+    return `${context}${joiner}${directorClipFragment(instruction.slice(0, finalAt), leadingMax)}${preservedEnding}`.slice(0, max);
+  }
+  return `${context}${joiner}${directorClipFragment(instruction, instructionMax)}`.slice(0, max);
+}
+function directorCurrentLayerSource() {
+  const messages = contestListMessages();
+  const users = messages.filter(message => message?.role === 'user' || message?.is_user === true);
+  const assistants = messages.filter(message => message?.role === 'assistant' || message?.is_user === false);
+  const source = assistants[assistants.length - 1];
+  if (!source) return null;
+  const current = contestCurrentSwipe(source);
+  return {
+    messageId: Number(source.message_id) || Math.max(0, messages.indexOf(source)),
+    swipeId: current.swipeId,
+    text: directorSafeText(current.text, 1200),
+    turn: users.length,
+  };
+}
+function directorLatestMessageIsAssistant() {
+  const messages = contestListMessages();
+  const latest = messages[messages.length - 1];
+  return !!latest && (latest.role === 'assistant' || latest.is_user === false);
+}
+function directorLatestUserIntent() {
+  const messages = contestListMessages();
+  const latest = [...messages].reverse().find(message => message?.role === 'user' || message?.is_user === true);
+  if (!latest) return '';
+  return directorSafeText(contestCurrentSwipe(latest).text, 240);
+}
+function directorHasExplicitIntent(text) {
+  const value = directorSafeText(text, 240);
+  if (!value) return false;
+  return !/^(继续|继续吧|下一步|然后呢|随便|都行|看看|观察|等待|休息|嗯+|好+|ok|go|无)$/i.test(value);
+}
+function directorStateFingerprint(sd) {
+  const core = sd?.核心状态 || {};
+  const env = sd?.环境 || {};
+  const camp = sd?.营地 || {};
+  const factions = Object.entries(sd?.势力发展 || {}).map(([name, value]) => [name, value?.阶段, value?.进展, value?.已覆灭]).sort();
+  const people = [
+    ...Object.entries(sd?.NPC || {}).map(([name, value]) => ['N', name, value?.relation, value?.status, value?.current_goal]),
+    ...Object.entries(sd?.队友 || {}).map(([name, value]) => ['T', name, value?.favor, value?.status, value?.current_goal]),
+  ].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const requests = Object.entries(sd?.操作请求 || {}).map(([id, value]) => [id, value?.类型, value?.行动, value?.状态]).sort();
+  const vehicles = Object.entries(sd?.载具 || {}).map(([name, value]) => [name, value?.condition, value?.fuel, value?.status, value?.location]).sort();
+  const shelters = Object.entries(sd?.建筑 || {}).map(([name, value]) => [name, value?.condition, value?.status, value?.location]).sort();
+  const tasks = (Array.isArray(sd?.任务队列) ? sd.任务队列 : []).map(value => [value?.目标, value?.优先级, value?.进度, value?.状态]);
+  const communications = {
+    public: Object.entries(sd?.公共通讯 || {}).map(([id, value]) => [id, value?.sender, value?.time, value?.content]).slice(-12),
+    private: Object.entries(sd?.私人通讯 || {}).map(([name, list]) => [name, Array.isArray(list) ? list.slice(-3) : list]).slice(-12),
+  };
+  return contestHash(JSON.stringify({
+    phase: sd?.世界阶段, hellMode: sd?.叙事模式 === '地狱', infMode: sd?.感染者行为模式, npcMode: sd?.NPC行为模式,
+    noDefined: sd?.无定义角色模式 === true, activity: sd?.当前活动 || [], core,
+    physical: sd?.衍生状态?.physical_status, mental: sd?.衍生状态?.mental_status,
+    env: { location: env.location, time: env.时间, weather: env.天气, temperature: env.temperature, radiation: env.radiation, threat: env.threat_level, noise: env.noise, comfort: env.comfort, hatred: env.hatred },
+    camp: { built: camp.已建立, access: camp.可访问, morale: camp.士气, operation: camp.经营 },
+    factions, people, requests, vehicles, shelters, tasks, communications,
+    events: Object.keys(sd?.世界事件 || {}), nearby: Object.keys(sd?.周围地点 || {}),
+    extra: sd?.扩展内容, superEvent: sd?.超事件,
+  })).toString(36);
+}
+function directorSourceKey(sd, source) {
+  if (!source) return '';
+  return `${contestChatId()}|${source.messageId}|${source.swipeId}|${directorStateFingerprint(sd)}|v1`;
+}
+function directorCandidate(id, category, priority, chance, weight, directive, supportEntries = [], options = {}) {
+  return {
+    id, category, priority, chance, weight, directive, supportEntries,
+    mandatory: options.mandatory === true,
+    crossed: options.crossed === true,
+    lockKey: options.lockKey || '',
+    cooldown: Number.isFinite(options.cooldown) ? options.cooldown : null,
+  };
+}
+function directorPickStable(items, seed) {
+  if (!items.length) return null;
+  const total = items.reduce((sum, item) => sum + Math.max(1, Number(item.weight) || 1), 0);
+  let cursor = contestHash(seed) % total;
+  for (const item of items) {
+    cursor -= Math.max(1, Number(item.weight) || 1);
+    if (cursor < 0) return item;
+  }
+  return items[items.length - 1];
+}
+function directorTemplate(id, seed, templates) {
+  if (!templates.length) return '';
+  return templates[contestHash(`${seed}|template|${id}`) % templates.length];
+}
+function directorThreatBand(value) {
+  const n = directorNumber(value) ?? 0;
+  if (n >= 91) return '天罚';
+  if (n >= 71) return '猎杀';
+  if (n >= 51) return '标记';
+  if (n >= 30) return '窥伺';
+  return '零散';
+}
+function directorReleaseResolvedLocks(sd) {
+  const store = directorReadStore();
+  let changed = false;
+  const hp = directorNumber(sd?.核心状态?.hp_current);
+  const infection = directorNumber(sd?.核心状态?.infection_current);
+  if (hp != null && hp > 0 && store.locks['fatal:player-hp-zero']) { delete store.locks['fatal:player-hp-zero']; changed = true; }
+  if (infection != null && infection < 90 && store.locks['fatal:infection-transform']) { delete store.locks['fatal:infection-transform']; changed = true; }
+  if (changed) directorWriteStore(store);
+  return store;
+}
+function directorBuildCandidates(sd, source, config = directorReadConfig()) {
+  if (!sd || !source || !config.enabled) return [];
+  const seed = directorSourceKey(sd, source);
+  const phase = String(sd?.世界阶段 || '秩序期');
+  const postOutbreak = phase === '爆发期' || phase === '末世期';
+  const core = sd?.核心状态 || {};
+  const env = sd?.环境 || {};
+  const derived = sd?.衍生状态 || {};
+  const physical = directorSafeText(derived.physical_status || '', 150);
+  const mental = directorSafeText(derived.mental_status || '', 150);
+  const location = directorSafeText(env.location || '当前地点', 60) || '当前地点';
+  const activity = Array.isArray(sd?.当前活动) ? sd.当前活动.map(v => String(v)) : [];
+  const activitySet = new Set(activity);
+  const hp = directorNumber(core.hp_current), hpRatio = directorRatio(core.hp_current, core.hp_max);
+  const stamina = directorNumber(core.stamina_current), staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
+  const hunger = directorNumber(core.hunger_current), thirst = directorNumber(core.thirst_current);
+  const morale = directorNumber(core.morale_current), infection = directorNumber(core.infection_current);
+  const radiation = directorNumber(env.radiation) ?? 0, hatred = directorNumber(env.hatred) ?? 0;
+  const locks = directorReadStore().locks;
+
+  // 死亡角色不得在死亡提醒消费后继续抽普通随机事件。
+  if (hp === 0) {
+    if (!config.fatal || locks['fatal:player-hp-zero']) return [];
+    return [directorCandidate(
+      'fatal/player-hp-zero', 'fatal', 0, 100, 100,
+      '{{user}}的生命已经耗尽。本轮必须将死亡作为既成且不可撤销的事实自然写入剧情，并描写现场反应与直接遗留后果；不得改写为普通昏迷、巧合获救、无依据复活或数值仍可行动。',
+      postOutbreak ? ['机制-死亡', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
+      { mandatory: true, lockKey: 'fatal:player-hp-zero' }
+    )];
+  }
+
+  const candidates = [];
+  const halfInfected = /半感染|抗体|免疫停滞|保留人格/.test(physical);
+  if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected && !locks['fatal:infection-transform']) {
+    candidates.push(directorCandidate(
+      'fatal/infection-transform', 'fatal', 0, 100, 95,
+      `{{user}}的感染进程已经越过不可逆转的转化界线。本轮必须让转化事实及其最直接的身体与现场后果落地，并按当前“${directorSafeText(sd?.感染者行为模式 || '狂病型', 12)}”表现；不得用普通药物、意志或巧合无因逆转。`,
+      ['机制-COVID-30感染', '[mvu_update]感染进程'],
+      { mandatory: true, lockKey: 'fatal:infection-transform' }
+    ));
+  }
+
+  if (config.survival && hpRatio != null && hpRatio <= 0.12) {
+    const condition = physical && !/^健康/.test(physical) ? `当前伤情为“${physical}”` : '身体已经处于严重失血或损伤边缘';
+    candidates.push(directorCandidate(
+      'critical/health-collapse', 'critical', 1, 96, 94,
+      `{{user}}已经濒临生命极限，${condition}。本轮必须让伤势明显限制行动并继续产生迫近后果；若没有及时、真实且条件充分的救治，不得让状态自行稳定或被无代价救场。`,
+      postOutbreak ? ['机制-伤病与医疗', '机制-毁伤', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康']
+    ));
+  } else if (config.survival && hpRatio != null && hpRatio <= 0.3) {
+    candidates.push(directorCandidate(
+      'critical/serious-injury', 'critical', 1, 72, 78,
+      `{{user}}的生命状态已经降至危险区${physical && !/^健康/.test(physical) ? `，当前伤情为“${physical}”` : ''}。本轮必须在动作能力、疼痛、失血、恢复或恶化中落实至少一项直接影响，并让处理伤势占据真实时间与条件。`,
+      ['机制-伤病与医疗', '机制-毁伤']
+    ));
+  }
+
+  const exhausting = ['战斗', '探索', '潜行', '驾驶', '制造', '建造', '营地经营'].some(v => activitySet.has(v));
+  if (config.survival && stamina === 0 && exhausting) {
+    candidates.push(directorCandidate(
+      'critical/stamina-empty-active', 'critical', 1, 100, 91,
+      `{{user}}已经耗尽体力，却仍处于“${directorSafeText(activity.join('、') || '高强度行动', 48)}”之中。本轮必须写出脱力对速度、反应和持续行动的实质阻断；继续强撑必须损害生命或身体状态。`,
+      ['机制-体力', '机制-活动叠加与冲突'], { mandatory: true }
+    ));
+  } else if (config.survival && staminaRatio != null && staminaRatio <= 0.15) {
+    candidates.push(directorCandidate(
+      'critical/stamina-near-empty', 'critical', 1, 72, 72,
+      '{{user}}的体力已接近耗尽。本轮必须让动作迟缓、失误风险或被迫停顿自然进入剧情；不得继续以满状态完成连续高强度行动。',
+      ['机制-体力']
+    ));
+  }
+
+  if (config.survival && thirst != null && thirst <= 10) {
+    candidates.push(directorCandidate(
+      'critical/dehydration', 'critical', 1, 90, 88,
+      '{{user}}正处于严重脱水状态。本轮必须让眩晕、虚弱、判断下降或行动能力衰退成为现实压力，并让寻找可饮用水或承受继续恶化成为无法忽略的问题。',
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
+    ));
+  }
+  if (config.survival && hunger != null && hunger <= 10) {
+    candidates.push(directorCandidate(
+      'critical/starvation', 'critical', 1, 82, 80,
+      '{{user}}已经陷入重度饥饿。本轮必须把虚弱、恢复停滞、专注下降或身体恶化写成实际影响；不得靠意志长期无视进食需求。',
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
+    ));
+  }
+  if (config.survival && config.infected && postOutbreak && infection != null && infection >= 60 && infection < 90) {
+    candidates.push(directorCandidate(
+      'critical/infection-danger', 'critical', 1, 78, 82,
+      `{{user}}的感染症状正在进入失控前的危险阶段。本轮必须让发热、疼痛、感官异常或行为控制恶化影响现场，并强化治疗时间正在缩短的压力；不得无因停滞或自愈。`,
+      ['机制-COVID-30感染', '[mvu_update]感染进程']
+    ));
+  }
+  if (config.survival && radiation >= 50) {
+    candidates.push(directorCandidate(
+      'critical/radiation-danger', 'environment', 1, 88, 84,
+      `{{user}}目前身处${location}的危险辐射环境。本轮必须让暴露造成可感知的身体或装备压力，并迫使角色面对缩短停留、寻找屏蔽或继续承受剂量的现实取舍。`,
+      ['机制-天气与地质变化', '机制-伤病与医疗']
+    ));
+  }
+  if (config.survival && morale != null && morale <= 15) {
+    candidates.push(directorCandidate(
+      'critical/morale-break', 'relationship', 1, 72, 68,
+      `{{user}}的情绪值已跌入崩溃危险区${mental && !/^冷静/.test(mental) ? `，当前状态为“${mental}”` : ''}。本轮必须让注意力、判断、交流或临场反应受到相称影响，但不得无因永久剥夺角色控制权。`,
+      ['机制-恐慌（默认不开，因为哈基米会绝望）', '[mvu_update]恐慌']
+    ));
+  }
+
+  const hostilePeople = Object.entries(sd?.NPC || {}).filter(([, value]) => directorNumber(value?.relation) != null && directorNumber(value.relation) <= -15);
+  if (config.npc && hostilePeople.length) {
+    const picked = directorPickStable(hostilePeople.map(([name, value]) => ({ name, value, weight: Math.max(1, Math.abs(directorNumber(value.relation) || -15)) })), `${seed}|hostile`);
+    const name = directorSafeText(picked?.name || '既有敌人', 48);
+    const goal = directorSafeText(picked?.value?.current_goal || picked?.value?.thoughts || '', 90);
+    candidates.push(directorCandidate(
+      `situation/hostile-${contestHash(name).toString(36)}`, 'relationship', 2, 52, 63,
+      `${name}与{{user}}之间的敌意必须继续产生后果。本轮让其依据自身已知信息、现实位置和${goal ? `当前目标“${goal}”` : '既有动机'}采取一项可追溯行动；不得隔空锁定、读取玩家心理或凭空获得压倒性援军。`,
+      ['机制-复仇与宿敌']
+    ));
+  }
+
+  const pendingRequests = Object.entries(sd?.操作请求 || {}).filter(([, value]) => value && value.状态 === '待处理');
+  if (pendingRequests.length) {
+    const picked = directorPickStable(pendingRequests.map(([id, value]) => ({ id, value, weight: 1 })), `${seed}|request`);
+    const requestType = directorSafeText(picked?.value?.类型 || '剧情行动', 24);
+    const action = directorSafeText(picked?.value?.行动 || picked?.value?.说明 || picked?.id || '待处理行动', 120);
+    const requestSupport = {
+      研究: ['机制-制造'], 制造: ['机制-制造'], 建造: ['机制-建造庇护所'], 维修: ['机制-制造'],
+      拆除: ['机制-制造'], 营地经营: ['机制-营地经营'],
+    }[requestType] || [];
+    candidates.push(directorCandidate(
+      `critical/request-${contestHash(String(picked?.id || action)).toString(36)}`, 'event', 1, 100, 92,
+      `{{user}}刚提交了“${requestType}：${action}”。本轮必须在现场条件允许的范围内明确推进或阻断这项请求，写清可观察结果与即时后果；不得跳过、擅自改成另一项行动，也不得把尚未完成的操作直接判为成功。`,
+      requestSupport, { mandatory: true }
+    ));
+  }
+
+  const endangeredTeammates = Object.entries(sd?.队友 || {}).filter(([, value]) => {
+    const personHp = directorNumber(value?.hp);
+    return personHp != null && personHp <= 25 || /重伤|濒死|失血|昏迷|被困|失联/.test(String(value?.status || ''));
+  });
+  if (config.npc && endangeredTeammates.length) {
+    const picked = directorPickStable(endangeredTeammates.map(([name, value]) => ({ name, value, weight: Math.max(1, 101 - (directorNumber(value?.hp) ?? 50)) })), `${seed}|teammate-danger`);
+    const name = directorSafeText(picked?.name || '同行者', 48);
+    const status = directorSafeText(picked?.value?.status || '情况危急', 100);
+    candidates.push(directorCandidate(
+      `situation/teammate-${contestHash(name).toString(36)}`, 'relationship', 2, 76, 74,
+      `${name}当前“${status}”，不能继续只留在人物档案中。本轮必须让这一处境影响队伍行动、交流或时间压力，并给{{user}}留下真实的应对空间；不得无因自愈、瞬间归队或用陌生救援抹去后果。`,
+      ['杂项-幸存者NPC关系推进', '机制-伤病与医疗']
+    ));
+  }
+
+  const camp = sd?.营地 || {};
+  const operation = camp?.经营 || {};
+  if (config.camp && camp.已建立 === true) {
+    const campAccessible = camp.可访问 === true;
+    const stress = Math.max(
+      directorNumber(operation.维护压力) || 0,
+      directorNumber(operation.噪音风险) || 0,
+      100 - (directorNumber(operation.稳定度) ?? 50),
+      directorNumber(camp.人数) > (directorNumber(operation.床位) || 0) ? 72 : 0,
+      (directorNumber(operation.食水日净值) || 0) < 0 ? 68 : 0,
+      (directorNumber(operation.医疗日净值) || 0) < 0 ? 64 : 0,
+      (directorNumber(operation.燃料日净值) || 0) < 0 ? 60 : 0
+    );
+    const bottleneck = directorSafeText(operation.当前瓶颈 || camp.运作情况 || '供需与人手', 88);
+    if (stress >= 60) {
+      candidates.push(directorCandidate(
+        'situation/camp-pressure', 'camp', 2, 64, Math.round(stress),
+        campAccessible
+          ? `${directorSafeText(camp.名称 || '营地', 48)}当前的“${bottleneck}”必须在本轮形成一项具体经营后果或成员反应。结合现有配给、警戒、人手、设施和资源表现代价，不得替{{user}}修改长期方针，也不得凭空发动外敌袭击。`
+          : `${directorSafeText(camp.名称 || '营地', 48)}当前的“${bottleneck}”正在形成压力，但{{user}}不在可直接管理营地的位置。本轮只能通过可靠通讯、延迟报告或远方可观察后果体现影响；不得让{{user}}隔空搬运、维修、治疗、调度或改变成员状态。`,
+        ['机制-营地经营', '[mvu_update]活动-营地经营']
+      ));
+    } else {
+      candidates.push(directorCandidate(
+        'ambient/camp-life', 'camp', 3, 24, 28,
+        campAccessible
+          ? `本轮通过${directorSafeText(camp.名称 || '营地', 48)}的一项分工、维护、配给、成员互动或小幅改善体现其正在持续运作；事件必须来自现有人员和设施，不凭空奖励资源，也不机械安排袭击。`
+          : `让${directorSafeText(camp.名称 || '营地', 48)}通过一则可靠通讯或延迟报告呈现一项日常运作变化；{{user}}当前不能直接接触营地，禁止隔空操作设施、库存、任务和成员。`,
+        ['机制-营地经营']
+      ));
+    }
+  }
+
+  const worldEvents = Object.entries(sd?.世界事件 || {});
+  if (config.world && worldEvents.length) {
+    const picked = directorPickStable(worldEvents.map(([name, value]) => ({ name, value, weight: 1 })), `${seed}|event`);
+    const title = directorSafeText(picked?.value?.title || picked?.name || '当前事件', 64);
+    const eventLocation = directorSafeText(picked?.value?.location || '', 48);
+    candidates.push(directorCandidate(
+      `situation/event-${contestHash(title).toString(36)}`, 'event', 2, 42, 48,
+      `既有事件“${title}”仍在影响局势。本轮让它通过${eventLocation ? `${eventLocation}相关的` : ''}环境变化、可靠通讯、人物反应或可观察线索产生一项具体余波；不得让{{user}}凭空获得后台全貌，也不得直接无因解决事件。`,
+      hatred >= 51 ? ['机制-找事儿'] : []
+    ));
+  }
+
+  const vehicles = Object.entries(sd?.载具 || {});
+  if (config.world && vehicles.length && (activitySet.has('驾驶') || activitySet.has('探索'))) {
+    const pressured = vehicles.filter(([, value]) => (directorNumber(value?.fuel) ?? 100) <= 15 || (directorNumber(value?.condition) ?? 100) <= 35);
+    if (pressured.length) {
+      const picked = directorPickStable(pressured.map(([name, value]) => ({ name, value, weight: 101 - Math.min(directorNumber(value?.fuel) ?? 100, directorNumber(value?.condition) ?? 100) })), `${seed}|vehicle`);
+      const name = directorSafeText(picked?.name || picked?.value?.name || '当前载具', 48);
+      const fuel = directorNumber(picked?.value?.fuel), condition = directorNumber(picked?.value?.condition);
+      candidates.push(directorCandidate(
+        `situation/vehicle-${contestHash(name).toString(36)}`, 'resource', 2, 82, 78,
+        `${name}的${fuel != null && fuel <= 15 ? `燃料只剩${fuel}%` : ''}${fuel != null && fuel <= 15 && condition != null && condition <= 35 ? '，且' : ''}${condition != null && condition <= 35 ? `完整度仅${condition}%` : ''}。本轮必须让续航、故障、噪音或被迫停留成为真实限制；不得让载具无消耗继续行驶，也不得凭空生成燃料和零件。`,
+        ['物品-载具', '机制-驾驶与乘车']
+      ));
+    }
+  }
+
+  const damagedShelters = Object.entries(sd?.建筑 || {}).filter(([, value]) => (directorNumber(value?.condition) ?? 100) <= 40 || /严重受损|损毁|失效|坍塌/.test(String(value?.status || '')));
+  if (config.world && damagedShelters.length) {
+    const picked = directorPickStable(damagedShelters.map(([name, value]) => ({ name, value, weight: 101 - (directorNumber(value?.condition) ?? 40) })), `${seed}|shelter`);
+    const name = directorSafeText(picked?.name || '现有庇护所', 48);
+    const condition = directorNumber(picked?.value?.condition);
+    candidates.push(directorCandidate(
+      `situation/shelter-${contestHash(name).toString(36)}`, 'resource', 2, 64, 66,
+      `${name}${condition != null ? `的结构完整度仅${condition}%` : '已经明显失效'}。本轮让漏水、供能、防御、空间或继续损坏中的至少一项形成可观察后果，并保留维修、撤离或承受风险的选择；不得在没有材料与时间的情况下自动修复。`,
+      ['机制-建造庇护所', '机制-完整度']
+    ));
+  }
+
+  const activeTasks = (Array.isArray(sd?.任务队列) ? sd.任务队列 : []).filter(task => task && ['进行中', '失败', '中断'].includes(task.状态));
+  if (config.camp && sd?.营地?.已建立 === true && activeTasks.length) {
+    const picked = directorPickStable(activeTasks.map(task => ({ task, weight: task.优先级 === '紧急' ? 5 : task.状态 === '失败' ? 4 : 2 })), `${seed}|task`);
+    const task = picked?.task || {};
+    const target = directorSafeText(task.目标 || '既有营地任务', 80);
+    candidates.push(directorCandidate(
+      `situation/task-${contestHash(target).toString(36)}`, 'camp', 2, task.状态 === '失败' ? 78 : 48, task.优先级 === '紧急' ? 76 : 52,
+      sd?.营地?.可访问 === true
+        ? `营地任务“${target}”当前处于“${directorSafeText(task.状态 || '进行中', 16)}”，进度约${directorNumber(task.进度) ?? 0}%。本轮通过执行者、所需资源、时间或现场阻力表现一次实际推进、阻滞或失败余波；不得按对话轮数机械加进度，也不得替{{user}}改变任务方针。`
+        : `营地任务“${target}”当前处于“${directorSafeText(task.状态 || '进行中', 16)}”。{{user}}不在可直接管理营地的位置，本轮只能通过可靠通讯或延迟报告体现其进展、阻滞或失败余波；不得隔空调整任务或自动增加进度。`,
+      ['机制-营地经营', '[mvu_update]活动-营地经营']
+    ));
+  }
+
+  const communicationPool = [
+    ...Object.entries(sd?.公共通讯 || {}).map(([id, value]) => ({ id, contact: value?.sender || '公共频道', value })),
+    ...Object.entries(sd?.私人通讯 || {}).flatMap(([contact, list]) => (Array.isArray(list) ? list : []).map((value, index) => ({ id: `${contact}-${index}`, contact, value }))),
+  ].filter(item => item.value?.content);
+  if (config.world && communicationPool.length) {
+    const urgent = communicationPool.filter(item => /求救|紧急|警告|失联|袭击|封锁|撤离|感染|危险|最后/.test(String(item.value.content || '')));
+    const pool = urgent.length ? urgent : communicationPool.slice(-8);
+    const picked = directorPickStable(pool.map(item => ({ ...item, weight: urgent.length ? 3 : 1 })), `${seed}|communication`);
+    const contact = directorSafeText(picked?.contact || picked?.value?.sender || '通讯频道', 48);
+    const content = directorSafeText(picked?.value?.content || '', 120);
+    candidates.push(directorCandidate(
+      `situation/communication-${contestHash(String(picked?.id || content)).toString(36)}`, 'event', urgent.length ? 2 : 3, urgent.length ? 68 : 18, urgent.length ? 64 : 22,
+      `既有通讯中，${contact}传来的“${content}”值得在本轮产生一项可感知余波、时间压力或行动线索。只能依据消息内容和角色已知信息展开；不得替{{user}}发送回复、接受请求或把未经核实的消息直接写成全知事实。`,
+      ['机制-通讯']
+    ));
+  }
+
+  const factions = Object.entries(sd?.势力发展 || {}).filter(([, value]) => value && value.已覆灭 !== true && (directorNumber(value.进展) || 0) >= 50);
+  if (config.world && postOutbreak && factions.length) {
+    const picked = directorPickStable(factions.map(([name, value]) => ({ name, value, weight: Math.max(1, directorNumber(value.进展) || 1) })), `${seed}|faction`);
+    const factionName = directorSafeText(picked?.name || '当前势力', 48);
+    const stage = directorSafeText(picked?.value?.阶段 || '发展中', 16);
+    candidates.push(directorCandidate(
+      `ambient/faction-${contestHash(factionName).toString(36)}`, 'faction', 3, 26, 28,
+      `让${factionName}当前“${stage}”阶段的影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次。规模必须匹配其现有阶段，不得把后台进展直接告诉{{user}}。`,
+      []
+    ));
+  }
+
+  const encounterRelevant = ['探索', '搜刮', '战斗', '潜行'].some(v => activitySet.has(v)) || hatred >= 31 || /危险|警戒|极危|敌/.test(String(env.threat_level || ''));
+  if (config.infected && postOutbreak && encounterRelevant) {
+    const mode = String(sd?.感染者行为模式 || '狂病型');
+    const band = directorThreatBand(hatred);
+    const noise = directorSafeText(env.noise || '周围动静不明', 48);
+    const high = hatred >= 51 || /危险|极危/.test(String(env.threat_level || ''));
+    const directive = mode === '普通型'
+      ? `本轮在${location}安排一次由现存密度、声源、视线或通道造成的普通型感染者${high ? '接近或聚集压力' : '踪迹与可绕行接触'}。它们不得展现战术预谋；结合“${noise}”给出来源、征兆和可响应空间。`
+      : `本轮在${location}安排一次符合狂病型感染者的${high ? '追踪、试探或逼近压力' : '活动踪迹与有限接触'}。当前威胁处于“${band}”层级，并结合“${noise}”建立来源和接近路径；不得凭空刷新、瞬移锁定或为了克制玩家临时造出变体。`;
+    candidates.push(directorCandidate(
+      `ambient/infected-${mode}`, 'infected', hatred >= 71 ? 2 : 3, high ? 48 : 25, high ? 58 : 34,
+      directive,
+      mode === '普通型'
+        ? ['普通的动态威胁与安逸惩罚', '普通感染者遭遇']
+        : ['机制-动态威胁与安逸惩罚', '杂项-感染者遭遇动态生成']
+    ));
+  }
+
+  if (config.npc && sd?.无定义角色模式 !== true && !activitySet.has('战斗')) {
+    const mode = String(sd?.NPC行为模式 || '正常型');
+    const npcSupport = mode === '全员恶人型'
+      ? [phase === '秩序期' ? 'NPC生成-恶意型-秩序期' : 'NPC生成-恶意型-爆发期与末世期', ...(postOutbreak ? ['恶意社交法则'] : [])]
+      : [phase === '秩序期' ? 'NPC生成-正常型-秩序期' : 'NPC生成-正常型-爆发期与末世期', ...(postOutbreak ? ['杂项-末世社交互动法则'] : [])];
+    const modeDirection = mode === '全员恶人型'
+      ? '对方的自利、伪装和退让必须具有具体收益、风险与现实代价，不能写成无脑嗜杀。'
+      : '对方可以合作、拒绝、试探、求助或敌对，选择必须来自其处境、目标与有限信息。';
+    candidates.push(directorCandidate(
+      `ambient/npc-${mode}`, 'npc', 3, 21, 30,
+      `本轮在${location}安排一次与{{user}}当前境遇直接相关的NPC接触；已有合适人物时优先沿用，否则新人物的身份、装备和目的必须来自地点与时代。${modeDirection}不得自动招募、恋爱、赠送物资或成为宿敌。`,
+      npcSupport
+    ));
+  }
+
+  if (config.world) {
+    const weather = directorSafeText(env.天气 || '', 36);
+    const temperature = directorSafeText(env.temperature || '', 36);
+    const nearby = Object.entries(sd?.周围地点 || {});
+    const nearbyPick = directorPickStable(nearby.map(([name, value]) => ({ name, value, weight: value?.可前往 === false ? 1 : 2 })), `${seed}|nearby`);
+    const nearbyText = nearbyPick ? `已知地点“${directorSafeText(nearbyPick.name, 48)}”` : '当前环境';
+    const envTemplates = [
+      `从${location}的${weather || '天气'}、${temperature || '体感'}、威胁和庇护条件中选取一个真实薄弱点，本轮让它形成需要时间、物资或风险应对的具体压力；不给出无代价最优解。`,
+      `让${nearbyText}通过声光、道路、痕迹、通讯或能见度变化呈现一条可追溯线索，并给{{user}}留下调查、绕行、隐蔽、求援或撤退的空间；不得把线索直接写成成功收益。`,
+      `本轮让${location}的一项既有环境条件产生可感知变化或后果。变化必须符合时间、天气和空间连续性，不凭空制造灾难，也不自动替{{user}}解决。`,
+    ];
+    candidates.push(directorCandidate(
+      'ambient/environment', 'environment', 3, 25, 32,
+      directorTemplate('ambient/environment', seed, envTemplates),
+      weather.startsWith('终年') ? [weather] : []
+    ));
+
+    const itemValues = Object.values(sd?.物品 || {}).filter(item => item && typeof item === 'object' && !item.type);
+    const categories = new Set(itemValues.filter(item => (directorNumber(item.count) || 0) > 0).map(item => item.category));
+    const missing = ['食物与水', '医疗药品', '燃料能源', '工具零件'].filter(category => !categories.has(category));
+    if (missing.length || (hunger != null && hunger < 55) || (thirst != null && thirst < 55)) {
+      const pressure = directorSafeText(missing[contestHash(`${seed}|resource`) % Math.max(1, missing.length)] || '生存物资', 24);
+      candidates.push(directorCandidate(
+        'ambient/resource-dilemma', 'resource', 3, 28, 36,
+        `围绕{{user}}当前欠缺的“${pressure}”制造一个符合${location}条件的资源取舍：必须在时间、风险、消耗或人情中付出代价。可以给线索和机会，但不得直接把物资送到手中或宣告搜刮成功。`,
+        activitySet.has('搜刮') ? ['机制-搜刮物资', '杂项-搜刮结果动态生成'] : []
+      ));
+    }
+  }
+  return candidates;
+}
+function directorCandidateCoolingDown(candidate, source, store, intensity) {
+  if (candidate.mandatory || candidate.priority === 0) return false;
+  const history = store.history || [];
+  const last = history[history.length - 1];
+  if (last && source.turn - Number(last.turn || 0) < intensity.globalCooldown) return true;
+  const categoryLast = [...history].reverse().find(item => item.category === candidate.category);
+  const categoryCooldown = candidate.cooldown ?? intensity.categoryCooldown;
+  if (categoryLast && source.turn - Number(categoryLast.turn || 0) < categoryCooldown) return true;
+  const exactLast = [...history].reverse().find(item => item.id === candidate.id);
+  return !!(exactLast && source.turn - Number(exactLast.turn || 0) < Math.max(8, categoryCooldown + 3));
+}
+function directorCrossedLow(current, previous, threshold) {
+  const now = directorNumber(current), before = directorNumber(previous);
+  return now != null && before != null && before > threshold && now <= threshold;
+}
+function directorCrossedHigh(current, previous, threshold) {
+  const now = directorNumber(current), before = directorNumber(previous);
+  return now != null && before != null && before < threshold && now >= threshold;
+}
+function directorApplyThresholdCrossings(candidates, sd, beforeSd) {
+  if (!beforeSd) return candidates;
+  const core = sd?.核心状态 || {}, beforeCore = beforeSd?.核心状态 || {};
+  const env = sd?.环境 || {}, beforeEnv = beforeSd?.环境 || {};
+  const crossings = new Set();
+  const hpRatio = directorRatio(core.hp_current, core.hp_max);
+  const beforeHpRatio = directorRatio(beforeCore.hp_current, beforeCore.hp_max);
+  const staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
+  const beforeStaminaRatio = directorRatio(beforeCore.stamina_current, beforeCore.stamina_max);
+  if (directorCrossedLow(hpRatio, beforeHpRatio, 0.12)) crossings.add('critical/health-collapse');
+  else if (directorCrossedLow(hpRatio, beforeHpRatio, 0.3)) crossings.add('critical/serious-injury');
+  if (directorCrossedLow(core.stamina_current, beforeCore.stamina_current, 0)) {
+    crossings.add(candidates.some(candidate => candidate.id === 'critical/stamina-empty-active')
+      ? 'critical/stamina-empty-active'
+      : 'critical/stamina-near-empty');
+  } else if (directorCrossedLow(staminaRatio, beforeStaminaRatio, 0.15)) crossings.add('critical/stamina-near-empty');
+  if (directorCrossedLow(core.thirst_current, beforeCore.thirst_current, 10)) crossings.add('critical/dehydration');
+  if (directorCrossedLow(core.hunger_current, beforeCore.hunger_current, 10)) crossings.add('critical/starvation');
+  if (directorCrossedHigh(core.infection_current, beforeCore.infection_current, 60)) crossings.add('critical/infection-danger');
+  if (directorCrossedHigh(env.radiation, beforeEnv.radiation, 50)) crossings.add('critical/radiation-danger');
+  if (directorCrossedLow(core.morale_current, beforeCore.morale_current, 15)) crossings.add('critical/morale-break');
+  return candidates.map(candidate => crossings.has(candidate.id)
+    ? { ...candidate, crossed: true, mandatory: true, chance: 100, weight: candidate.weight + 1000 }
+    : candidate);
+}
+function directorRankCandidates(candidates, sourceKey) {
+  return [...candidates].sort((left, right) =>
+    left.priority - right.priority
+    || Number(right.crossed) - Number(left.crossed)
+    || Number(right.mandatory) - Number(left.mandatory)
+    || Number(right.weight || 0) - Number(left.weight || 0)
+    || (contestHash(`${sourceKey}|rank|${left.id}`) - contestHash(`${sourceKey}|rank|${right.id}`))
+  );
+}
+function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = directorReadConfig(), beforeSd = null) {
+  if (!sd || !source || !config.enabled) return null;
+  const sourceKey = directorSourceKey(sd, source);
+  const store = directorReleaseResolvedLocks(sd);
+  const intensity = DIRECTOR_INTENSITY[config.intensity] || DIRECTOR_INTENSITY.strict;
+  // 创角中的爽文/正常/困难只影响特质预算，不是游戏难度；只有地狱模式提高导演压力。
+  const narrativeChance = String(sd?.叙事模式 || '') === '地狱' ? 1.24 : 1;
+  const candidates = directorApplyThresholdCrossings(directorBuildCandidates(sd, source, config), sd, beforeSd);
+  const eligible = candidates.filter(candidate => {
+    if (candidate.lockKey && store.locks[candidate.lockKey]) return false;
+    if (directorCandidateCoolingDown(candidate, source, store, intensity)) return false;
+    if (candidate.mandatory) return true;
+    const chance = contestClamp(Math.round(candidate.chance * intensity.chance * narrativeChance), 0, 100);
+    return (contestHash(`${sourceKey}|gate|${candidate.id}`) % 100) < chance;
+  });
+  const ranked = directorRankCandidates(eligible, sourceKey);
+  const urgent = ranked.filter(candidate => candidate.priority <= 1);
+  // 有P0/P1时只发紧急后果，绝不拿日常随机项凑满；否则P2最多两项、P3最多一项。
+  const selected = urgent.length
+    ? urgent.slice(0, 4)
+    : ranked.filter(candidate => candidate.priority === 2).slice(0, 2);
+  if (!selected.length) selected.push(...ranked.filter(candidate => candidate.priority === 3).slice(0, 1));
+  if (!selected.length) return null;
+  const items = selected.map(candidate => ({
+    category: candidate.category,
+    priority: candidate.priority,
+    mandatory: candidate.mandatory,
+    crossed: candidate.crossed,
+    id: candidate.id,
+    directive: candidate.directive,
+    supportEntries: [...new Set(candidate.supportEntries || [])],
+    lockKey: candidate.lockKey || '',
+  }));
+  return {
+    version: 2,
+    sourceKey,
+    sourceMessageId: source.messageId,
+    sourceSwipeId: source.swipeId,
+    turn: source.turn,
+    stateHash: directorStateFingerprint(sd),
+    category: items.length === 1 ? items[0].category : 'multi',
+    priority: Math.min(...items.map(item => item.priority)),
+    mandatory: items.some(item => item.mandatory),
+    id: items.length === 1 ? items[0].id : `bundle-${contestHash(items.map(item => item.id).join('|')).toString(36)}`,
+    directive: items.map(item => item.directive).join(' '),
+    supportEntries: [...new Set(items.flatMap(item => item.supportEntries))],
+    lockKey: items.length === 1 ? items[0].lockKey : '',
+    items,
+  };
+}
+function directorSupportEntries(sd) {
+  const plan = p._jmzqDirectorPlan;
+  if (!plan || !directorReadConfig().enabled || plan.stateHash !== directorStateFingerprint(sd)) return [];
+  return Array.isArray(plan.supportEntries) ? plan.supportEntries : [];
+}
+function directorPromptContent(plan) {
+  if (!plan) return '';
+  const id = directorSafeText(`director-v2/${plan.id}/${plan.sourceMessageId}-${plan.sourceSwipeId}`, 140);
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items.slice(0, 4) : [plan];
+  const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
+  const directives = items.map((item, index) => `${index + 1}. [P${item.priority}] ${directorCompactDirective(item.directive, perItemLimit)}`).join('\n');
+  const playerLead = plan.playerIntentActive ? '玩家本轮已有明确行动，必须先承接该行动；' : '';
+  const urgentLead = items.some(item => item.priority <= 1)
+    ? 'P0/P1紧急后果不可省略，应嵌入玩家行动的过程与结果；'
+    : '只落实与玩家行动相容且有因果依据的导向；';
+  return `<${DIRECTOR_TAG}>\nID: ${id}\n按顺序落实（最多${items.length}项）：\n${directives}\n约束: ${playerLead}${urgentLead}SPECIAL判定只决定当前行动结果，本提示只补充相容的状态与剧情后果，绝不改判；不替玩家选择，不凭空救场或加害；不解释系统、变量、阈值或概率，不得输出、复述或提及本标签。\n</${DIRECTOR_TAG}>`;
+}
+function directorClearPrompt() {
+  let cleared = false;
+  try {
+    const fn = p.uninjectPrompts || (typeof uninjectPrompts === 'function' ? uninjectPrompts : null);
+    if (typeof fn === 'function') { fn([DIRECTOR_PROMPT_ID]); cleared = true; }
+  } catch (e) {}
+  if (!cleared) {
+    try { contestContext()?.setExtensionPrompt?.(DIRECTOR_PROMPT_ID, '', 1, 0, false, 0); } catch (e) {}
+  }
+  _directorPromptActive = false;
+}
+function directorRemember(plan) {
+  const store = directorReadStore();
+  store.history = (store.history || []).filter(item => item.sourceKey !== plan.sourceKey);
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  for (const item of items) {
+    store.history.push({ sourceKey: plan.sourceKey, turn: plan.turn, category: item.category, id: item.id, priority: item.priority });
+    if (item.lockKey) store.locks[item.lockKey] = true;
+  }
+  directorWriteStore(store);
+}
+function directorUpdateStatus(plan, state = '') {
+  if (!directorStatus) return;
+  if (!directorReadConfig().enabled) { directorStatus.textContent = '导演已关闭'; return; }
+  if (!plan) { directorStatus.textContent = state || '静默待机 · 本轮无必要提醒'; return; }
+  const labels = { fatal: '致命后果', critical: '生存后果', infected: '感染者', npc: 'NPC', camp: '营地', environment: '环境', relationship: '关系', resource: '资源', faction: '势力', event: '事件' };
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  const summary = items.length === 1 ? (labels[items[0].category] || items[0].category) : `${items.length}项重要导向`;
+  directorStatus.textContent = `${state || '候选已就绪'} · P${plan.priority} ${summary}`;
+  directorStatus.title = items.map(item => item.directive).join('\n');
+}
+function directorInjectPlan(plan) {
+  directorClearPrompt();
+  if (!plan || !directorReadConfig().enabled) return false;
+  // SPECIAL与导演使用独立提示ID：前者裁定行动，后者补充状态后果，可在同一轮并存。
+  if (p._jmzqSuperEventPromptKey) { directorUpdateStatus(plan, '让路给超事件'); return false; }
+  const content = directorPromptContent(plan);
+  try {
+    const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
+    if (typeof fn === 'function') {
+      fn([{ id: DIRECTOR_PROMPT_ID, position: 'in_chat', depth: 0, role: 'system', content, should_scan: false }], { once: true });
+      _directorPromptActive = true;
+      p._jmzqInjectedDirector = plan;
+      directorUpdateStatus(plan, '已缓存，等待下轮正文');
+      return true;
+    }
+  } catch (e) { console.warn('[JMZQ] 隐式剧情导演注入失败：', e); }
+  try {
+    const context = contestContext();
+    if (typeof context?.setExtensionPrompt === 'function') {
+      context.setExtensionPrompt(DIRECTOR_PROMPT_ID, content, 1, 0, false, 0);
+      _directorPromptActive = true;
+      p._jmzqInjectedDirector = plan;
+      directorUpdateStatus(plan, '已缓存，等待下轮正文');
+      return true;
+    }
+  } catch (e) { console.warn('[JMZQ] 隐式剧情导演回退注入失败：', e); }
+  directorUpdateStatus(plan, '注入失败');
+  return false;
+}
+function directorPrepareFromSnapshot(sd, source = directorCurrentLayerSource(), beforeSd = null) {
+  const config = directorReadConfig();
+  const sourceKey = sd && source ? directorSourceKey(sd, source) : '';
+  const existing = p._jmzqDirectorPlan;
+  // 某些MVU版本或兼容层会重复广播同一最终快照。保留首次计算出的跨阈值标记与排序。
+  if (config.enabled && existing && !existing.committed && sourceKey && existing.sourceKey === sourceKey) {
+    if (!_directorPromptActive && !existing.inFlight) directorInjectPlan(existing);
+    directorUpdateStatus(existing, '已缓存，等待下轮正文');
+    return existing;
+  }
+  directorClearPrompt();
+  const plan = config.enabled && sd && source ? directorSelectPlan(sd, source, config, beforeSd) : null;
+  p._jmzqDirectorPlan = plan;
+  if (plan) directorInjectPlan(plan);
+  else directorUpdateStatus(null);
+  return plan;
+}
+function directorPrepare() {
+  return directorPrepareFromSnapshot(readStatData(), directorCurrentLayerSource());
+}
+function directorScheduleRouteRefresh(expectedStateHash, attempt = 0) {
+  clearTimeout(_directorRouteTimer);
+  if (!expectedStateHash) return;
+  _directorRouteTimer = setTimeout(() => {
+    const sd = readStatData();
+    if (sd && directorStateFingerprint(sd) === expectedStateHash) {
+      autoSwitch();
+      return;
+    }
+    if (attempt < 12) directorScheduleRouteRefresh(expectedStateHash, attempt + 1);
+  }, attempt === 0 ? 80 : Math.min(800, 120 + attempt * 60));
+}
+function onDirectorMvuUpdated(variables, variablesBeforeUpdate) {
+  // MVU也会在用户消息上走解析流程；导演只接受刚完成的assistant楼层快照。
+  if (!directorLatestMessageIsAssistant()) return;
+  const sd = variables?.stat_data;
+  if (!sd) return;
+  const plan = directorPrepareFromSnapshot(sd, directorCurrentLayerSource(), variablesBeforeUpdate?.stat_data || null);
+  // 即使本层没有候选也要刷新一次，以撤销上一轮仅为导演临时补开的条目。
+  directorScheduleRouteRefresh(directorStateFingerprint(sd));
+  return plan;
+}
+function directorItemMatchesIntent(item, intent) {
+  const value = directorSafeText(intent, 240);
+  const patterns = {
+    infected: /探索|搜刮|战斗|攻击|开枪|射击|逃|躲|潜行|外出|前往|离开|调查|侦察|感染者|丧尸/,
+    npc: /交谈|询问|对话|联系|寻找|会面|交易|帮助|招募|跟随|人物|NPC|前往|探索/,
+    relationship: /交谈|询问|对话|联系|寻找|会面|关系|帮助|治疗|营救|队友|同伴/,
+    camp: /营地|基地|配给|建造|维修|任务|成员|经营|防御|生产/,
+    resource: /探索|搜刮|寻找|物资|食物|饮水|药|燃料|维修|庇护所|休息|前往|赶路|调查/,
+    environment: /探索|观察|调查|前往|赶路|离开|躲避|寻找|天气|道路|地点/,
+    faction: /通讯|新闻|广播|势力|事件|调查|前往|观察|交易/,
+    event: /通讯|请求|研究|制造|建造|维修|拆除|经营|任务|行动|查看|处理/,
+  };
+  return (patterns[item.category] || /./).test(value);
+}
+function directorPlanForGeneration(plan) {
+  if (!plan) return null;
+  const intent = directorLatestUserIntent();
+  if (!directorHasExplicitIntent(intent)) return plan;
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  if (items.every(item => item.priority >= 3) && !items.some(item => directorItemMatchesIntent(item, intent))) return null;
+  return { ...plan, playerIntentActive: true };
+}
+function onDirectorBeforeGeneration(...args) {
+  const plan = p._jmzqDirectorPlan;
+  if (!plan || !directorReadConfig().enabled) return;
+  // 重生成/重试正在替换导演计划的来源正文，不能把旧正文结尾状态带回其开头。
+  // 但刚刚中止后的retry是在续写未完成生成，仍应沿用尚未消费的计划。
+  const resumingStoppedGeneration = p._jmzqDirectorGenerationAborted === true;
+  if (contestIsRegeneration(args) && !resumingStoppedGeneration) {
+    directorClearPrompt();
+    directorUpdateStatus(plan, '重生成 · 等待新MVU快照');
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    return;
+  }
+  delete p._jmzqDirectorGenerationAborted;
+  // 超事件仍走独立强制阶段；SPECIAL判定则与导演并行注入，互不清理、互不改判。
+  if (p._jmzqSuperEventPromptKey) {
+    directorClearPrompt();
+    plan.inFlight = false;
+    directorUpdateStatus(plan, '本轮让路给超事件');
+    return;
+  }
+  const effectivePlan = directorPlanForGeneration(plan);
+  if (!effectivePlan) {
+    directorClearPrompt();
+    plan.inFlight = false;
+    directorUpdateStatus(plan, '玩家行动优先 · 取消日常导向');
+    return;
+  }
+  // 玩家输入出现后重写一次短提示，明确正文必须先承接玩家行动。
+  if (_directorPromptActive) directorClearPrompt();
+  directorInjectPlan(effectivePlan);
+  if (_directorPromptActive) {
+    plan.inFlight = true;
+    directorUpdateStatus(plan, '本轮已注入正文');
+  }
+}
+function onDirectorGenerationCompleted() {
+  const plan = p._jmzqDirectorPlan;
+  if (p._jmzqDirectorGenerationAborted) {
+    // 某些宿主会在generation_stopped之后补发generation_ended；保留标记供下一次retry识别。
+    directorClearPrompt();
+    if (plan) directorUpdateStatus(plan, '生成中止 · 等待重试');
+    return;
+  }
+  // 只有正文成功完成后，才消费冷却与P0状态锁。
+  if (plan?.inFlight && !plan.committed) {
+    directorRemember(plan);
+    plan.committed = true;
+  }
+  directorClearPrompt();
+  delete p._jmzqDirectorPlan;
+  delete p._jmzqInjectedDirector;
+}
+function onDirectorGenerationStopped() {
+  p._jmzqDirectorGenerationAborted = true;
+  const plan = p._jmzqDirectorPlan;
+  if (plan) plan.inFlight = false;
+  directorClearPrompt();
+  if (plan) directorUpdateStatus(plan, '生成中止 · 等待重试');
+}
+function onDirectorSourceInvalidated() {
+  delete p._jmzqDirectorGenerationAborted;
+  directorClearPrompt();
+  delete p._jmzqDirectorPlan;
+  delete p._jmzqInjectedDirector;
+}
+function directorPreviewCurrent() {
+  const sd = readStatData();
+  const source = directorCurrentLayerSource();
+  const plan = directorSelectPlan(sd, source, directorReadConfig());
+  directorUpdateStatus(plan, plan ? '当前预览' : '当前没有命中');
+  if (typeof showToast === 'function') showToast(plan ? `导演候选：P${plan.priority} ${plan.category}` : '当前状态无需导演提醒');
+  return plan;
+}
+p._jmzqDirectorDebug = {
+  prepare: directorPrepare,
+  preview: directorPreviewCurrent,
+  candidates: () => directorBuildCandidates(readStatData(), directorCurrentLayerSource(), directorReadConfig()),
+  plan: () => p._jmzqDirectorPlan || null,
+  prompt: plan => directorPromptContent(plan || p._jmzqDirectorPlan),
+  forGeneration: directorPlanForGeneration,
+  clear: directorClearPrompt,
+};
+
+function directorSyncForm(config = directorReadConfig()) {
+  if (directorEnabledInput) directorEnabledInput.checked = config.enabled;
+  if (directorIntensityInput) directorIntensityInput.value = config.intensity;
+  if (directorFatalInput) directorFatalInput.checked = config.fatal;
+  if (directorSurvivalInput) directorSurvivalInput.checked = config.survival;
+  if (directorInfectedInput) directorInfectedInput.checked = config.infected;
+  if (directorNpcInput) directorNpcInput.checked = config.npc;
+  if (directorCampInput) directorCampInput.checked = config.camp;
+  if (directorWorldInput) directorWorldInput.checked = config.world;
+  directorUpdateStatus(p._jmzqDirectorPlan || null, config.enabled ? '配置已加载' : '导演已关闭');
+}
+function directorSaveForm() {
+  const config = directorWriteConfig({
+    enabled: directorEnabledInput?.checked !== false,
+    intensity: directorIntensityInput?.value || DIRECTOR_DEFAULT_CONFIG.intensity,
+    fatal: directorFatalInput?.checked !== false,
+    survival: directorSurvivalInput?.checked !== false,
+    infected: directorInfectedInput?.checked !== false,
+    npc: directorNpcInput?.checked !== false,
+    camp: directorCampInput?.checked !== false,
+    world: directorWorldInput?.checked !== false,
+  });
+  if (!config.enabled) {
+    directorClearPrompt();
+    delete p._jmzqDirectorPlan;
+    directorUpdateStatus(null, '导演已关闭');
+  } else {
+    directorPrepare();
+  }
+  return config;
+}
+
 function showSuperEventPopup(event, stage, text) {
   const doc = p.document;
   const old = doc.getElementById('jmzq-super-event-modal'); if (old) old.remove();
@@ -3948,6 +4895,10 @@ function buildEnableSet(sd, triggerText = '') {
   const weather = sd?.环境?.天气 ?? '';
   if (weather.startsWith('终年')) enable.add(weather);
 
+  // 导演候选若依赖某条机制规则，只把该候选本轮所需的条目并入路由。
+  // 候选生成本身受世界阶段、模式、活动与无定义角色模式约束，不能借此越过硬门槛。
+  directorSupportEntries(sd).forEach(entryName => enable.add(entryName));
+
   return enable;
 }
 
@@ -4275,6 +5226,22 @@ const CONTEST_FINISH_EVENTS = [
   'message_swiped', 'MESSAGE_SWIPED',
   'message_edited', 'MESSAGE_EDITED',
 ];
+const DIRECTOR_MVU_EVENTS = [
+  // MVU源码：Schema调和完成后发出，事件参数中的variables.stat_data就是本层最终快照。
+  'mag_variable_update_ended_for_zod',
+];
+const DIRECTOR_COMPLETE_EVENTS = [
+  // 正文正常完成后才消费导演冷却和一次性状态锁。
+  'generation_ended', 'GENERATION_ENDED',
+];
+const DIRECTOR_STOP_EVENTS = [
+  'generation_stopped', 'GENERATION_STOPPED',
+];
+const DIRECTOR_INVALIDATE_EVENTS = [
+  // 来源正文被切换或编辑后，旧计划失效；不监听消息渲染事件，避免误删新MVU计划。
+  'message_swiped', 'MESSAGE_SWIPED',
+  'message_edited', 'MESSAGE_EDITED',
+];
 
 if (typeof eventOn === 'function') {
   for (const evt of CRITICAL_EVENTS) {
@@ -4288,14 +5255,29 @@ if (typeof eventOn === 'function') {
   }
   for (const evt of CONTEST_BEFORE_EVENTS) {
     try { eventOn(evt, onContestBeforeGeneration); } catch(e) {}
+    try { eventOn(evt, onDirectorBeforeGeneration); } catch(e) {}
   }
   for (const evt of CONTEST_FINISH_EVENTS) {
     try { eventOn(evt, onContestGenerationFinished); } catch(e) {}
   }
+  for (const evt of DIRECTOR_MVU_EVENTS) {
+    try { eventOn(evt, onDirectorMvuUpdated); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_COMPLETE_EVENTS) {
+    try { eventOn(evt, onDirectorGenerationCompleted); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_STOP_EVENTS) {
+    try { eventOn(evt, onDirectorGenerationStopped); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_INVALIDATE_EVENTS) {
+    try { eventOn(evt, onDirectorSourceInvalidated); } catch(e) {}
+  }
 p._jmzqCleanup = function() {
   clearSuperEventPrompt();
   contestClearPrompt();
+  directorClearPrompt();
   clearTimeout(_contestScanTimer);
+  clearTimeout(_directorRouteTimer);
   clearTimeout(_debounceTimer);
   clearTimeout(_postUpdateTimer);
     delete p._jmzqSuperEventCatchupId;
@@ -4307,8 +5289,16 @@ p._jmzqCleanup = function() {
         try { eventOff(evt, onSuperEventGenerationFinished); } catch(e) {}
       }
       for (const evt of CONTEST_BEFORE_EVENTS) { try { eventOff(evt, onContestBeforeGeneration); } catch(e) {} }
+      for (const evt of CONTEST_BEFORE_EVENTS) { try { eventOff(evt, onDirectorBeforeGeneration); } catch(e) {} }
       for (const evt of CONTEST_FINISH_EVENTS) { try { eventOff(evt, onContestGenerationFinished); } catch(e) {} }
+      for (const evt of DIRECTOR_MVU_EVENTS) { try { eventOff(evt, onDirectorMvuUpdated); } catch(e) {} }
+      for (const evt of DIRECTOR_COMPLETE_EVENTS) { try { eventOff(evt, onDirectorGenerationCompleted); } catch(e) {} }
+      for (const evt of DIRECTOR_STOP_EVENTS) { try { eventOff(evt, onDirectorGenerationStopped); } catch(e) {} }
+      for (const evt of DIRECTOR_INVALIDATE_EVENTS) { try { eventOff(evt, onDirectorSourceInvalidated); } catch(e) {} }
     }
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    delete p._jmzqDirectorGenerationAborted;
   };
 } else {
 }
@@ -4347,7 +5337,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 577 条（含锚点）。
+    // 当前可导入的缄默之秋3.1世界书由组装脚本生成，共 577 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
       const expected = 577;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
@@ -4360,6 +5350,17 @@ async function checkWorldbookCount() {
 
 // --- 事件绑定 ---
 refreshBtn.addEventListener('click', async () => { syncOutputFormatFlag().then(() => checkConfig()); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
+
+const directorConfigInputs = [
+  directorEnabledInput, directorIntensityInput, directorFatalInput, directorSurvivalInput,
+  directorInfectedInput, directorNpcInput, directorCampInput, directorWorldInput,
+].filter(Boolean);
+directorConfigInputs.forEach(input => input.addEventListener('change', () => {
+  directorSaveForm();
+  showToast(directorEnabledInput?.checked === false ? '隐式剧情导演已关闭' : '隐式剧情导演配置已保存');
+}));
+directorPreviewBtn?.addEventListener('click', () => directorPreviewCurrent());
+directorSyncForm();
 
 manualWbApply.addEventListener('click', () => {
   const name = manualWbSelect.value;
@@ -4620,6 +5621,8 @@ const statPollTimer = setInterval(() => {
 refreshMvuConfigStatus();
 checkEjsTemplate();
 contestScheduleScan(500);
+// 脚本在已有聊天中途加载时，补建一次“最近assistant楼层MVU结果 → 下一轮正文”的待消费计划。
+setTimeout(directorPrepare, 900);
 
 // 注册世界书状态刷新事件
 const onJmzqDone = () => { refreshUI(); checkWorldbookCount(); };
