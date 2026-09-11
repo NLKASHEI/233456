@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.7/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.8/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.7';
+const JMZQ_VERSION = '3.1.8';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -802,7 +802,6 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-camp"><span class="jmzq-mvu-check-box"></span><span>营地经营</span></label>
           <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-world"><span class="jmzq-mvu-check-box"></span><span>环境局势</span></label>
         </div>
-        <button class="jmzq-btn xs" id="jmzq-director-preview" style="width:100%;margin-top:8px;">预览当前提醒</button>
         <div id="jmzq-director-status" style="font-size:10px;color:#8a7060;margin-top:7px;line-height:1.6;overflow-wrap:anywhere;">静默待机</div>
       </div>
       <div class="jmzq-section">
@@ -1006,7 +1005,6 @@ const directorInfectedInput = p.document.getElementById('jmzq-director-infected'
 const directorNpcInput = p.document.getElementById('jmzq-director-npc');
 const directorCampInput = p.document.getElementById('jmzq-director-camp');
 const directorWorldInput = p.document.getElementById('jmzq-director-world');
-const directorPreviewBtn = p.document.getElementById('jmzq-director-preview');
 const directorStatus = p.document.getElementById('jmzq-director-status');
 const mvuSection = p.document.getElementById('jmzq-mvu-section');
 const mvuUpdateMode = p.document.getElementById('jmzq-mvu-update-mode');
@@ -4052,6 +4050,16 @@ function directorRemember(plan) {
   }
   directorWriteStore(store);
 }
+function directorForget(plan) {
+  if (!plan?.sourceKey) return;
+  const store = directorReadStore();
+  store.history = (store.history || []).filter(item => item.sourceKey !== plan.sourceKey);
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  for (const item of items) {
+    if (item.lockKey) delete store.locks[item.lockKey];
+  }
+  directorWriteStore(store);
+}
 function directorUpdateStatus(plan, state = '') {
   if (!directorStatus) return;
   if (!directorReadConfig().enabled) { directorStatus.textContent = '导演已关闭'; return; }
@@ -4186,10 +4194,9 @@ function onDirectorBeforeGeneration(...args) {
     directorUpdateStatus(null, '当前楼层已变化 · 等待新MVU更新');
     return;
   }
+  delete p._jmzqDirectorCommittedPlan;
   // 重生成/重试正在替换导演计划的来源正文，不能把旧正文结尾状态带回其开头。
-  // 但刚刚中止后的retry是在续写未完成生成，仍应沿用尚未消费的计划。
-  const resumingStoppedGeneration = p._jmzqDirectorGenerationAborted === true;
-  if (contestIsRegeneration(args) && !resumingStoppedGeneration) {
+  if (contestIsRegeneration(args)) {
     directorUpdateStatus(plan, '重生成 · 等待新MVU快照');
     delete p._jmzqDirectorPlan;
     delete p._jmzqInjectedDirector;
@@ -4209,15 +4216,16 @@ function onDirectorBeforeGeneration(...args) {
 function onDirectorGenerationCompleted() {
   const plan = p._jmzqDirectorPlan;
   if (p._jmzqDirectorGenerationAborted) {
-    // 某些宿主会在generation_stopped之后补发generation_ended；保留标记供下一次retry识别。
+    // 暂停/取消后即使宿主补发generation_ended，也不能把已作废计划重新当成成功生成。
     directorClearPrompt();
-    if (plan) directorUpdateStatus(plan, '生成中止 · 等待重试');
+    if (plan) directorUpdateStatus(null, '生成已取消 · 等待新的MVU更新');
     return;
   }
   // 只有正文成功完成后，才消费冷却与P0状态锁。
   if (plan?.inFlight && !plan.committed) {
     directorRemember(plan);
     plan.committed = true;
+    p._jmzqDirectorCommittedPlan = plan;
   }
   directorUpdateStatus(plan, '正文已完成 · 等待MVU更新');
 }
@@ -4225,12 +4233,26 @@ function onDirectorGenerationStopped() {
   p._jmzqDirectorGenerationAborted = true;
   const plan = p._jmzqDirectorPlan;
   if (plan) plan.inFlight = false;
-  if (plan) directorUpdateStatus(plan, '生成中止 · 等待重试');
+  // 某些宿主会先发generation_ended再发stopped；撤销错误消费的历史与锁。
+  const committed = p._jmzqDirectorCommittedPlan;
+  if (plan?.committed) directorForget(plan);
+  if (committed && committed !== plan) directorForget(committed);
+  // 停止意味着本次正文没有可靠的MVU最终快照：立即作废计划、计数和正文尾部标签。
+  delete p._jmzqDirectorPlan;
+  delete p._jmzqInjectedDirector;
+  directorClearPrompt();
+  directorQueueMessageWrite(null);
+  directorUpdateStatus(null, '生成已取消 · 等待新的MVU更新');
 }
 function onDirectorSourceInvalidated() {
   if (_directorWritingMessage) return;
+  const plan = p._jmzqDirectorPlan;
+  const committed = p._jmzqDirectorCommittedPlan;
+  if (plan?.committed) directorForget(plan);
+  if (committed && committed !== plan) directorForget(committed);
   delete p._jmzqDirectorGenerationAborted;
   delete p._jmzqDirectorPlan;
+  delete p._jmzqDirectorCommittedPlan;
   delete p._jmzqInjectedDirector;
 }
 function directorPreviewCurrent() {
@@ -5509,7 +5531,6 @@ directorConfigInputs.forEach(input => input.addEventListener('change', () => {
   directorSaveForm();
   showToast(directorEnabledInput?.checked === false ? '隐式剧情导演已关闭' : '隐式剧情导演配置已保存');
 }));
-directorPreviewBtn?.addEventListener('click', () => directorPreviewCurrent());
 directorSyncForm();
 
 manualWbApply.addEventListener('click', () => {
