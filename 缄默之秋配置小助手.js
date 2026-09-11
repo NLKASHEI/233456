@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.6/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.7/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.6';
+const JMZQ_VERSION = '3.1.7';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3362,9 +3362,11 @@ function directorCurrentLayerSource() {
   if (!source) return null;
   const current = contestCurrentSwipe(source);
   return {
+    // 采用助手楼层序号，避免用户/系统消息插入后导致楼层漂移。
+    floor: assistants.indexOf(source),
     messageId: Number(source.message_id) || Math.max(0, messages.indexOf(source)),
     swipeId: current.swipeId,
-    text: directorSafeText(current.text, 1200),
+    text: String(current.text ?? ''),
     turn: users.length,
   };
 }
@@ -3418,7 +3420,9 @@ function directorStateFingerprint(sd) {
 }
 function directorSourceKey(sd, source) {
   if (!source) return '';
-  return `${contestChatId()}|${source.messageId}|${source.swipeId}|${directorStateFingerprint(sd)}|v2`;
+  const visibleText = String(source.text || '').replace(DIRECTOR_TAG_RE, '').trimEnd();
+  DIRECTOR_TAG_RE.lastIndex = 0;
+  return `${contestChatId()}|floor:${source.floor}|${source.messageId}|swipe:${source.swipeId}|text:${contestHash(visibleText).toString(36)}|${directorStateFingerprint(sd)}|v3`;
 }
 function directorCandidate(id, category, priority, chance, weight, directive, supportEntries = [], options = {}) {
   return {
@@ -3983,8 +3987,10 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   return {
     version: 3,
     sourceKey,
+    sourceFloor: source.floor,
     sourceMessageId: source.messageId,
     sourceSwipeId: source.swipeId,
+    sourceTextHash: contestHash(String(source.text || '').replace(DIRECTOR_TAG_RE, '').trimEnd()).toString(36),
     turn: source.turn,
     stateHash: directorStateFingerprint(sd),
     category: items.length === 1 ? items[0].category : 'multi',
@@ -4004,7 +4010,7 @@ function directorSupportEntries(sd) {
 }
 function directorPromptContent(plan) {
   if (!plan) return '';
-  const id = directorSafeText(`director-v2/${plan.id}/${plan.sourceMessageId}-${plan.sourceSwipeId}`, 140);
+  const id = directorSafeText(`director-v3/floor-${plan.sourceFloor}/${plan.id}/${plan.sourceMessageId}-${plan.sourceSwipeId}`, 140);
   // 核心状态项可突破普通复合上限；普通项的数量在选取阶段已限制。
   const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
   const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
@@ -4025,6 +4031,16 @@ function directorClearPrompt() {
   if (!cleared) {
     try { contestContext()?.setExtensionPrompt?.(DIRECTOR_PROMPT_ID, '', 1, 0, false, 0); } catch (e) {}
   }
+}
+function directorPlanMatchesCurrentLayer(plan) {
+  if (!plan) return false;
+  const source = directorCurrentLayerSource();
+  if (!source || Number(plan.sourceFloor) !== Number(source.floor)
+    || Number(plan.sourceMessageId) !== Number(source.messageId)
+    || Number(plan.sourceSwipeId) !== Number(source.swipeId)) return false;
+  const visibleText = String(source.text || '').replace(DIRECTOR_TAG_RE, '').trimEnd();
+  DIRECTOR_TAG_RE.lastIndex = 0;
+  return String(plan.sourceTextHash || '') === contestHash(visibleText).toString(36);
 }
 function directorRemember(plan) {
   const store = directorReadStore();
@@ -4052,18 +4068,22 @@ async function directorWritePlanToMessage(plan) {
   if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
   const messages = contestListMessages().filter(message => message?.role === 'assistant' || message?.is_user === false);
   const sourceId = Number(plan?.sourceMessageId);
+  const sourceFloor = Number(plan?.sourceFloor);
+  if (plan && (!Number.isInteger(sourceFloor) || !directorPlanMatchesCurrentLayer(plan))) {
+    throw new Error('导演来源楼层、swipe或正文已变化，拒绝写入旧计划');
+  }
   const updates = [];
-  for (const message of messages) {
+  for (const [floor, message] of messages.entries()) {
     const current = contestCurrentSwipe(message);
     DIRECTOR_TAG_RE.lastIndex = 0;
     const cleaned = current.text.replace(DIRECTOR_TAG_RE, '').replace(/\n{3,}$/g, '\n\n').trimEnd();
-    const isSource = !!plan && Number(message.message_id) === sourceId;
+    const isSource = !!plan && floor === sourceFloor && Number(message.message_id) === sourceId;
     const next = isSource
       ? `${cleaned}${cleaned ? '\n' : ''}${directorPromptContent(plan)}`
       : cleaned;
     if (next !== current.text) updates.push({ message_id: message.message_id, message: next });
   }
-  if (plan && !messages.some(message => Number(message.message_id) === sourceId)) {
+  if (plan && !messages.some((message, floor) => floor === sourceFloor && Number(message.message_id) === sourceId)) {
     throw new Error(`未找到导演来源消息 ${sourceId}`);
   }
   if (!updates.length) {
@@ -4158,6 +4178,14 @@ function directorPlanForGeneration(plan) {
 function onDirectorBeforeGeneration(...args) {
   const plan = p._jmzqDirectorPlan;
   if (!plan || !directorReadConfig().enabled) return;
+  if (!directorPlanMatchesCurrentLayer(plan)) {
+    directorClearPrompt();
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    delete p._jmzqDirectorGenerationAborted;
+    directorUpdateStatus(null, '当前楼层已变化 · 等待新MVU更新');
+    return;
+  }
   // 重生成/重试正在替换导演计划的来源正文，不能把旧正文结尾状态带回其开头。
   // 但刚刚中止后的retry是在续写未完成生成，仍应沿用尚未消费的计划。
   const resumingStoppedGeneration = p._jmzqDirectorGenerationAborted === true;
