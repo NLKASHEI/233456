@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.0/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.1/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.0';
+const JMZQ_VERSION = '3.1.1';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3231,9 +3231,11 @@ p._jmzqContestDebug = {
 
 // ═══════════════ 隐式剧情导演：变量事实 → 正文重点提醒 ═══════════════
 // 世界书是规则源，MVU是事实源，buildEnableSet是生效路由真源。
-// 导演按重要度最多压缩四项后果为depth 0系统提醒，不解释规则、不更新变量。
+// 导演按重要度最多压缩四项后果，在本层MVU完成后写入当前助手正文尾部；
+// 由显示正则隐藏，下一轮模型随聊天上下文读取，不占用扩展提示缓存。
 const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
 const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
+const DIRECTOR_TAG_RE = /<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi;
 const DIRECTOR_CONFIG_KEY = 'jmzq-director-config-v1';
 const DIRECTOR_STORE_VERSION = 1;
 const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
@@ -3251,7 +3253,8 @@ const DIRECTOR_INTENSITY = Object.freeze({
   strict: { chance: 1, globalCooldown: 2, categoryCooldown: 4 },
   brutal: { chance: 1.24, globalCooldown: 1, categoryCooldown: 3 },
 });
-let _directorPromptActive = false;
+let _directorWriteChain = Promise.resolve();
+let _directorWritingMessage = false;
 let _directorRouteTimer = null;
 
 function directorReadConfig() {
@@ -3889,13 +3892,14 @@ function directorPromptContent(plan) {
   const items = Array.isArray(plan.items) && plan.items.length ? plan.items.slice(0, 4) : [plan];
   const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
   const directives = items.map((item, index) => `${index + 1}. [P${item.priority}] ${directorCompactDirective(item.directive, perItemLimit)}`).join('\n');
-  const playerLead = plan.playerIntentActive ? '玩家本轮已有明确行动，必须先承接该行动；' : '';
+  const playerLead = '必须先承接标签之后出现的玩家最新输入；';
   const urgentLead = items.some(item => item.priority <= 1)
     ? 'P0/P1紧急后果不可省略，应嵌入玩家行动的过程与结果；'
     : '只落实与玩家行动相容且有因果依据的导向；';
   return `<${DIRECTOR_TAG}>\nID: ${id}\n按顺序落实（最多${items.length}项）：\n${directives}\n约束: ${playerLead}${urgentLead}SPECIAL判定只决定当前行动结果，本提示只补充相容的状态与剧情后果，绝不改判；不替玩家选择，不凭空救场或加害；不解释系统、变量、阈值或概率，不得输出、复述或提及本标签。\n</${DIRECTOR_TAG}>`;
 }
 function directorClearPrompt() {
+  // 仅清理3.1早期版本留下的扩展提示缓存；当前导演不再占用提示注入槽。
   let cleared = false;
   try {
     const fn = p.uninjectPrompts || (typeof uninjectPrompts === 'function' ? uninjectPrompts : null);
@@ -3904,7 +3908,6 @@ function directorClearPrompt() {
   if (!cleared) {
     try { contestContext()?.setExtensionPrompt?.(DIRECTOR_PROMPT_ID, '', 1, 0, false, 0); } catch (e) {}
   }
-  _directorPromptActive = false;
 }
 function directorRemember(plan) {
   const store = directorReadStore();
@@ -3926,34 +3929,50 @@ function directorUpdateStatus(plan, state = '') {
   directorStatus.textContent = `${state || '候选已就绪'} · P${plan.priority} ${summary}`;
   directorStatus.title = items.map(item => item.directive).join('\n');
 }
-function directorInjectPlan(plan) {
+async function directorWritePlanToMessage(plan) {
   directorClearPrompt();
-  if (!plan || !directorReadConfig().enabled) return false;
-  // SPECIAL与导演使用独立提示ID：前者裁定行动，后者补充状态后果，可在同一轮并存。
-  if (p._jmzqSuperEventPromptKey) { directorUpdateStatus(plan, '让路给超事件'); return false; }
-  const content = directorPromptContent(plan);
+  const api = contestApi();
+  if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
+  const messages = contestListMessages().filter(message => message?.role === 'assistant' || message?.is_user === false);
+  const sourceId = Number(plan?.sourceMessageId);
+  const updates = [];
+  for (const message of messages) {
+    const current = contestCurrentSwipe(message);
+    DIRECTOR_TAG_RE.lastIndex = 0;
+    const cleaned = current.text.replace(DIRECTOR_TAG_RE, '').replace(/\n{3,}$/g, '\n\n').trimEnd();
+    const isSource = !!plan && Number(message.message_id) === sourceId;
+    const next = isSource
+      ? `${cleaned}${cleaned ? '\n' : ''}${directorPromptContent(plan)}`
+      : cleaned;
+    if (next !== current.text) updates.push({ message_id: message.message_id, message: next });
+  }
+  if (plan && !messages.some(message => Number(message.message_id) === sourceId)) {
+    throw new Error(`未找到导演来源消息 ${sourceId}`);
+  }
+  if (!updates.length) {
+    directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
+    return true;
+  }
+  _directorWritingMessage = true;
   try {
-    const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
-    if (typeof fn === 'function') {
-      fn([{ id: DIRECTOR_PROMPT_ID, position: 'in_chat', depth: 0, role: 'system', content, should_scan: false }], { once: true });
-      _directorPromptActive = true;
-      p._jmzqInjectedDirector = plan;
-      directorUpdateStatus(plan, '已缓存，等待下轮正文');
-      return true;
-    }
-  } catch (e) { console.warn('[JMZQ] 隐式剧情导演注入失败：', e); }
-  try {
-    const context = contestContext();
-    if (typeof context?.setExtensionPrompt === 'function') {
-      context.setExtensionPrompt(DIRECTOR_PROMPT_ID, content, 1, 0, false, 0);
-      _directorPromptActive = true;
-      p._jmzqInjectedDirector = plan;
-      directorUpdateStatus(plan, '已缓存，等待下轮正文');
-      return true;
-    }
-  } catch (e) { console.warn('[JMZQ] 隐式剧情导演回退注入失败：', e); }
-  directorUpdateStatus(plan, '注入失败');
-  return false;
+    await api.setChatMessages(updates, { refresh: 'affected' });
+  } finally {
+    _directorWritingMessage = false;
+  }
+  p._jmzqInjectedDirector = plan || null;
+  directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
+  return true;
+}
+function directorQueueMessageWrite(plan) {
+  _directorWriteChain = _directorWriteChain
+    .catch(() => {})
+    .then(() => directorWritePlanToMessage(plan))
+    .catch(error => {
+      console.warn('[JMZQ] 隐式剧情导演正文写回失败：', error);
+      directorUpdateStatus(plan, '正文写回失败');
+      return false;
+    });
+  return _directorWriteChain;
 }
 function directorPrepareFromSnapshot(sd, source = directorCurrentLayerSource(), beforeSd = null) {
   const config = directorReadConfig();
@@ -3961,15 +3980,15 @@ function directorPrepareFromSnapshot(sd, source = directorCurrentLayerSource(), 
   const existing = p._jmzqDirectorPlan;
   // 某些MVU版本或兼容层会重复广播同一最终快照。保留首次计算出的跨阈值标记与排序。
   if (config.enabled && existing && !existing.committed && sourceKey && existing.sourceKey === sourceKey) {
-    if (!_directorPromptActive && !existing.inFlight) directorInjectPlan(existing);
-    directorUpdateStatus(existing, '已缓存，等待下轮正文');
+    directorQueueMessageWrite(existing);
+    directorUpdateStatus(existing, '正在核对正文尾部');
     return existing;
   }
   directorClearPrompt();
   const plan = config.enabled && sd && source ? directorSelectPlan(sd, source, config, beforeSd) : null;
   p._jmzqDirectorPlan = plan;
-  if (plan) directorInjectPlan(plan);
-  else directorUpdateStatus(null);
+  directorQueueMessageWrite(plan);
+  directorUpdateStatus(plan, plan ? '等待写入当前正文' : '清理旧导演标签');
   return plan;
 }
 function directorPrepare() {
@@ -4026,7 +4045,6 @@ function onDirectorBeforeGeneration(...args) {
   // 但刚刚中止后的retry是在续写未完成生成，仍应沿用尚未消费的计划。
   const resumingStoppedGeneration = p._jmzqDirectorGenerationAborted === true;
   if (contestIsRegeneration(args) && !resumingStoppedGeneration) {
-    directorClearPrompt();
     directorUpdateStatus(plan, '重生成 · 等待新MVU快照');
     delete p._jmzqDirectorPlan;
     delete p._jmzqInjectedDirector;
@@ -4035,25 +4053,13 @@ function onDirectorBeforeGeneration(...args) {
   delete p._jmzqDirectorGenerationAborted;
   // 超事件仍走独立强制阶段；SPECIAL判定则与导演并行注入，互不清理、互不改判。
   if (p._jmzqSuperEventPromptKey) {
-    directorClearPrompt();
     plan.inFlight = false;
     directorUpdateStatus(plan, '本轮让路给超事件');
     return;
   }
-  const effectivePlan = directorPlanForGeneration(plan);
-  if (!effectivePlan) {
-    directorClearPrompt();
-    plan.inFlight = false;
-    directorUpdateStatus(plan, '玩家行动优先 · 取消日常导向');
-    return;
-  }
-  // 玩家输入出现后重写一次短提示，明确正文必须先承接玩家行动。
-  if (_directorPromptActive) directorClearPrompt();
-  directorInjectPlan(effectivePlan);
-  if (_directorPromptActive) {
-    plan.inFlight = true;
-    directorUpdateStatus(plan, '本轮已注入正文');
-  }
+  // 标签已经在上一层MVU完成后写入助手正文；这里不再创建扩展提示缓存。
+  plan.inFlight = true;
+  directorUpdateStatus(plan, '正文尾部标签已生效');
 }
 function onDirectorGenerationCompleted() {
   const plan = p._jmzqDirectorPlan;
@@ -4068,20 +4074,17 @@ function onDirectorGenerationCompleted() {
     directorRemember(plan);
     plan.committed = true;
   }
-  directorClearPrompt();
-  delete p._jmzqDirectorPlan;
-  delete p._jmzqInjectedDirector;
+  directorUpdateStatus(plan, '正文已完成 · 等待MVU更新');
 }
 function onDirectorGenerationStopped() {
   p._jmzqDirectorGenerationAborted = true;
   const plan = p._jmzqDirectorPlan;
   if (plan) plan.inFlight = false;
-  directorClearPrompt();
   if (plan) directorUpdateStatus(plan, '生成中止 · 等待重试');
 }
 function onDirectorSourceInvalidated() {
+  if (_directorWritingMessage) return;
   delete p._jmzqDirectorGenerationAborted;
-  directorClearPrompt();
   delete p._jmzqDirectorPlan;
   delete p._jmzqInjectedDirector;
 }
@@ -4128,9 +4131,11 @@ function directorSaveForm() {
   if (!config.enabled) {
     directorClearPrompt();
     delete p._jmzqDirectorPlan;
+    directorQueueMessageWrite(null);
     directorUpdateStatus(null, '导演已关闭');
   } else {
-    directorPrepare();
+    directorClearPrompt();
+    directorUpdateStatus(null, '配置已保存 · 等待MVU更新');
   }
   return config;
 }
@@ -5621,8 +5626,9 @@ const statPollTimer = setInterval(() => {
 refreshMvuConfigStatus();
 checkEjsTemplate();
 contestScheduleScan(500);
-// 脚本在已有聊天中途加载时，补建一次“最近assistant楼层MVU结果 → 下一轮正文”的待消费计划。
-setTimeout(directorPrepare, 900);
+// 导演只接受 MVU 更新完成事件，不在脚本加载时用旧快照补算，避免永远慢一轮。
+directorClearPrompt();
+directorUpdateStatus(null, '等待当前层MVU更新');
 
 // 注册世界书状态刷新事件
 const onJmzqDone = () => { refreshUI(); checkWorldbookCount(); };
