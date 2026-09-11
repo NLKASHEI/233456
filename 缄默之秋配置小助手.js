@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.2/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.3/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.2';
+const JMZQ_VERSION = '3.1.3';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3299,6 +3299,15 @@ function directorRatio(current, maximum) {
   const c = directorNumber(current), m = directorNumber(maximum);
   return c == null || m == null || m <= 0 ? null : contestClamp(c / m, 0, 1);
 }
+function directorNationality(sd) {
+  return sd?.衍生状态?.nationality ?? sd?.衍生状态?.国籍 ?? sd?.国籍 ?? null;
+}
+function directorGameTimestamp(value) {
+  const parts = String(value || '').match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
+  if (!parts) return null;
+  const stamp = Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] || 0), Number(parts[5] || 0));
+  return Number.isFinite(stamp) ? stamp : null;
+}
 function directorSafeText(value, max = 96) {
   return contestEscapeText(value, max)
     .replace(/[<>]/g, '')
@@ -3391,13 +3400,18 @@ function directorStateFingerprint(sd) {
     public: Object.entries(sd?.公共通讯 || {}).map(([id, value]) => [id, value?.sender, value?.time, value?.content]).slice(-12),
     private: Object.entries(sd?.私人通讯 || {}).map(([name, list]) => [name, Array.isArray(list) ? list.slice(-3) : list]).slice(-12),
   };
+  const profile = {
+    nationality: directorNationality(sd),
+    skills: Object.entries(sd?.技能 || {}).map(([name, value]) => [name, value?.level, value?.desc]).sort(),
+    traits: Object.entries(sd?.特质 || {}).flatMap(([type, values]) => Array.isArray(values) ? values.map(value => [type, value]) : []).sort(),
+  };
   return contestHash(JSON.stringify({
     phase: sd?.世界阶段, hellMode: sd?.叙事模式 === '地狱', infMode: sd?.感染者行为模式, npcMode: sd?.NPC行为模式,
     noDefined: sd?.无定义角色模式 === true, activity: sd?.当前活动 || [], core,
     physical: sd?.衍生状态?.physical_status, mental: sd?.衍生状态?.mental_status,
     env: { location: env.location, time: env.时间, weather: env.天气, temperature: env.temperature, radiation: env.radiation, threat: env.threat_level, noise: env.noise, comfort: env.comfort, hatred: env.hatred },
     camp: { built: camp.已建立, access: camp.可访问, morale: camp.士气, operation: camp.经营 },
-    factions, people, vehicles, shelters, tasks, communications,
+    factions, people, vehicles, shelters, tasks, communications, profile,
     events: Object.keys(sd?.世界事件 || {}), nearby: Object.keys(sd?.周围地点 || {}),
     extra: sd?.扩展内容, superEvent: sd?.超事件,
   })).toString(36);
@@ -3467,6 +3481,11 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   const morale = directorNumber(core.morale_current), moraleMax = directorNumber(core.morale_max);
   const infection = directorNumber(core.infection_current), infectionMax = directorNumber(core.infection_max);
   const radiation = directorNumber(env.radiation) ?? 0, hatred = directorNumber(env.hatred) ?? 0;
+  const gameTimeText = directorSafeText(env.时间 || '', 48);
+  const gameStamp = directorGameTimestamp(gameTimeText);
+  const outbreakStamp = Date.UTC(2030, 7, 24, 12, 0);
+  const apocalypseStamp = Date.UTC(2030, 7, 26, 12, 0);
+  const outbreakHours = gameStamp == null ? null : (gameStamp - outbreakStamp) / 3600000;
   const locks = directorReadStore().locks;
 
   // 死亡角色不得在死亡提醒消费后继续抽普通随机事件。
@@ -3481,6 +3500,33 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
   }
 
   const candidates = [];
+  const phaseBoundary = phase === '秩序期'
+    ? { stamp: outbreakStamp, next: '爆发期', event: '2030年08月24日12:00的全球潜伏者集中激活' }
+    : phase === '爆发期'
+      ? { stamp: apocalypseStamp, next: '末世期', event: '2030年08月26日12:00的末世期边界' }
+      : null;
+  if (phaseBoundary && gameStamp != null) {
+    const minutesLeft = Math.round((phaseBoundary.stamp - gameStamp) / 60000);
+    if (minutesLeft <= 0) {
+      candidates.push(directorCandidate(
+        `fatal/phase-overdue-${phaseBoundary.next}`, 'event', 0, 100, 99,
+        `当前记录时间为“${gameTimeText}”，已经跨过${phaseBoundary.event}，但世界仍记录为“${phase}”。本轮必须在承接玩家行动时落实“${phaseBoundary.next}”已经到来的可观察现实；不得继续沿用旧阶段秩序，也不得把阶段变化解释成系统提示。`,
+        phaseBoundary.next === '爆发期'
+          ? [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期']
+          : ['世界观-末世期'],
+        { mandatory: true, lockKey: `phase:${phaseBoundary.next}` }
+      ));
+    } else if (minutesLeft <= 180) {
+      candidates.push(directorCandidate(
+        `critical/phase-deadline-${phaseBoundary.next}`, 'event', 1, 100, 96,
+        `当前记录时间为“${gameTimeText}”，距${phaseBoundary.event}还有约${minutesLeft}分钟。若玩家行动使叙事时间跨过该时刻，必须在准确边界落实“${phaseBoundary.next}”变化；跨越前不得提前公开突变、让人物预知灾难或跳过玩家正在做的事。`,
+        phaseBoundary.next === '爆发期'
+          ? [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期']
+          : ['世界观-末世期'],
+        { cooldown: 3 }
+      ));
+    }
+  }
   const halfInfected = /半感染|抗体|免疫停滞|保留人格/.test(physical);
   if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected && !locks['fatal:infection-transform']) {
     candidates.push(directorCandidate(
@@ -3623,7 +3669,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
         campAccessible
           ? `本轮通过${directorSafeText(camp.名称 || '营地', 48)}的一项分工、维护、配给、成员互动或小幅改善体现其正在持续运作；事件必须来自现有人员和设施，不凭空奖励资源，也不机械安排袭击。`
           : `让${directorSafeText(camp.名称 || '营地', 48)}通过一则可靠通讯或延迟报告呈现一项日常运作变化；{{user}}当前不能直接接触营地，禁止隔空操作设施、库存、任务和成员。`,
-        ['机制-营地经营']
+        ['机制-营地经营'], { cooldown: 6 }
       ));
     }
   }
@@ -3636,7 +3682,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       `situation/event-${contestHash(title).toString(36)}`, 'event', 2, 42, 48,
       `既有事件“${title}”仍在影响局势。本轮让它通过${eventLocation ? `${eventLocation}相关的` : ''}环境变化、可靠通讯、人物反应或可观察线索产生一项具体余波；不得让{{user}}凭空获得后台全貌，也不得直接无因解决事件。`,
-      hatred >= 51 ? ['机制-找事儿'] : []
+      hatred >= 51 ? ['机制-找事儿'] : [], { cooldown: 5 }
     ));
   }
 
@@ -3694,7 +3740,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       `situation/communication-${contestHash(String(picked?.id || content)).toString(36)}`, 'event', urgent.length ? 2 : 3, urgent.length ? 68 : 18, urgent.length ? 64 : 22,
       `既有通讯中，${contact}传来的“${content}”值得在本轮产生一项可感知余波、时间压力或行动线索。只能依据消息内容和角色已知信息展开；不得替{{user}}发送回复、接受请求或把未经核实的消息直接写成全知事实。`,
-      ['机制-通讯']
+      ['机制-通讯'], { cooldown: urgent.length ? 4 : 8 }
     ));
   }
 
@@ -3707,30 +3753,64 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       `ambient/faction-${contestHash(factionName).toString(36)}`, 'faction', 3, 26, 28,
       `${factionName}当前阶段为“${stage}”${progress != null ? `、进展${progress}` : ''}。让其影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次；规模必须匹配现状，不得把后台数值直接告诉{{user}}。`,
-      []
+      [], { cooldown: 8 }
     ));
   }
 
   const encounterRelevant = ['探索', '搜刮', '战斗', '潜行'].some(v => activitySet.has(v)) || hatred >= 31 || /危险|警戒|极危|敌/.test(String(env.threat_level || ''));
-  if (config.infected && postOutbreak && encounterRelevant) {
+  const quietCampWork = ['建造', '种植', '营地经营'].some(v => activitySet.has(v))
+    && hatred < 31 && !/危险|警戒|极危|敌/.test(String(env.threat_level || ''));
+  if (config.infected && postOutbreak && !quietCampWork) {
     const mode = String(sd?.感染者行为模式 || '狂病型');
     const band = directorThreatBand(hatred);
     const noise = directorSafeText(env.noise || '周围动静不明', 48);
+    const threat = directorSafeText(env.threat_level || '未知', 24);
     const high = hatred >= 51 || /危险|极危/.test(String(env.threat_level || ''));
-    const directive = mode === '普通型'
-      ? `本轮在${location}安排一次由现存密度、声源、视线或通道造成的普通型感染者${high ? '接近或聚集压力' : '踪迹与可绕行接触'}。它们不得展现战术预谋；结合“${noise}”给出来源、征兆和可响应空间。`
-      : `本轮在${location}安排一次符合狂病型感染者的${high ? '追踪、试探或逼近压力' : '活动踪迹与有限接触'}。当前威胁处于“${band}”层级，并结合“${noise}”建立来源和接近路径；不得凭空刷新、瞬移锁定或为了克制玩家临时造出变体。`;
+    const afterShelter = outbreakHours != null && outbreakHours >= 48;
+    const normalVariants = afterShelter
+      ? [
+          { name: '蹒跚者', behavior: '受声源吸引后沿可通行路线靠近，依靠数量和地形造成压力，没有预谋' },
+          { name: '奔跑者', behavior: '刚转化且能全速直冲声源，但平衡差、转向慢，不会绕路包抄' },
+          { name: '匍匐者', behavior: '下肢损毁后在低处安静拖行，危险来自近距离抓停而非追逐' },
+          { name: '静默者', behavior: '在封闭空间长期静止，只有活物近身才突然攻击，不能远距感知' },
+        ]
+      : [{ name: '普通蹒跚感染者', behavior: '被声源、视线或近距离活物吸引后直接接近，不会设伏、说话、用工具或战术包抄' }];
+    const normalVariant = normalVariants[contestHash(`${seed}|infected-kind`) % normalVariants.length];
+    const kind = mode === '普通型' ? `普通型·${normalVariant.name}` : '狂病型·COVID-30感染者';
+    const behavior = mode === '普通型'
+      ? normalVariant.behavior
+      : high
+        ? '保留低阶狩猎本能，可沿已有线索追踪、试探并利用环境，但受感知、路线、伤势与已有情报限制'
+        : '凶残且会观察、欺骗或追踪，但此时只能形成有来源的零星踪迹或有限接触，不能凭空锁定玩家';
+    const shelterLimit = outbreakHours != null && outbreakHours >= 0 && outbreakHours < 48
+      ? (mode === '普通型' ? '当前仍在大爆发后两日庇护期，无主动严重暴露时只用单只普通感染者。' : '当前仍在大爆发后两日庇护期，无严重噪音、高危闯入或既有追击时只用单只普通感染者。')
+      : '';
+    const directive = `本轮可在${location}低概率安排“${kind}”的踪迹、接近或遭遇：${behavior}。当前环境威胁为“${threat}”、仇恨层级为“${band}”、动静为“${noise}”。${shelterLimit}必须先给出来源、征兆和可响应空间，不强制开战${mode === '普通型' ? '，不得展现战术预谋' : ''}，不得凭空刷新或为克制玩家临时加能力。`;
     candidates.push(directorCandidate(
       `ambient/infected-${mode}`, 'infected', hatred >= 71 ? 2 : 3, high ? 48 : 25, high ? 58 : 34,
       directive,
       mode === '普通型'
-        ? ['普通的动态威胁与安逸惩罚', '普通感染者遭遇']
-        : ['机制-动态威胁与安逸惩罚', '杂项-感染者遭遇动态生成']
+        ? ['普通的动态威胁与安逸惩罚', '普通感染者遭遇', ...(afterShelter ? ['普通感染者多样性'] : [])]
+        : ['机制-动态威胁与安逸惩罚', '杂项-感染者遭遇动态生成'],
+      { cooldown: high ? 4 : 6 }
     ));
   }
 
   if (config.npc && sd?.无定义角色模式 !== true && !activitySet.has('战斗')) {
     const mode = String(sd?.NPC行为模式 || '正常型');
+    const nationality = directorSafeText(directorNationality(sd) || '未记录国籍', 24);
+    const skillNames = Object.entries(sd?.技能 || {})
+      .sort((left, right) => (directorNumber(right[1]?.level) || 0) - (directorNumber(left[1]?.level) || 0))
+      .slice(0, 2).map(([name]) => directorSafeText(name, 28)).filter(Boolean);
+    const traitNames = Object.values(sd?.特质 || {}).flatMap(values => Array.isArray(values) ? values : [])
+      .slice(0, 2).map(value => directorSafeText(value, 28)).filter(Boolean);
+    const knownNpcPool = Object.entries(sd?.NPC || {}).filter(([, value]) => !/死亡|已故|失踪/.test(String(value?.status || '')));
+    const knownNpc = directorPickStable(knownNpcPool.map(([name, value]) => ({ name, value, weight: 1 })), `${seed}|known-npc`);
+    const profileClues = [
+      `国籍“${nationality}”`,
+      skillNames.length ? `技能“${skillNames.join('、')}”` : '',
+      traitNames.length ? `特质“${traitNames.join('、')}”` : '',
+    ].filter(Boolean).join('、');
     const npcSupport = mode === '全员恶人型'
       ? [phase === '秩序期' ? 'NPC生成-恶意型-秩序期' : 'NPC生成-恶意型-爆发期与末世期', ...(postOutbreak ? ['恶意社交法则'] : [])]
       : [phase === '秩序期' ? 'NPC生成-正常型-秩序期' : 'NPC生成-正常型-爆发期与末世期', ...(postOutbreak ? ['杂项-末世社交互动法则'] : [])];
@@ -3739,26 +3819,30 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
       : '对方可以合作、拒绝、试探、求助或敌对，选择必须来自其处境、目标与有限信息。';
     candidates.push(directorCandidate(
       `ambient/npc-${mode}`, 'npc', 3, 21, 30,
-      `本轮在${location}安排一次与{{user}}当前境遇直接相关的NPC接触；已有合适人物时优先沿用，否则新人物的身份、装备和目的必须来自地点与时代。${modeDirection}不得自动招募、恋爱、赠送物资或成为宿敌。`,
-      npcSupport
+      knownNpc
+        ? `本轮可让已建档人物“${directorSafeText(knownNpc.name, 48)}”依据其当前状态“${directorSafeText(knownNpc.value?.status || '正常', 48)}”和目标“${directorSafeText(knownNpc.value?.current_goal || '未记录', 64)}”，通过与${location}相容的现实路径重新进入剧情。必须承接{{user}}的${profileClues}，产生一项具体互动或摩擦；${modeDirection}不得强迫招募、恋爱、赠送物资或结仇。`
+        : `本轮可在${location}安排一名与{{user}}现有档案线索（${profileClues}）有现实交集的NPC出场。其身份、装备、出现路径和目的必须来自当前地点、国家、阶段与职业环境；${modeDirection}不得强迫招募、恋爱、赠送物资或结仇。`,
+      npcSupport,
+      { cooldown: 7 }
     ));
   }
 
   if (config.world) {
     const weather = directorSafeText(env.天气 || '', 36);
     const temperature = directorSafeText(env.temperature || '', 36);
+    const environmentThreat = directorSafeText(env.threat_level || '未评估', 28);
     const nearby = Object.entries(sd?.周围地点 || {});
     const nearbyPick = directorPickStable(nearby.map(([name, value]) => ({ name, value, weight: value?.可前往 === false ? 1 : 2 })), `${seed}|nearby`);
     const nearbyText = nearbyPick ? `已知地点“${directorSafeText(nearbyPick.name, 48)}”` : '当前环境';
     const envTemplates = [
-      `从${location}的${weather || '天气'}、${temperature || '体感'}、威胁和庇护条件中选取一个真实薄弱点，本轮让它形成需要时间、物资或风险应对的具体压力；不给出无代价最优解。`,
+      `${location}当前天气为“${weather || '未记录'}”、体感为“${temperature || '未记录'}”、威胁为“${environmentThreat}”。从这些既有条件中选一个真实薄弱点形成需要时间、物资或风险应对的具体压力；不给出无代价最优解。`,
       `让${nearbyText}通过声光、道路、痕迹、通讯或能见度变化呈现一条可追溯线索，并给{{user}}留下调查、绕行、隐蔽、求援或撤退的空间；不得把线索直接写成成功收益。`,
-      `本轮让${location}的一项既有环境条件产生可感知变化或后果。变化必须符合时间、天气和空间连续性，不凭空制造灾难，也不自动替{{user}}解决。`,
+      `本轮让${location}已记录的天气“${weather || '未记录'}”、体感“${temperature || '未记录'}”或威胁“${environmentThreat}”产生一项可感知后果。变化必须符合时间与空间连续性，不凭空制造灾难，也不自动替{{user}}解决。`,
     ];
     candidates.push(directorCandidate(
       'ambient/environment', 'environment', 3, 25, 32,
       directorTemplate('ambient/environment', seed, envTemplates),
-      weather.startsWith('终年') ? [weather] : []
+      weather.startsWith('终年') ? [weather] : [], { cooldown: 6 }
     ));
 
     const itemValues = Object.values(sd?.物品 || {}).filter(item => item && typeof item === 'object' && !item.type);
@@ -3769,7 +3853,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
       candidates.push(directorCandidate(
         'ambient/resource-dilemma', 'resource', 3, 28, 36,
         `围绕{{user}}当前欠缺的“${pressure}”制造一个符合${location}条件的资源取舍：必须在时间、风险、消耗或人情中付出代价。可以给线索和机会，但不得直接把物资送到手中或宣告搜刮成功。`,
-        activitySet.has('搜刮') ? ['机制-搜刮物资', '杂项-搜刮结果动态生成'] : []
+        activitySet.has('搜刮') ? ['机制-搜刮物资', '杂项-搜刮结果动态生成'] : [], { cooldown: 6 }
       ));
     }
   }
