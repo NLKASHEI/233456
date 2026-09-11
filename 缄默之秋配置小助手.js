@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.4/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.3';
+const JMZQ_VERSION = '3.1.4';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3515,15 +3515,6 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
           ? [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期']
           : ['世界观-末世期'],
         { mandatory: true, lockKey: `phase:${phaseBoundary.next}` }
-      ));
-    } else if (minutesLeft <= 180) {
-      candidates.push(directorCandidate(
-        `critical/phase-deadline-${phaseBoundary.next}`, 'event', 1, 100, 96,
-        `当前记录时间为“${gameTimeText}”，距${phaseBoundary.event}还有约${minutesLeft}分钟。若玩家行动使叙事时间跨过该时刻，必须在准确边界落实“${phaseBoundary.next}”变化；跨越前不得提前公开突变、让人物预知灾难或跳过玩家正在做的事。`,
-        phaseBoundary.next === '爆发期'
-          ? [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期']
-          : ['世界观-末世期'],
-        { cooldown: 3 }
       ));
     }
   }
