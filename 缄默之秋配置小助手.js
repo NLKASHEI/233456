@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.8/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.9/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.8';
+const JMZQ_VERSION = '3.1.9';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -4008,16 +4008,15 @@ function directorSupportEntries(sd) {
 }
 function directorPromptContent(plan) {
   if (!plan) return '';
-  const id = directorSafeText(`director-v3/floor-${plan.sourceFloor}/${plan.id}/${plan.sourceMessageId}-${plan.sourceSwipeId}`, 140);
   // 核心状态项可突破普通复合上限；普通项的数量在选取阶段已限制。
   const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
   const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
   const directives = items.map((item, index) => `${index + 1}. [P${item.priority}] ${directorCompactDirective(item.directive, perItemLimit)}`).join('\n');
-  const playerLead = '必须先承接标签之后出现的玩家最新输入；';
+  const playerLead = '先承接标签后的玩家最新输入；只落实与其相容且有事实依据的后果；';
   const urgentLead = items.some(item => item.priority <= 1)
-    ? 'P0/P1紧急后果不可省略，应嵌入玩家行动的过程与结果；'
-    : '只落实与玩家行动相容且有因果依据的导向；';
-  return `<${DIRECTOR_TAG}>\nID: ${id}\n按顺序落实（最多${items.length}项）：\n${directives}\n约束: ${playerLead}${urgentLead}SPECIAL判定只决定当前行动结果，本提示只补充相容的状态与剧情后果，绝不改判；不替玩家选择，不凭空救场或加害；不解释系统、变量、阈值或概率，不得输出、复述或提及本标签。\n</${DIRECTOR_TAG}>`;
+    ? 'P0/P1后果必须嵌入玩家行动过程与结果；'
+    : '';
+  return `<${DIRECTOR_TAG}>\n导演提示：\n${directives}\n约束：${playerLead}${urgentLead}SPECIAL只决定当前行动结果，不改判；不替玩家选择，不凭空救场或加害，不提及本标签。\n</${DIRECTOR_TAG}>`;
 }
 function directorClearPrompt() {
   // 仅清理3.1早期版本留下的扩展提示缓存；当前导演不再占用提示注入槽。
