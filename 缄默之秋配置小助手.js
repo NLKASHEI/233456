@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.5/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.6/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.5';
+const JMZQ_VERSION = '3.1.6';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3423,6 +3423,8 @@ function directorSourceKey(sd, source) {
 function directorCandidate(id, category, priority, chance, weight, directive, supportEntries = [], options = {}) {
   return {
     id, category, priority, chance, weight, directive, supportEntries,
+    core: options.core === true,
+    corePath: options.corePath || '',
     mandatory: options.mandatory === true,
     crossed: options.crossed === true,
     lockKey: options.lockKey || '',
@@ -3490,12 +3492,12 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
 
   // 死亡角色不得在死亡提醒消费后继续抽普通随机事件。
   if (hp === 0) {
-    if (!config.fatal || locks['fatal:player-hp-zero']) return [];
+    if (!config.fatal) return [];
     return [directorCandidate(
       'fatal/player-hp-zero', 'fatal', 0, 100, 100,
       `{{user}}当前生命值为0${hpMax != null ? `/${hpMax}` : ''}，生命已经耗尽。本轮必须将死亡作为既成且不可撤销的事实自然写入剧情，并描写现场反应与直接遗留后果；不得改写为普通昏迷、巧合获救、无依据复活或仍可行动。`,
       postOutbreak ? ['机制-死亡', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
-      { mandatory: true, lockKey: 'fatal:player-hp-zero' }
+      { mandatory: true, core: true, corePath: 'hp' }
     )];
   }
 
@@ -3519,12 +3521,12 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     }
   }
   const halfInfected = /半感染|抗体|免疫停滞|保留人格/.test(physical);
-  if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected && !locks['fatal:infection-transform']) {
+  if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected) {
     candidates.push(directorCandidate(
       'fatal/infection-transform', 'fatal', 0, 100, 95,
       `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，且未记录半感染、抗体或免疫停滞状态，感染已越过不可逆转的转化界线。本轮必须让转化的身体变化与现场后果落地，并按“${directorSafeText(sd?.感染者行为模式 || '狂病型', 12)}”表现；不得无因逆转。`,
       ['机制-COVID-30感染', '[mvu_update]感染进程'],
-      { mandatory: true, lockKey: 'fatal:infection-transform' }
+      { mandatory: true, core: true, corePath: 'infection' }
     ));
   }
 
@@ -3533,13 +3535,14 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       'critical/health-collapse', 'critical', 1, 96, 94,
       `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}，${condition}。本轮必须让伤势具体限制移动、发力、意识或止血，并继续产生迫近后果；没有及时且条件充分的救治，不得自行稳定。`,
-      postOutbreak ? ['机制-伤病与医疗', '机制-毁伤', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康']
+      postOutbreak ? ['机制-伤病与医疗', '机制-毁伤', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
+      { core: true, corePath: 'hp' }
     ));
   } else if (config.survival && hpRatio != null && hpRatio <= 0.3) {
     candidates.push(directorCandidate(
       'critical/serious-injury', 'critical', 1, 72, 78,
       `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}${physical && !/^健康/.test(physical) ? `，伤情为“${physical}”` : ''}。本轮必须在动作能力、疼痛、失血、恢复或恶化中落实至少一项直接影响，并让处理伤势占据真实时间与条件。`,
-      ['机制-伤病与医疗', '机制-毁伤']
+      ['机制-伤病与医疗', '机制-毁伤'], { core: true, corePath: 'hp' }
     ));
   }
 
@@ -3548,13 +3551,13 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       'critical/stamina-empty-active', 'critical', 1, 100, 91,
       `{{user}}当前体力为0${staminaMax != null ? `/${staminaMax}` : ''}，却仍处于“${directorSafeText(activity.join('、') || '高强度行动', 48)}”。本轮必须写出脱力对速度、反应和持续行动的实质阻断；继续强撑必须损害生命或身体状态。`,
-      ['机制-体力', '机制-活动叠加与冲突'], { mandatory: true }
+      ['机制-体力', '机制-活动叠加与冲突'], { mandatory: true, core: true, corePath: 'stamina' }
     ));
   } else if (config.survival && staminaRatio != null && staminaRatio <= 0.15) {
     candidates.push(directorCandidate(
       'critical/stamina-near-empty', 'critical', 1, 72, 72,
       `{{user}}当前体力为${stamina}${staminaMax != null ? `/${staminaMax}` : ''}，已接近耗尽。本轮必须让动作迟缓、失误风险或被迫停顿自然进入剧情；不得继续以满状态完成连续高强度行动。`,
-      ['机制-体力']
+      ['机制-体力'], { core: true, corePath: 'stamina' }
     ));
   }
 
@@ -3562,21 +3565,21 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       'critical/dehydration', 'critical', 1, 90, 88,
       `{{user}}当前饱水值为${thirst}${thirstMax != null ? `/${thirstMax}` : ''}，已处于严重脱水状态。本轮必须让眩晕、虚弱、判断下降或行动能力衰退成为现实压力，并让饮水或继续恶化成为无法忽略的问题。`,
-      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续'], { core: true, corePath: 'thirst' }
     ));
   }
   if (config.survival && hunger != null && hunger <= 10) {
     candidates.push(directorCandidate(
       'critical/starvation', 'critical', 1, 82, 80,
       `{{user}}当前饱食值为${hunger}${hungerMax != null ? `/${hungerMax}` : ''}，已经陷入重度饥饿。本轮必须把虚弱、恢复停滞、专注下降或身体恶化写成实际影响；不得靠意志长期无视进食需求。`,
-      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续']
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续'], { core: true, corePath: 'hunger' }
     ));
   }
   if (config.survival && config.infected && postOutbreak && infection != null && infection >= 60 && infection < 90) {
     candidates.push(directorCandidate(
       'critical/infection-danger', 'critical', 1, 78, 82,
       `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，感染症状正在进入失控前的危险阶段。本轮必须让发热、疼痛、感官异常或行为控制恶化影响现场，并强化治疗时间正在缩短的压力；不得无因停滞或自愈。`,
-      ['机制-COVID-30感染', '[mvu_update]感染进程']
+      ['机制-COVID-30感染', '[mvu_update]感染进程'], { core: true, corePath: 'infection' }
     ));
   }
   if (config.survival && radiation >= 50) {
@@ -3590,7 +3593,7 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       'critical/morale-break', 'relationship', 1, 72, 68,
       `{{user}}当前情绪值为${morale}${moraleMax != null ? `/${moraleMax}` : ''}${mental && !/^冷静/.test(mental) ? `，心理状态为“${mental}”` : ''}。本轮必须让注意力、判断、交流或临场反应受到相称影响，但不得无因永久剥夺角色控制权。`,
-      ['机制-恐慌（默认不开，因为哈基米会绝望）', '[mvu_update]恐慌']
+      ['机制-恐慌（默认不开，因为哈基米会绝望）', '[mvu_update]恐慌'], { core: true, corePath: 'morale' }
     ));
   }
 
@@ -3897,6 +3900,21 @@ function directorApplyThresholdCrossings(candidates, sd, beforeSd) {
     ? { ...candidate, crossed: true, mandatory: true, chance: 100, weight: candidate.weight + 1000 }
     : candidate);
 }
+function directorApplyCoreChanges(candidates, sd, beforeSd) {
+  if (!beforeSd) return candidates;
+  const core = sd?.核心状态 || {}, before = beforeSd?.核心状态 || {};
+  const changed = {
+    hp: directorNumber(core.hp_current) !== directorNumber(before.hp_current),
+    stamina: directorNumber(core.stamina_current) !== directorNumber(before.stamina_current),
+    hunger: directorNumber(core.hunger_current) !== directorNumber(before.hunger_current),
+    thirst: directorNumber(core.thirst_current) !== directorNumber(before.thirst_current),
+    infection: directorNumber(core.infection_current) !== directorNumber(before.infection_current),
+    morale: directorNumber(core.morale_current) !== directorNumber(before.morale_current),
+  };
+  return candidates.map(candidate => candidate.core && changed[candidate.corePath]
+    ? { ...candidate, mandatory: true, chance: 100, weight: candidate.weight + 1000 }
+    : candidate);
+}
 function directorRankCandidates(candidates, sourceKey) {
   return [...candidates].sort((left, right) =>
     left.priority - right.priority
@@ -3913,7 +3931,11 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   const intensity = DIRECTOR_INTENSITY[config.intensity] || DIRECTOR_INTENSITY.strict;
   // 创角中的爽文/正常/困难只影响特质预算，不是游戏难度；只有地狱模式提高导演压力。
   const narrativeChance = String(sd?.叙事模式 || '') === '地狱' ? 1.24 : 1;
-  const candidates = directorApplyThresholdCrossings(directorBuildCandidates(sd, source, config), sd, beforeSd);
+  const candidates = directorApplyCoreChanges(
+    directorApplyThresholdCrossings(directorBuildCandidates(sd, source, config), sd, beforeSd),
+    sd,
+    beforeSd,
+  );
   const eligible = candidates.filter(candidate => {
     if (candidate.priority >= 3) return false;
     if (candidate.lockKey && store.locks[candidate.lockKey]) return false;
@@ -3925,8 +3947,9 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   const ranked = directorRankCandidates(eligible, sourceKey);
   const urgent = ranked.filter(candidate => candidate.priority <= 1);
   // 有P0/P1时只发紧急后果且最多三项；否则P2、P3都只取一项，避免复合注入过长。
+  const coreUrgent = urgent.filter(candidate => candidate.core);
   const selected = urgent.length
-    ? urgent.slice(0, 3)
+    ? [...coreUrgent, ...urgent.filter(candidate => !candidate.core).slice(0, Math.max(0, 3 - coreUrgent.length))]
     : ranked.filter(candidate => candidate.priority === 2).slice(0, 1);
   if (!selected.length) {
     const ambientPool = candidates.filter(candidate =>
@@ -3949,6 +3972,7 @@ function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = 
   const items = selected.map(candidate => ({
     category: candidate.category,
     priority: candidate.priority,
+    core: candidate.core,
     mandatory: candidate.mandatory,
     crossed: candidate.crossed,
     id: candidate.id,
@@ -3981,7 +4005,8 @@ function directorSupportEntries(sd) {
 function directorPromptContent(plan) {
   if (!plan) return '';
   const id = directorSafeText(`director-v2/${plan.id}/${plan.sourceMessageId}-${plan.sourceSwipeId}`, 140);
-  const items = Array.isArray(plan.items) && plan.items.length ? plan.items.slice(0, 4) : [plan];
+  // 核心状态项可突破普通复合上限；普通项的数量在选取阶段已限制。
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
   const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
   const directives = items.map((item, index) => `${index + 1}. [P${item.priority}] ${directorCompactDirective(item.directive, perItemLimit)}`).join('\n');
   const playerLead = '必须先承接标签之后出现的玩家最新输入；';
