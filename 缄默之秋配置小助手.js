@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.9/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.10/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.9';
+const JMZQ_VERSION = '3.1.10';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -3749,6 +3749,15 @@ function directorBuildCandidates(sd, source, config = directorReadConfig()) {
     candidates.push(directorCandidate(
       `ambient/faction-${contestHash(factionName).toString(36)}`, 'faction', 3, 26, 28,
       `${factionName}当前阶段为“${stage}”${progress != null ? `、进展${progress}` : ''}。让其影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次；规模必须匹配现状，不得把后台数值直接告诉{{user}}。`,
+      [], { cooldown: 8 }
+    ));
+  }
+
+  // 偶发校准狂病型演出；不要求生成遭遇，沿用日常提醒的抽签、条数上限与冷却。
+  if (config.infected && postOutbreak && String(sd?.感染者行为模式 || '狂病型') === '狂病型') {
+    candidates.push(directorCandidate(
+      'ambient/infected-portrayal', 'infected', 3, 25, 30,
+      '描写狂病型感染者时：禁止按传统丧尸演出COVID-30感染者，感染者必须有台词演出，体力描述为常人在肾上腺素分泌状态下的强化。无感染者出场时不必为此安排遭遇。',
       [], { cooldown: 8 }
     ));
   }
