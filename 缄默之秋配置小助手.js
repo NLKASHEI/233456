@@ -1,9 +1,9 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.10/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.1.11/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.1.10';
+const JMZQ_VERSION = '3.1.11';
 const WORLDBOOK_NAME = '缄默之秋3.1';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -2801,7 +2801,10 @@ function getLatestMvuData() {
 // 正文只提交最短判定标签；本地助手读取玩家SPECIAL并完成稳定计算。
 // 结果写回产生标签的当前消息页，下一次正文生成时再作为尾部system提示注入。
 const CONTEST_PROMPT_ID = 'jmzq-special-contest-result';
-const CONTEST_RAW_RE = /<DY_CONTEST>([\s\S]*?)<\/DY_CONTEST>/g;
+// 不允许一个判定块跨过下一枚开标签。部分模型会在隐藏推理里先泄漏一个
+// 未闭合的 <DY_CONTEST>，随后才在最终正文末尾输出真正的完整标签；普通的
+// 非贪婪匹配仍会从前一个开标签吃到后一个闭标签，进而把整段正文误当 JSON。
+const CONTEST_RAW_RE = /<DY_CONTEST>((?:(?!<DY_CONTEST>)[\s\S])*?)<\/DY_CONTEST>/g;
 const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+type="([^"]+)"(?:\s+mode="([^"]+)")?\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
 const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR>([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
 const CONTEST_APPLIED_RE = /<!--DY_CONTEST_APPLIED-->/g;
@@ -2998,6 +3001,13 @@ function contestValidatePayload(raw) {
   });
   return { type, attrs, mode, scene, playerMod, enemies };
 }
+function contestHasOnlyIgnorableTail(text, endIndex) {
+  // 判定协议要求标签位于最终正文末尾。完整标签若后面仍有叙事，说明它来自
+  // 隐藏推理/预演，不能参与结算。兼容旧版已经误加在末尾的错误标签，以便恢复。
+  CONTEST_ERROR_RE.lastIndex = 0;
+  const tail = String(text ?? '').slice(endIndex).replace(CONTEST_ERROR_RE, '').trim();
+  return /^[*_`]*$/.test(tail);
+}
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
   const text = Array.isArray(message?.swipes) ? message.swipes[swipeId] : message?.message;
@@ -3086,12 +3096,18 @@ async function contestProcessMessage(message) {
   CONTEST_RAW_RE.lastIndex = 0;
   const matches = [...text.matchAll(CONTEST_RAW_RE)];
   if (!matches.length) return false;
-  // 原始请求永久保留给第一条显示正则；同楼已有结果或错误即代表已经结算，不能重复计算。
+  // 原始请求永久保留给第一条显示正则；已有成功结果不能重复计算。
+  // 旧版本可能因推理区未闭合开标签而追加了错误标签。错误不再作为永久锁：
+  // 若当前消息里能找到合法完整判定，就移除旧错误并自动恢复结算。
   CONTEST_RESULT_RE.lastIndex = 0;
   CONTEST_ERROR_RE.lastIndex = 0;
-  if (CONTEST_RESULT_RE.test(text) || CONTEST_ERROR_RE.test(text)) return false;
-  // 推理区与最终正文可能各带一份相同标签；始终只取最后一份（最终正文）计算。
-  const raw = matches[matches.length - 1][1].trim();
+  if (CONTEST_RESULT_RE.test(text)) return false;
+  const hasPreviousError = CONTEST_ERROR_RE.test(text);
+  const finalMatch = matches[matches.length - 1];
+  if (!contestHasOnlyIgnorableTail(text, finalMatch.index + finalMatch[0].length)) return false;
+  // 推理区与最终正文可能各带一份相同标签；始终只取最后一份完整的内层标签。
+  // CONTEST_RAW_RE 不跨越下一枚开标签，因此前方未闭合的推理标签不会吞掉正文。
+  const raw = finalMatch[1].trim();
   const retryKey = `${message.message_id}:${swipeId}:${contestHash(raw)}`;
   let replacement;
   try {
@@ -3110,11 +3126,14 @@ async function contestProcessMessage(message) {
     p._jmzqLastContest = result;
   } catch (error) {
     _contestReadRetries.delete(retryKey);
+    if (hasPreviousError) return false;
     replacement = contestErrorTag(error?.message || error);
     console.warn('[JMZQ] SPECIAL判定未执行：', error);
   }
   // 计算结果作为第二枚标签追加到正文末尾；不替换模型原始的待判定标签。
-  const next = `${text}${text.endsWith('\n') ? '' : '\n'}${replacement}`;
+  CONTEST_ERROR_RE.lastIndex = 0;
+  const cleanText = hasPreviousError ? text.replace(CONTEST_ERROR_RE, '').trimEnd() : text;
+  const next = `${cleanText}${cleanText.endsWith('\n') ? '' : '\n'}${replacement}`;
   await contestReplaceCurrentSwipe(message, next);
   return true;
 }
