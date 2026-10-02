@@ -1,17 +1,22 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.2.1/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.2.2/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.1';
-const WORLDBOOK_NAME = '缄默之秋3.1';
+const JMZQ_VERSION = '3.2.2';
+const WORLDBOOK_NAME = '缄默之秋3.2';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋-3.2-世界书',
+  '缄默之秋3.2世界书',
+  '缄默之秋-3.2',
+  // 兼容3.1世界书及旧存档。
+  '缄默之秋3.1',
   '缄默之秋-3.1-世界书',
   '缄默之秋3.1世界书',
   '缄默之秋-3.1',
-  // 兼容仍沿用旧文件名的既有存档。
+  // 兼容仍沿用3.0文件名的既有存档。
   '缄默之秋3.0',
   '缄默之秋-3.0-世界书',
   '缄默之秋3.0世界书',
@@ -770,6 +775,10 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <div class="jmzq-dot idle" id="jmzq-status-dot"></div>
           <span id="jmzq-status-text">已就绪，等待消息触发…</span>
         </div>
+        <div id="jmzq-worldbook-drift" style="display:none;margin:7px 0;padding:7px 8px;border:1px solid rgba(212,160,48,.45);background:rgba(212,160,48,.08);color:#c58a00;font-size:11px;line-height:1.5;border-radius:4px;align-items:center;justify-content:space-between;gap:8px;">
+          <span>世界书启用状况出现偏差</span>
+          <button class="jmzq-btn xs" id="jmzq-worldbook-sync-preset" style="flex:none;">同步预设机制</button>
+        </div>
         <div id="jmzq-stat-tags" class="jmzq-kv"></div>
         <div class="jmzq-active-head"><span>当前启用条目</span><span id="jmzq-active-count">等待读取</span></div>
         <div id="jmzq-active-entries" class="jmzq-active-entries"></div>
@@ -986,6 +995,8 @@ const bubble = p.document.getElementById('jmzq-bubble');
 const panel = p.document.getElementById('jmzq-panel');
 const statusDot = p.document.getElementById('jmzq-status-dot');
 const statusText = p.document.getElementById('jmzq-status-text');
+const worldbookDrift = p.document.getElementById('jmzq-worldbook-drift');
+const worldbookSyncPreset = p.document.getElementById('jmzq-worldbook-sync-preset');
 const statTags = p.document.getElementById('jmzq-stat-tags');
 const activeCount = p.document.getElementById('jmzq-active-count');
 const activeEntries = p.document.getElementById('jmzq-active-entries');
@@ -1076,16 +1087,17 @@ function showToast(msg) {
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
+const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
+function isConfigUrlBlacklisted(url) {
+  const value = String(url || '').toLowerCase();
+  return CONFIG_URL_BLACKLIST.some(kw => value.includes(kw)) ||
+    CONFIG_URL_BLACKLIST_PATTERNS.some(pattern => pattern.test(value));
+}
 
 function checkConfig() {
   try {
     updateBackendCode();
-
-    // 配置兼容检测
-    const apiUrl = getMainApiUrl().toLowerCase();
-    if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) { /* 白名单放行 */ }
-    else if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return;
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     if (!model) {
       const cs = SillyTavern.chatCompletionSettings || {};
@@ -1976,10 +1988,11 @@ function ewcReadRequestMeta(init) {
 }
 
 function ewcRequestBlockReason(requestMeta) {
+  // 只检查这一次请求体明确携带的目标URL。不得回退扫描酒馆设置、
+  // Connection Manager配置或历史保存的API，否则未启用连接也会误判。
   const explicitApiUrl = String(requestMeta?.apiUrl || '').toLowerCase();
-  const stableApiUrl = String(explicitApiUrl || getMainApiUrl() || '').toLowerCase();
-  if (stableApiUrl && CONFIG_URL_WHITELIST.some(kw => stableApiUrl.includes(kw))) return '';
-  if (stableApiUrl && CONFIG_URL_BLACKLIST.some(kw => stableApiUrl.includes(kw))) return 'url';
+  if (explicitApiUrl && CONFIG_URL_WHITELIST.some(kw => explicitApiUrl.includes(kw))) return '';
+  if (explicitApiUrl && isConfigUrlBlacklisted(explicitApiUrl)) return 'url';
 
   const explicitModel = String(requestMeta?.model || '').toLowerCase();
   if (!explicitModel) return '';
@@ -5284,7 +5297,80 @@ var MANAGED_ENTRIES = new Set([
   SUPER_EVENT_UPDATE_ENTRY, SUPER_EVENT_CATALOG_ENTRY,
 ]);
 
-async function applyToWorldbook(enableSet, wbName, nat, sd) {
+// 保存小助手上次实际写入的启用快照。玩家手动开关条目后，
+// 当前状态会与快照产生偏差；此时只提示，不擅自覆盖玩家选择。
+const _worldbookBaselines = new Map();
+const _worldbookManualOverrides = new Map();
+function worldbookBaselineKey(wbName) {
+  return `jmzq-worldbook-baseline:${wbName}`;
+}
+function worldbookOverridesKey(wbName) {
+  return `jmzq-worldbook-overrides:${wbName}`;
+}
+function snapshotWorldbookEnabled(entries) {
+  const snapshot = {};
+  for (const entry of entries || []) {
+    const name = entry.comment || entry.name || entry.title || '';
+    if (!name) continue;
+    snapshot[name] = entry.enabled === true || entry.disable === false;
+  }
+  return snapshot;
+}
+function loadWorldbookBaseline(wbName) {
+  if (_worldbookBaselines.has(wbName)) return _worldbookBaselines.get(wbName);
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(worldbookBaselineKey(wbName)) || 'null');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      _worldbookBaselines.set(wbName, parsed);
+      return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+function saveWorldbookBaseline(wbName, entries) {
+  const snapshot = snapshotWorldbookEnabled(entries);
+  _worldbookBaselines.set(wbName, snapshot);
+  try { p.localStorage?.setItem(worldbookBaselineKey(wbName), JSON.stringify(snapshot)); } catch (_) {}
+  return snapshot;
+}
+function loadWorldbookOverrides(wbName) {
+  if (_worldbookManualOverrides.has(wbName)) return { ..._worldbookManualOverrides.get(wbName) };
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(worldbookOverridesKey(wbName)) || 'null');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      _worldbookManualOverrides.set(wbName, parsed);
+      return { ...parsed };
+    }
+  } catch (_) {}
+  return {};
+}
+function saveWorldbookOverrides(wbName, overrides) {
+  const clean = { ...overrides };
+  _worldbookManualOverrides.set(wbName, clean);
+  try { p.localStorage?.setItem(worldbookOverridesKey(wbName), JSON.stringify(clean)); } catch (_) {}
+  return clean;
+}
+function findWorldbookDrift(entries, baseline) {
+  if (!baseline) return [];
+  const current = snapshotWorldbookEnabled(entries);
+  const names = new Set([...Object.keys(baseline), ...Object.keys(current)]);
+  return [...names].filter(name => current[name] !== baseline[name]);
+}
+
+async function checkWorldbookDrift() {
+  if (_runningPromise) return;
+  try {
+    const wbName = await api_resolveWorldbookName();
+    const baseline = loadWorldbookBaseline(wbName);
+    if (!baseline) return;
+    const entries = await api_getWorldbook(wbName);
+    if (!Array.isArray(entries)) return;
+    const driftEntries = findWorldbookDrift(entries, baseline);
+    if (driftEntries.length) autoSwitch();
+  } catch (_) {}
+}
+
+async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false) {
   if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
     throw new Error('TavernHelper 世界书接口不可用，请确认酒馆助手已启用');
   }
@@ -5298,9 +5384,51 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
   }
   if (!Array.isArray(entries)) throw new Error(`世界书“${wbName}”返回的数据不是条目数组`);
 
+  const baseline = loadWorldbookBaseline(wbName);
+  const currentSnapshot = snapshotWorldbookEnabled(entries);
+  const externalDrift = findWorldbookDrift(entries, baseline);
+  const storedOverrides = loadWorldbookOverrides(wbName);
+  let manualOverrides = forcePreset ? {} : storedOverrides;
+  if (!forcePreset) {
+    for (const name of externalDrift) {
+      const previous = manualOverrides[name];
+      const presetState = previous && typeof previous === 'object'
+        ? previous.preset === true
+        : baseline?.[name] === true;
+      manualOverrides[name] = { value: currentSnapshot[name] === true, preset: presetState };
+    }
+  }
   let changed = false;
   const enabledList = [];
   const disabledList = [];
+  if (forcePreset && baseline) {
+    const restoreNames = new Set([...Object.keys(storedOverrides), ...externalDrift]);
+    for (const entry of entries) {
+      const name = entry.comment || entry.name || entry.title || '';
+      if (!name || !restoreNames.has(name)) continue;
+      const stored = storedOverrides[name];
+      const baselineState = stored && typeof stored === 'object'
+        ? stored.preset === true
+        : baseline[name] === true;
+      const currentState = entry.enabled === true || entry.disable === false;
+      if (currentState === baselineState) continue;
+      entry.enabled = baselineState;
+      if ('disable' in entry) entry.disable = !baselineState;
+      changed = true;
+      (baselineState ? enabledList : disabledList).push(name);
+    }
+  }
+  function preserveManualState(name, desiredState) {
+    if (!Object.prototype.hasOwnProperty.call(manualOverrides, name)) return desiredState;
+    const stored = manualOverrides[name];
+    const manualState = stored && typeof stored === 'object' ? stored.value === true : stored === true;
+    if (manualState === desiredState) {
+      delete manualOverrides[name];
+      return desiredState;
+    }
+    manualOverrides[name] = { value: manualState, preset: desiredState };
+    return manualState;
+  }
   let sectionCountry = null;
   let sectionKind = null;
   const supportedCountries = new Set(['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非']);
@@ -5308,7 +5436,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
   for (const entry of entries) {
     const entryName = entry.comment || entry.name || entry.title || '';
     if (entryName === '[mvu_update]变量输出格式强化') {
-      const shouldEnable = getMvuCfg()?.更新方式 === '随AI输出';
+      const shouldEnable = preserveManualState(entryName, getMvuCfg()?.更新方式 === '随AI输出');
       const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
       entry.constant = true;
       entry.selective = false;
@@ -5348,6 +5476,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
 	    shouldEnable = stage === 4 && enableSet.has(entryName);
 	  }
     }
+    shouldEnable = preserveManualState(entryName, shouldEnable);
     let configMismatch = false;
     if (isNativeGreen) {
       const expectedKeys = [...new Set(nativeGreenKeys)];
@@ -5389,7 +5518,8 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
       !!parts[0] && !!parts[2] && parts[3] === '基础信息';
     if (!isCharacterDetail) continue;
 
-    const shouldEnable = !noDefinedRoleMode && !!nat && (parts[0] === nat || enableSet.has(detailName));
+    const shouldEnable = preserveManualState(detailName,
+      !noDefinedRoleMode && !!nat && (parts[0] === nat || enableSet.has(detailName)));
     const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
     if (stateMismatch) {
       entry.enabled = shouldEnable;
@@ -5407,8 +5537,12 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
     }
   }
 
+  saveWorldbookBaseline(wbName, entries);
+  manualOverrides = saveWorldbookOverrides(wbName, manualOverrides);
+  const manualEntries = Object.keys(manualOverrides);
+
   const activeEntries = entries
-    .filter(entry => entry.enabled === true && String(entry.content || '').trim().length > 0)
+    .filter(entry => (entry.enabled === true || entry.disable === false) && String(entry.content || '').trim().length > 0)
     .map(entry => entry.comment || entry.name || entry.title || '')
     .filter(Boolean);
 
@@ -5418,17 +5552,22 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
     wbNames: [wbName],
     totalEntries: entries.length,
     activeEntries,
+    preservedManualChanges: manualEntries.length > 0,
+    driftEntries: manualEntries,
   };
 }
 
 var _runningPromise = null;
 var _pendingSwitch  = false;
+var _forcePresetPending = false;
 var _debounceTimer  = null;
 var _postUpdateTimer = null;
 
-async function autoSwitch() {
+async function autoSwitch(options = {}) {
+  const forcePreset = options?.forcePreset === true;
   if (_runningPromise) {
     _pendingSwitch = true;
+    _forcePresetPending = _forcePresetPending || forcePreset;
     return _runningPromise;
   }
 
@@ -5456,7 +5595,7 @@ async function autoSwitch() {
       }
       const wbName = await api_resolveWorldbookName();
       const nationality = readNationality(sd);
-	  const result = await applyToWorldbook(enableSet, wbName, nationality, sd);
+	  const result = await applyToWorldbook(enableSet, wbName, nationality, sd, forcePreset);
       // 同步输出格式强化条目状态
       await syncOutputFormatFlag().catch(() => {});
       const logSummary = result.log.map(l =>
@@ -5482,6 +5621,8 @@ async function autoSwitch() {
         worldbookName: wbName,
         totalEntries: result.totalEntries,
         activeEntries: result.activeEntries,
+        preservedManualChanges: result.preservedManualChanges === true,
+        driftEntries: result.driftEntries || [],
       };
     } catch (err) {
       console.error('[JMZQ] 执行失败:', err);
@@ -5495,8 +5636,10 @@ async function autoSwitch() {
     bubble && bubble.classList.remove('running');
 
     if (_pendingSwitch) {
+      const forceNext = _forcePresetPending;
       _pendingSwitch = false;
-      setTimeout(() => autoSwitch(), 100);
+      _forcePresetPending = false;
+      setTimeout(() => autoSwitch({ forcePreset: forceNext }), 100);
     }
   }
 }
@@ -5635,7 +5778,14 @@ function refreshUI() {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   if (r.ok) {
-    statusDot.className = 'jmzq-dot ok';
+    statusDot.className = r.preservedManualChanges ? 'jmzq-dot idle' : 'jmzq-dot ok';
+    if (worldbookDrift) {
+      worldbookDrift.style.display = r.preservedManualChanges ? 'flex' : 'none';
+      const label = worldbookDrift.querySelector('span');
+      if (label) label.textContent = r.preservedManualChanges
+        ? `世界书启用状况出现偏差（${r.driftEntries?.length || 0}项）`
+        : '世界书启用状况出现偏差';
+    }
     statTags.innerHTML = [
       r.stat.phase   && `<span class="jmzq-tag">${r.stat.phase}</span>`,
       r.stat.nat     && `<span class="jmzq-tag">${r.stat.nat}</span>`,
@@ -5651,6 +5801,7 @@ function refreshUI() {
     }
   } else {
     statusDot.className = 'jmzq-dot err';
+    if (worldbookDrift) worldbookDrift.style.display = 'none';
     statTags.innerHTML = `<span class="jmzq-tag err">ERROR</span>`;
     if (activeCount) activeCount.textContent = '读取失败';
     if (activeEntries) activeEntries.innerHTML = `<span style="font-size:9px;color:#e74c3c;">${escapeHtml(r.error || '未知错误')}</span>`;
@@ -5662,7 +5813,7 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.1世界书由组装脚本生成，共 577 条（含锚点）。
+    // 当前可导入的缄默之秋3.2世界书由组装脚本生成，共 577 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
       const expected = 577;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
@@ -5675,6 +5826,16 @@ async function checkWorldbookCount() {
 
 // --- 事件绑定 ---
 refreshBtn.addEventListener('click', async () => { syncOutputFormatFlag().then(() => checkConfig()); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
+
+worldbookSyncPreset?.addEventListener('click', async () => {
+  worldbookSyncPreset.disabled = true;
+  try {
+    await autoSwitch({ forcePreset: true });
+    showToast('世界书已同步当前预设机制');
+  } finally {
+    worldbookSyncPreset.disabled = false;
+  }
+});
 
 const directorConfigInputs = [
   directorEnabledInput, directorIntensityInput, directorFatalInput, directorSurvivalInput,
@@ -5916,7 +6077,11 @@ ewcSyncMvuDom().catch(() => {});
 _jmzqPopulateWbSelect();
 syncOutputFormatFlag().then(() => checkConfig());
 // 每5秒自动检测一次配置（模型切换后呼吸灯自动跟上，无需打开面板）
-const configPollTimer = setInterval(() => { syncOutputFormatFlag().then(() => checkConfig()); updateBackendCode(); }, 5000);
+const configPollTimer = setInterval(() => {
+  syncOutputFormatFlag().then(() => checkConfig());
+  updateBackendCode();
+  checkWorldbookDrift();
+}, 5000);
 
 // 定时轮询 MVU/ZOD 状态，变化时自动切换世界书
 let _lastStatKey = '';
