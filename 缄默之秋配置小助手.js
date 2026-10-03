@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.4';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.4';
+const JMZQ_VERSION = '3.2.5';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.5';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
   'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
@@ -1099,7 +1099,7 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
 const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
@@ -1946,41 +1946,12 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// ── 兼容响应 ──
-function makeFakeCompletion(init) {
-  var isStream = true;
-  try {
-    if (init && init.body) {
-      var raw = typeof init.body === 'string' ? init.body : '';
-      if (raw) { var p = JSON.parse(raw); isStream = p.stream !== false; }
-    }
-  } catch(e) {}
-
-  var ts = Math.floor(Date.now() / 1000);
-  var model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || 'gpt-4';
-
-  if (isStream) {
-    var encoder = new TextEncoder();
-    var body = new ReadableStream({
-      start: function(ctrl) {
-        var chunk = JSON.stringify({
-          id: 'chatcmpl-' + ts, object: 'chat.completion.chunk', created: ts,
-          model: model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
-        });
-        ctrl.enqueue(encoder.encode('data: ' + chunk + '\n\n'));
-        ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
-        ctrl.close();
-      }
-    });
-    return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
-  } else {
-    var json = JSON.stringify({
-      id: 'chatcmpl-' + ts, object: 'chat.completion', created: ts,
-      model: model, choices: [{ index: 0, message: { content: '' }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-    });
-    return new Response(json, { status: 200, headers: { 'Content-Type': 'application/json' } });
-  }
+// 命中黑名单后直接让原请求失败：不伪造空回复，也不产生可供后续链路处理的响应体。
+function makeBlockedRequestRejection(reason, requestMeta) {
+  const target = reason === 'url'
+    ? String(requestMeta?.apiUrl || '未知URL')
+    : String(requestMeta?.model || '未知模型');
+  return Promise.reject(new Error(`当前请求已被缄默之秋小助手拦截（${reason}）：${target}`));
 }
 
 function ewcReadRequestMeta(init) {
@@ -2027,7 +1998,8 @@ function ewcInjectFetchHook() {
       if (!isChatReq) return originalFetch(input, init);
 
       const requestMeta = ewcReadRequestMeta(init);
-      return ewcRequestBlockReason(requestMeta) ? makeFakeCompletion(init) : originalFetch(input, init);
+      const blockReason = ewcRequestBlockReason(requestMeta);
+      return blockReason ? makeBlockedRequestRejection(blockReason, requestMeta) : originalFetch(input, init);
     } catch(e) {}
     return originalFetch(input, init);
   };
