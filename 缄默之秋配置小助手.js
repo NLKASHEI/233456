@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.5';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.5';
+const JMZQ_VERSION = '3.2.6';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.6';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
   'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
@@ -1946,12 +1946,39 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// 命中黑名单后直接让原请求失败：不伪造空回复，也不产生可供后续链路处理的响应体。
-function makeBlockedRequestRejection(reason, requestMeta) {
-  const target = reason === 'url'
-    ? String(requestMeta?.apiUrl || '未知URL')
-    : String(requestMeta?.model || '未知模型');
-  return Promise.reject(new Error(`当前请求已被缄默之秋小助手拦截（${reason}）：${target}`));
+// ── 静默截断兼容响应 ──
+function makeFakeCompletion(init) {
+  var isStream = true;
+  try {
+    if (init && init.body) {
+      var raw = typeof init.body === 'string' ? init.body : '';
+      if (raw) { var bodyData = JSON.parse(raw); isStream = bodyData.stream !== false; }
+    }
+  } catch(e) {}
+
+  var ts = Math.floor(Date.now() / 1000);
+  var model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || 'gpt-4';
+  if (isStream) {
+    var encoder = new TextEncoder();
+    var streamBody = new ReadableStream({
+      start: function(ctrl) {
+        var chunk = JSON.stringify({
+          id: 'chatcmpl-' + ts, object: 'chat.completion.chunk', created: ts,
+          model: model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }]
+        });
+        ctrl.enqueue(encoder.encode('data: ' + chunk + '\n\n'));
+        ctrl.enqueue(encoder.encode('data: [DONE]\n\n'));
+        ctrl.close();
+      }
+    });
+    return new Response(streamBody, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  }
+  var json = JSON.stringify({
+    id: 'chatcmpl-' + ts, object: 'chat.completion', created: ts,
+    model: model, choices: [{ index: 0, message: { content: '' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  });
+  return new Response(json, { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
 function ewcReadRequestMeta(init) {
@@ -1999,7 +2026,7 @@ function ewcInjectFetchHook() {
 
       const requestMeta = ewcReadRequestMeta(init);
       const blockReason = ewcRequestBlockReason(requestMeta);
-      return blockReason ? makeBlockedRequestRejection(blockReason, requestMeta) : originalFetch(input, init);
+      return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
     } catch(e) {}
     return originalFetch(input, init);
   };
