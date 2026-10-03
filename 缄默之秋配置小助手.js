@@ -1,13 +1,13 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
+//   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
 const JMZQ_VERSION = '3.2.4';
-const JMZQ_RELEASE_MARKER = `JMZQ_RELEASE:${JMZQ_VERSION}`;
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.4';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
   'https://raw.githubusercontent.com/NLKASHEI/233456/main/缄默之秋配置小助手.min.js',
 ];
 const WORLDBOOK_NAME = '缄默之秋3.2';
