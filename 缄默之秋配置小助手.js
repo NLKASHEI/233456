@@ -1,9 +1,15 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v3.2.3/缄默之秋配置小助手.min.js'
+//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.3';
+const JMZQ_VERSION = '3.2.4';
+const JMZQ_RELEASE_MARKER = `JMZQ_RELEASE:${JMZQ_VERSION}`;
+const JMZQ_LATEST_SCRIPT_URLS = [
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
+  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/main/缄默之秋配置小助手.min.js',
+];
 const WORLDBOOK_NAME = '缄默之秋3.2';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
@@ -25,14 +31,19 @@ const WORLDBOOK_ALIASES = [
 const p = window.parent || window;
 
 // 防重复加载
-if (!p._jmzqLoaded) { p._jmzqLoaded = true;
+if (!p._jmzqLoaded) { p._jmzqLoaded = true; p._jmzqRelease = JMZQ_RELEASE_MARKER;
 
 // 清理旧实例
 {
   const old = ['jmzq-bubble', 'jmzq-panel', 'jmzq-style', 'jmzq-super-event-modal'];
   for (const id of old) { const el = p.document.getElementById(id); if (el) el.remove(); }
   if (typeof p._jmzqCleanup === 'function') try { p._jmzqCleanup(); } catch(e) {}
+  if (typeof p._jmzqWindowCleanup === 'function') {
+    try { window.removeEventListener('pagehide', p._jmzqWindowCleanup); } catch(e) {}
+    try { window.removeEventListener('beforeunload', p._jmzqWindowCleanup); } catch(e) {}
+  }
   delete p._jmzqCleanup;
+  delete p._jmzqWindowCleanup;
   delete p._jmzqLastResult;
 }
 
@@ -762,6 +773,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="绕过缓存拉取 @main 最新版">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -1005,6 +1017,7 @@ const manualWbLabel = p.document.getElementById('jmzq-manual-wb-label');
 const manualWbSelect = p.document.getElementById('jmzq-manual-wb-select');
 const manualWbApply = p.document.getElementById('jmzq-manual-wb-apply');
 const themeToggle = p.document.getElementById('jmzq-theme-toggle');
+const pullLatestBtn = p.document.getElementById('jmzq-pull-latest');
 const refreshBtn = p.document.getElementById('jmzq-refresh');
 const configStatus = p.document.getElementById('jmzq-config-status');
 const backendCode = p.document.getElementById('jmzq-backend-code');
@@ -4711,6 +4724,14 @@ const DARKLINE_ENTRIES = [
   '暗线主角/林青/基础信息',
   '[mvu_plot]暗线主角-引入与退场',
 ];
+const ARCANO_ENTRIES = [
+  '【金手指】质形重构-核心规则',
+  '【金手指】质形重构-亚空间与输出规范',
+  '【金手指】质形重构-生物质谱系（自带层）',
+  '[mvu_update]金手指-亚空间结算',
+  '[mvu_update]活动-分解',
+  '【金手指】质形重构-输出规范',
+];
 // 通用结算已由常驻变量更新规则覆盖；保留旧条目在管理集合中并主动关闭，避免重复提示。
 const ALWAYS_UPDATE_ENTRIES = [];
 const PHASE_UPDATE_ENTRIES = {
@@ -4808,6 +4829,11 @@ const NATIVE_GREEN_KEYWORDS = Object.freeze({
   '机制-建造庇护所': ['建造','搭建','修建','施工','扩建','加固','修缮','砌墙','铺设','安装设施','拆除建筑'],
   '机制-种田！我要种田！': ['种植','播种','浇水','施肥','收获作物','耕地','除草','育苗','移栽','翻土','农田'],
   '[mvu_update]物品完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','使用工具'],
+});
+
+// 与普通绿灯使用同一关键词结构，但总开关仍由可选扩展控制。
+const OPTIONAL_GREEN_KEYWORDS = Object.freeze({
+  '[mvu_update]活动-分解': ['分解','拆解','解构','解析','图谱','亚空间','质形重构','炼制','重组','提炼'],
 });
 
 const REQUIRED_BLUE_ENTRIES = new Set([
@@ -5003,6 +5029,8 @@ function buildEnableSet(sd, triggerText = '') {
     if (hasPregnancyFlow) ADULT_EXTRA_PREGNANCY_ENTRIES.forEach(e => enable.add(e));
   }
   if (extra.暗线主角 === true && !noDefinedRoleMode) DARKLINE_ENTRIES.forEach(e => enable.add(e));
+  // 质形重构完整隔离：只有变量开关明确为 true 时才启用六条独立规则。
+  if (extra.质形重构 === true) ARCANO_ENTRIES.forEach(e => enable.add(e));
 
   // 配方规范只在存在待审核项时加载，并按申请类别精确路由；审核完成删除
   // 预审项后自动关闭，避免日常制造长期携带整套配方知识。
@@ -5292,6 +5320,7 @@ var MANAGED_ENTRIES = new Set([
   ...ADULT_EXTRA_BASE_ENTRIES,
   ...ADULT_EXTRA_POST_OUTBREAK_ENTRIES,
   ...ADULT_EXTRA_PREGNANCY_ENTRIES,
+  ...ARCANO_ENTRIES,
   ...CONTRACT_MODE_ENTRIES,
   ...SUPER_EVENT_POOL.map(e => e.entry),
   SUPER_EVENT_UPDATE_ENTRY, SUPER_EVENT_CATALOG_ENTRY,
@@ -5461,14 +5490,17 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
     }
 
     const nativeGreenKeys = NATIVE_GREEN_KEYWORDS[entryName];
+    const optionalGreenKeys = OPTIONAL_GREEN_KEYWORDS[entryName];
     const isNativeGreen = Array.isArray(nativeGreenKeys);
+    const isOptionalGreen = Array.isArray(optionalGreenKeys);
     const isRequiredBlue = REQUIRED_BLUE_ENTRIES.has(entryName);
     const isManaged = MANAGED_ENTRIES.has(entryName);
     const isCountryExclusive = (sectionKind === '专有条目' || sectionKind === '势力发展') && !!sectionCountry;
     const factionDetail = FACTION_DETAIL_INDEX.get(entryName);
-    if (!isManaged && !isCountryExclusive && !isNativeGreen && !isRequiredBlue) continue;
+    if (!isManaged && !isCountryExclusive && !isNativeGreen && !isOptionalGreen && !isRequiredBlue) continue;
 
     let shouldEnable = (isNativeGreen || isRequiredBlue) ? true : (isManaged ? enableSet.has(entryName) : true);
+    if (isOptionalGreen) shouldEnable = enableSet.has(entryName);
     if (isCountryExclusive) {
       shouldEnable = sectionCountry === nat && (!isManaged || enableSet.has(entryName));
 	  if (factionDetail) {
@@ -5478,8 +5510,8 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
     }
     shouldEnable = preserveManualState(entryName, shouldEnable);
     let configMismatch = false;
-    if (isNativeGreen) {
-      const expectedKeys = [...new Set(nativeGreenKeys)];
+    if (isNativeGreen || isOptionalGreen) {
+      const expectedKeys = [...new Set(isOptionalGreen ? optionalGreenKeys : nativeGreenKeys)];
       configMismatch = entry.constant !== false || entry.selective !== true ||
         JSON.stringify(entry.key || []) !== JSON.stringify(expectedKeys) ||
         Number(entry.scanDepth) !== 2 || entry.caseSensitive !== false || entry.matchWholeWords !== false;
@@ -5612,6 +5644,7 @@ async function autoSwitch(options = {}) {
           业火归途: sd.扩展内容?.业火归途 === true,
           瑟瑟加强: sd.扩展内容?.瑟瑟加强 === true,
           暗线主角: sd.扩展内容?.暗线主角 === true,
+          质形重构: sd.扩展内容?.质形重构 === true,
           当前活动: Array.isArray(sd.当前活动) ? sd.当前活动 : [],
           超事件: sd.超事件?.事件ID ? `${sd.超事件.事件ID} / 进展${sd.超事件.进展 ?? 0}%` : '未启用',
         },
@@ -5813,9 +5846,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.2世界书由组装脚本生成，共 577 条（含锚点）。
+    // 当前可导入的缄默之秋3.2世界书由组装脚本生成，共 585 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-      const expected = 577;
+    const expected = 585;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
@@ -5825,6 +5858,44 @@ async function checkWorldbookCount() {
 }
 
 // --- 事件绑定 ---
+let _jmzqPullingLatest = false;
+async function pullLatestHelper() {
+  if (_jmzqPullingLatest || !pullLatestBtn) return;
+  _jmzqPullingLatest = true;
+  pullLatestBtn.disabled = true;
+  pullLatestBtn.textContent = '拉取中';
+  showToast('正在绕过缓存拉取 @main 最新版…');
+  let lastError = null;
+  for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
+    const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now();
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const source = await response.text();
+      const remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
+      if (!remoteMarker) throw new Error('@main 仍是旧版，未发现版本标记');
+      const parts = version => version.split('.').map(value => Number(value) || 0);
+      const remote = parts(remoteMarker[1]);
+      const current = parts(JMZQ_VERSION);
+      const remoteIsOlder = remote.some((value, index) => value !== current[index] && value < current[index]
+        && remote.slice(0, index).every((prefix, prefixIndex) => prefix === current[prefixIndex]));
+      if (remoteIsOlder) throw new Error(`@main 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+      // 保留当前实例直至新模块真正开始执行；新版启动后会自行回收旧 DOM、定时器与监听器。
+      delete p._jmzqLoaded;
+      await import(url + '&jmzq_module=1');
+      return;
+    } catch (error) {
+      lastError = error;
+      p._jmzqLoaded = true;
+    }
+  }
+  _jmzqPullingLatest = false;
+  pullLatestBtn.disabled = false;
+  pullLatestBtn.textContent = '拉取';
+  showToast('拉取失败：' + (lastError?.message || '网络不可用'));
+}
+
+pullLatestBtn?.addEventListener('click', pullLatestHelper);
 refreshBtn.addEventListener('click', async () => { syncOutputFormatFlag().then(() => checkConfig()); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
 
 worldbookSyncPreset?.addEventListener('click', async () => {
@@ -6099,7 +6170,7 @@ const statPollTimer = setInterval(() => {
       .join(',');
     const superEventKey = `${sd.扩展内容?.超事件 === true}|${sd.超事件?.事件ID || ''}|${sd.超事件?.进展 ?? 0}|${sd.超事件?.已解决 === true}`;
     const factionKey = Object.entries(sd.势力发展 || {}).map(([name, value]) => `${name}:${value?.阶段 || ''}:${value?.进展 ?? 0}:${value?.已覆灭 === true}`).sort().join(',');
-    const key = `${sd.世界阶段}|${sd.环境?.时间 || ''}|${factionKey}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
+    const key = `${sd.世界阶段}|${sd.环境?.时间 || ''}|${factionKey}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${sd.扩展内容?.质形重构 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
     if (key !== _lastStatKey) {
       _lastStatKey = key;
       autoSwitch();
@@ -6164,6 +6235,7 @@ window._jmzqCleanupAll = function() {
     delete p._jmzqLoaded;
   } catch(e) {}
 };
+p._jmzqWindowCleanup = window._jmzqCleanupAll;
 window.addEventListener('pagehide', window._jmzqCleanupAll);
 window.addEventListener('beforeunload', window._jmzqCleanupAll);
 
