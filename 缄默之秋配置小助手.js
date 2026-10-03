@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.4';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.4';
+const JMZQ_VERSION = '3.2.6';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.6';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
   'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
@@ -1099,7 +1099,7 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
 const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
@@ -1946,22 +1946,21 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// ── 兼容响应 ──
+// ── 静默截断兼容响应 ──
 function makeFakeCompletion(init) {
   var isStream = true;
   try {
     if (init && init.body) {
       var raw = typeof init.body === 'string' ? init.body : '';
-      if (raw) { var p = JSON.parse(raw); isStream = p.stream !== false; }
+      if (raw) { var bodyData = JSON.parse(raw); isStream = bodyData.stream !== false; }
     }
   } catch(e) {}
 
   var ts = Math.floor(Date.now() / 1000);
   var model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || 'gpt-4';
-
   if (isStream) {
     var encoder = new TextEncoder();
-    var body = new ReadableStream({
+    var streamBody = new ReadableStream({
       start: function(ctrl) {
         var chunk = JSON.stringify({
           id: 'chatcmpl-' + ts, object: 'chat.completion.chunk', created: ts,
@@ -1972,15 +1971,14 @@ function makeFakeCompletion(init) {
         ctrl.close();
       }
     });
-    return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
-  } else {
-    var json = JSON.stringify({
-      id: 'chatcmpl-' + ts, object: 'chat.completion', created: ts,
-      model: model, choices: [{ index: 0, message: { content: '' }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
-    });
-    return new Response(json, { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(streamBody, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   }
+  var json = JSON.stringify({
+    id: 'chatcmpl-' + ts, object: 'chat.completion', created: ts,
+    model: model, choices: [{ index: 0, message: { content: '' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }
+  });
+  return new Response(json, { status: 200, headers: { 'Content-Type': 'application/json' } });
 }
 
 function ewcReadRequestMeta(init) {
@@ -2027,7 +2025,8 @@ function ewcInjectFetchHook() {
       if (!isChatReq) return originalFetch(input, init);
 
       const requestMeta = ewcReadRequestMeta(init);
-      return ewcRequestBlockReason(requestMeta) ? makeFakeCompletion(init) : originalFetch(input, init);
+      const blockReason = ewcRequestBlockReason(requestMeta);
+      return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
     } catch(e) {}
     return originalFetch(input, init);
   };
