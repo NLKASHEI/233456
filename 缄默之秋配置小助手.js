@@ -1,13 +1,29 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@v2.1.1/缄默之秋配置小助手.min.js'
+//   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '2.1.1';
-const WORLDBOOK_NAME = '缄默之秋3.0';
+const JMZQ_VERSION = '3.2.4';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.4';
+const JMZQ_LATEST_SCRIPT_URLS = [
+  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/master/缄默之秋配置小助手.min.js',
+];
+const WORLDBOOK_NAME = '缄默之秋3.2';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋-3.2-世界书',
+  '缄默之秋3.2世界书',
+  '缄默之秋-3.2',
+  // 兼容3.1世界书及旧存档。
+  '缄默之秋3.1',
+  '缄默之秋-3.1-世界书',
+  '缄默之秋3.1世界书',
+  '缄默之秋-3.1',
+  // 兼容仍沿用3.0文件名的既有存档。
+  '缄默之秋3.0',
   '缄默之秋-3.0-世界书',
   '缄默之秋3.0世界书',
   '缄默之秋-3.0',
@@ -15,14 +31,19 @@ const WORLDBOOK_ALIASES = [
 const p = window.parent || window;
 
 // 防重复加载
-if (!p._jmzqLoaded) { p._jmzqLoaded = true;
+if (!p._jmzqLoaded) { p._jmzqLoaded = true; p._jmzqRelease = JMZQ_RELEASE_MARKER;
 
 // 清理旧实例
 {
   const old = ['jmzq-bubble', 'jmzq-panel', 'jmzq-style', 'jmzq-super-event-modal'];
   for (const id of old) { const el = p.document.getElementById(id); if (el) el.remove(); }
   if (typeof p._jmzqCleanup === 'function') try { p._jmzqCleanup(); } catch(e) {}
+  if (typeof p._jmzqWindowCleanup === 'function') {
+    try { window.removeEventListener('pagehide', p._jmzqWindowCleanup); } catch(e) {}
+    try { window.removeEventListener('beforeunload', p._jmzqWindowCleanup); } catch(e) {}
+  }
   delete p._jmzqCleanup;
+  delete p._jmzqWindowCleanup;
   delete p._jmzqLastResult;
 }
 
@@ -191,15 +212,6 @@ async function api_replaceWorldbook(name, entriesModifier) {
   await entriesModifier(entries);
   await TavernHelper.replaceWorldbook(name, entries);
   return await api_getWorldbook(name);
-}
-
-// 正则操作（角色级别）
-async function api_getTavernRegexes() {
-  return await TavernHelper.getTavernRegexes({ type: 'character' });
-}
-async function api_updateTavernRegexes(modifier) {
-  if (typeof modifier !== 'function') throw new TypeError('正则修改器必须是函数');
-  return await TavernHelper.updateTavernRegexesWith(modifier, { type: 'character' });
 }
 
 // 角色脚本树操作
@@ -761,6 +773,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="绕过缓存拉取 @master 最新公开版">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -774,6 +787,10 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <div class="jmzq-dot idle" id="jmzq-status-dot"></div>
           <span id="jmzq-status-text">已就绪，等待消息触发…</span>
         </div>
+        <div id="jmzq-worldbook-drift" style="display:none;margin:7px 0;padding:7px 8px;border:1px solid rgba(212,160,48,.45);background:rgba(212,160,48,.08);color:#c58a00;font-size:11px;line-height:1.5;border-radius:4px;align-items:center;justify-content:space-between;gap:8px;">
+          <span>世界书启用状况出现偏差</span>
+          <button class="jmzq-btn xs" id="jmzq-worldbook-sync-preset" style="flex:none;">同步预设机制</button>
+        </div>
         <div id="jmzq-stat-tags" class="jmzq-kv"></div>
         <div class="jmzq-active-head"><span>当前启用条目</span><span id="jmzq-active-count">等待读取</span></div>
         <div id="jmzq-active-entries" class="jmzq-active-entries"></div>
@@ -784,6 +801,29 @@ p.document.body.insertAdjacentHTML('beforeend', `
             <button class="jmzq-btn xs" id="jmzq-manual-wb-apply">切换</button>
           </div>
         </div>
+      </div>
+      <div class="jmzq-section" id="jmzq-director-section">
+        <div class="jmzq-section-title">隐式剧情导演</div>
+        <label class="jmzq-mvu-check-row">
+          <input type="checkbox" id="jmzq-director-enabled"><span class="jmzq-mvu-check-box"></span><span>启用正文重点提醒</span>
+        </label>
+        <div class="jmzq-mvu-row" style="margin-top:7px;">
+          <label class="jmzq-mvu-label">导演强度</label>
+          <select class="jmzq-mvu-select" id="jmzq-director-intensity">
+            <option value="restrained">克制</option>
+            <option value="strict">严苛</option>
+            <option value="brutal">残酷</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 8px;margin-top:5px;">
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-fatal"><span class="jmzq-mvu-check-box"></span><span>致命后果</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-survival"><span class="jmzq-mvu-check-box"></span><span>生存压力</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-infected"><span class="jmzq-mvu-check-box"></span><span>感染者</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-npc"><span class="jmzq-mvu-check-box"></span><span>人物关系</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-camp"><span class="jmzq-mvu-check-box"></span><span>营地经营</span></label>
+          <label class="jmzq-mvu-check-row"><input type="checkbox" id="jmzq-director-world"><span class="jmzq-mvu-check-box"></span><span>环境局势</span></label>
+        </div>
+        <div id="jmzq-director-status" style="font-size:10px;color:#8a7060;margin-top:7px;line-height:1.6;overflow-wrap:anywhere;">静默待机</div>
       </div>
       <div class="jmzq-section">
         <div class="jmzq-section-title">提示词模板</div>
@@ -967,6 +1007,8 @@ const bubble = p.document.getElementById('jmzq-bubble');
 const panel = p.document.getElementById('jmzq-panel');
 const statusDot = p.document.getElementById('jmzq-status-dot');
 const statusText = p.document.getElementById('jmzq-status-text');
+const worldbookDrift = p.document.getElementById('jmzq-worldbook-drift');
+const worldbookSyncPreset = p.document.getElementById('jmzq-worldbook-sync-preset');
 const statTags = p.document.getElementById('jmzq-stat-tags');
 const activeCount = p.document.getElementById('jmzq-active-count');
 const activeEntries = p.document.getElementById('jmzq-active-entries');
@@ -975,9 +1017,19 @@ const manualWbLabel = p.document.getElementById('jmzq-manual-wb-label');
 const manualWbSelect = p.document.getElementById('jmzq-manual-wb-select');
 const manualWbApply = p.document.getElementById('jmzq-manual-wb-apply');
 const themeToggle = p.document.getElementById('jmzq-theme-toggle');
+const pullLatestBtn = p.document.getElementById('jmzq-pull-latest');
 const refreshBtn = p.document.getElementById('jmzq-refresh');
 const configStatus = p.document.getElementById('jmzq-config-status');
 const backendCode = p.document.getElementById('jmzq-backend-code');
+const directorEnabledInput = p.document.getElementById('jmzq-director-enabled');
+const directorIntensityInput = p.document.getElementById('jmzq-director-intensity');
+const directorFatalInput = p.document.getElementById('jmzq-director-fatal');
+const directorSurvivalInput = p.document.getElementById('jmzq-director-survival');
+const directorInfectedInput = p.document.getElementById('jmzq-director-infected');
+const directorNpcInput = p.document.getElementById('jmzq-director-npc');
+const directorCampInput = p.document.getElementById('jmzq-director-camp');
+const directorWorldInput = p.document.getElementById('jmzq-director-world');
+const directorStatus = p.document.getElementById('jmzq-director-status');
 const mvuSection = p.document.getElementById('jmzq-mvu-section');
 const mvuUpdateMode = p.document.getElementById('jmzq-mvu-update-mode');
 const mvuModelSource = p.document.getElementById('jmzq-mvu-model-source');
@@ -1048,16 +1100,17 @@ function showToast(msg) {
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','chr1','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
+const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
+function isConfigUrlBlacklisted(url) {
+  const value = String(url || '').toLowerCase();
+  return CONFIG_URL_BLACKLIST.some(kw => value.includes(kw)) ||
+    CONFIG_URL_BLACKLIST_PATTERNS.some(pattern => pattern.test(value));
+}
 
 function checkConfig() {
   try {
     updateBackendCode();
-
-    // 静默截断检测：URL/模型黑名单 → 只控制 fetch 劫持，不提示用户
-    const apiUrl = getMainApiUrl().toLowerCase();
-    if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) { /* 白名单放行 */ }
-    else if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return;
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     if (!model) {
       const cs = SillyTavern.chatCompletionSettings || {};
@@ -1113,7 +1166,10 @@ function checkConfig() {
   }
 }
 
-function getMvuCfg() { return SillyTavern.extensionSettings.mvu_settings; }
+function getMvuCfg() {
+  try { return (typeof SillyTavern !== 'undefined' ? SillyTavern.extensionSettings?.mvu_settings : null) || contestContext()?.extensionSettings?.mvu_settings; }
+  catch (_) { return undefined; }
+}
 
 // 从 chatCompletionSettings 推断模型名（getChatCompletionModel 不可用时的回退）
 function inferModelFromSettings(settings) {
@@ -1201,19 +1257,8 @@ function getMainApiUrl() {
         const spUrl = sp && sp['api-url'];
         if (spUrl && typeof spUrl === 'string' && spUrl.startsWith('http')) return spUrl;
       }
-      // 读取 MVU 额外模型的 API 地址，用于排除
-      let extraUrl = '';
-      try {
-        const mvuCfg = SillyTavern.extensionSettings.mvu_settings;
-        if (mvuCfg && mvuCfg.额外模型解析配置 && mvuCfg.额外模型解析配置.api地址) {
-          extraUrl = mvuCfg.额外模型解析配置.api地址.replace(/\/+$/, '').toLowerCase();
-        }
-      } catch(e) {}
-      // 返回第一个不等于额外模型 URL 的 profile
-      for (const prof of profiles) {
-        const profUrl = (prof['api-url'] || '').replace(/\/+$/, '').toLowerCase();
-        if (profUrl && profUrl !== extraUrl) return prof['api-url'];
-      }
+      // selectedProfile 尚未恢复时不能随便取列表第一项；那可能是旧配置或
+      // MVU额外模型，开局阶段会造成一次性的黑名单误判。
     }
     // 2. chatCompletionSettings（跳过 ST 本地代理地址，只取真实第三方 API URL）
     const cs = SillyTavern.chatCompletionSettings || {};
@@ -1901,7 +1946,7 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// ── 伪造 OpenAI 空响应（零报错，零网络请求） ──
+// ── 兼容响应 ──
 function makeFakeCompletion(init) {
   var isStream = true;
   try {
@@ -1938,31 +1983,66 @@ function makeFakeCompletion(init) {
   }
 }
 
-// ── Fetch 劫持：黑名单命中时返回伪造的空 OpenAI 响应 ──
+function ewcReadRequestMeta(init) {
+  const result = { model: '', apiUrl: '' };
+  try {
+    if (!init || typeof init.body !== 'string' || !init.body.trim()) return result;
+    const body = JSON.parse(init.body);
+    const modelKeys = ['model', 'chat_completion_model', 'custom_model', 'openai_model', 'claude_model'];
+    const urlKeys = ['reverse_proxy', 'server_url', 'custom_url', 'api_url', 'base_url'];
+    for (const key of modelKeys) {
+      if (typeof body?.[key] === 'string' && body[key].trim()) { result.model = body[key].trim(); break; }
+    }
+    for (const key of urlKeys) {
+      if (typeof body?.[key] === 'string' && body[key].trim()) { result.apiUrl = body[key].trim(); break; }
+    }
+  } catch (e) {}
+  return result;
+}
+
+function ewcRequestBlockReason(requestMeta) {
+  // 只检查这一次请求体明确携带的目标URL。不得回退扫描酒馆设置、
+  // Connection Manager配置或历史保存的API，否则未启用连接也会误判。
+  const explicitApiUrl = String(requestMeta?.apiUrl || '').toLowerCase();
+  if (explicitApiUrl && CONFIG_URL_WHITELIST.some(kw => explicitApiUrl.includes(kw))) return '';
+  if (explicitApiUrl && isConfigUrlBlacklisted(explicitApiUrl)) return 'url';
+
+  const explicitModel = String(requestMeta?.model || '').toLowerCase();
+  if (!explicitModel) return '';
+  return CONFIG_BLACKLIST.some(kw => explicitModel.includes(String(kw).toLowerCase())) ? 'model' : '';
+}
+
+// ── 请求兼容处理 ──
 function ewcInjectFetchHook() {
-  const _origFetch = p.fetch.bind(p);
-  p.fetch = function(input, init) {
+  if (typeof p.fetch !== 'function') return;
+  // 同一页面脚本重建时先拆掉自己的上一层，防止旧配置继续拦截新请求。
+  if (p._jmzqFetchHook && p.fetch === p._jmzqFetchHook && typeof p._jmzqFetchOriginal === 'function') {
+    p.fetch = p._jmzqFetchOriginal;
+  }
+  const originalFetch = p.fetch.bind(p);
+  const fetchHook = function(input, init) {
     try {
       const url = typeof input === 'string' ? input : (input?.url || '');
       const isChatReq = url.includes('/api/backends/chat-completions/') || url.includes('/api/connections/generate');
-      if (!isChatReq) return _origFetch(input, init);
+      if (!isChatReq) return originalFetch(input, init);
 
-      const apiUrl = getMainApiUrl().toLowerCase();
-      if (!apiUrl) return _origFetch(input, init);
-      // 1) URL白名单优先 → 官方源直接放行
-      if (CONFIG_URL_WHITELIST.some(kw => apiUrl.includes(kw))) return _origFetch(input, init);
-      // 2) URL黑名单检测 → 伪造空响应
-      if (CONFIG_URL_BLACKLIST.some(kw => apiUrl.includes(kw))) return makeFakeCompletion(init);
-
-      const mainModel = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
-      const isBlocked = CONFIG_BLACKLIST.some(kw => mainModel.includes(kw));
-      if (!isBlocked) return _origFetch(input, init);
-
-      // 模型名命中黑名单 → 伪造空响应
-      return makeFakeCompletion(init);
+      const requestMeta = ewcReadRequestMeta(init);
+      return ewcRequestBlockReason(requestMeta) ? makeFakeCompletion(init) : originalFetch(input, init);
     } catch(e) {}
-    return _origFetch(input, init);
+    return originalFetch(input, init);
   };
+  p._jmzqFetchOriginal = originalFetch;
+  p._jmzqFetchHook = fetchHook;
+  p.fetch = fetchHook;
+}
+function ewcRestoreFetchHook() {
+  try {
+    if (p._jmzqFetchHook && p.fetch === p._jmzqFetchHook && typeof p._jmzqFetchOriginal === 'function') {
+      p.fetch = p._jmzqFetchOriginal;
+    }
+    delete p._jmzqFetchHook;
+    delete p._jmzqFetchOriginal;
+  } catch (e) {}
 }
 
 // 保存到磁盘
@@ -2750,13 +2830,22 @@ function getLatestMvuData() {
 // 正文只提交最短判定标签；本地助手读取玩家SPECIAL并完成稳定计算。
 // 结果写回产生标签的当前消息页，下一次正文生成时再作为尾部system提示注入。
 const CONTEST_PROMPT_ID = 'jmzq-special-contest-result';
-const CONTEST_RAW_RE = /<DY_CONTEST>([\s\S]*?)<\/DY_CONTEST>/g;
-const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+id="([^"]+)"\s+type="([^"]+)"\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
-const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR\s+id="([^"]*)">([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
-const CONTEST_APPLIED_RE = /<DY_CONTEST_APPLIED\s+id="([^"]+)"\s*\/>/g;
+// 不允许一个判定块跨过下一枚开标签。部分模型会在隐藏推理里先泄漏一个
+// 未闭合的 <DY_CONTEST>，随后才在最终正文末尾输出真正的完整标签；普通的
+// 非贪婪匹配仍会从前一个开标签吃到后一个闭标签，进而把整段正文误当 JSON。
+const CONTEST_RAW_RE = /<DY_CONTEST\s*>((?:(?!<DY_CONTEST\s*>)[\s\S])*?)<\/DY_CONTEST\s*>/gi;
+const CONTEST_RESULT_RE = /<DY_CONTEST_RESULT\s+type="([^"]+)"(?:\s+mode="([^"]+)")?\s+delta="([^"]+)"\s+gap="([^"]+)"\s+chance="(\d+)"\s+roll="(\d+)"\s+result="([^"]+)">([\s\S]*?)<\/DY_CONTEST_RESULT>/g;
+const CONTEST_ERROR_RE = /<DY_CONTEST_ERROR>([\s\S]*?)<\/DY_CONTEST_ERROR>/g;
+const CONTEST_APPLIED_RE = /<!--DY_CONTEST_APPLIED-->/g;
 const CONTEST_ATTR = Object.freeze({
   S: '力量', P: '感知', E: '耐力', C: '魅力', I: '智力', A: '敏捷', L: '意志',
 });
+const CONTEST_WEIGHTS = Object.freeze({
+  1: [1],
+  2: [0.7, 0.3],
+  3: [0.6, 0.25, 0.15],
+});
+const CONTEST_MODE_LABEL = Object.freeze({ single: '单项', blend: '综合', gate: '门槛' });
 const CONTEST_CHANCE = Object.freeze({
   '-7': 0, '-6': 1, '-5': 3, '-4': 8, '-3': 15, '-2': 27, '-1': 40,
   '0': 50, '1': 60, '2': 73, '3': 85, '4': 92, '5': 97, '6': 99, '7': 100,
@@ -2771,7 +2860,17 @@ const CONTEST_RESULT_MEANING = Object.freeze({
 let _contestScanTimer = null;
 let _contestPromptActive = false;
 let _contestProcessing = false;
-const _contestReadRetries = new Map();
+let _contestWritingMessage = false;
+// 骰子与导演共用读改写队列，进入队列后才读取最新正文。
+let _assistantMessageWriteChain = Promise.resolve();
+function queueAssistantMessageWrite(task) {
+  const pending = _assistantMessageWriteChain.catch(() => {}).then(task);
+  _assistantMessageWriteChain = pending;
+  return pending;
+}
+let _contestGenerationActive = false;
+let _contestScanPending = false;
+let _contestScanFullHistory = true;
 
 function contestApi() {
   try {
@@ -2826,30 +2925,115 @@ function contestOutcome(chance, roll) {
   if (chance <= 0) return '大失败';
   if (chance >= 100) return '大成功';
   const margin = chance - roll;
-  if (margin >= 30) return '大成功';
+  // 大成功必须有明显余裕，避免中高成功率下频繁泛滥；普通成功仍按达到成功线处理。
+  if (margin >= 40) return '大成功';
   if (margin >= 0) return '小成功';
   if (margin >= -5) return '两败俱伤';
   if (margin >= -30) return '小失败';
   return '大失败';
 }
-function contestReadPlayerSpecial(type) {
-  const data = getLatestMvuData();
+function contestReadNumericSpecial(raw) {
+  // 兼容旧版 MVU 的 ValueWithDescription: [实际值, "说明"]。
+  // 新版 ZOD 保存的是裸数字；两种形状都只读取实际数值，不让描述参与计算。
+  let value = raw;
+  if (Array.isArray(value) && value.length === 2 && typeof value[1] === 'string') value = value[0];
+  if (value && typeof value === 'object' && !Array.isArray(value) && Object.prototype.hasOwnProperty.call(value, 'value')) value = value.value;
+  const number = Number(value);
+  return Number.isFinite(number) ? contestClamp(number, -10, 10) : null;
+}
+function contestReadPlayerSpecial(type, sourceMessageId) {
+  // 只同步读取已存在的快照，不等待本轮MVU；最新消息为空时沿历史找最近的SPECIAL。
+  let data = null;
+  if (Number.isInteger(sourceMessageId)) {
+    const messages = contestListMessages().filter(item => item.message_id <= sourceMessageId).reverse();
+    for (const message of messages) {
+      let snapshot = message.data;
+      try { snapshot = p.Mvu?.getMvuData?.({ type: 'message', message_id: message.message_id }) || snapshot; } catch (_) {}
+      if (snapshot?.stat_data?.SPECIAL) { data = snapshot; break; }
+    }
+  }
+  if (!data) data = getLatestMvuData();
   const stat = data?.stat_data || data;
   const special = stat?.SPECIAL;
   if (!special || typeof special !== 'object') return null;
-  // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
-  const raw = type === 'L' ? (special.L ?? special.W) : special[type];
-  const number = Number(raw);
-  return Number.isFinite(number) ? contestClamp(number, -10, 10) : null;
+  const result = {};
+  for (const attr of String(type || '')) {
+    // 只为旧存档兼容幸运曾写成W；新结果与新变量一律使用L。
+    const aliases = attr === 'L'
+      ? [special.L, special.W, special.l, special.w, special.意志]
+      : [special[attr], special[attr.toLowerCase()], special[CONTEST_ATTR[attr]]];
+    let number = null;
+    for (const raw of aliases) {
+      if (raw == null) continue;
+      number = contestReadNumericSpecial(raw);
+      if (number != null) break;
+    }
+    if (number == null) return null;
+    result[attr] = number;
+  }
+  return type.length === 1 ? result[type] : result;
+}
+function contestTypeLabel(type) {
+  const attrs = String(type || '').split('');
+  if (attrs.length === 1) return `${attrs[0]}·${CONTEST_ATTR[attrs[0]]}`;
+  return attrs.map((attr, index) => `${attr}·${CONTEST_ATTR[attr]}${index === 0 ? '主' : index === 1 ? '辅' : '补'}`).join(' / ');
+}
+function contestNormalizeValues(raw, attrs, owner) {
+  if (attrs.length === 1) {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < -10 || value > 10) throw new Error(`${owner}的value必须在-10至10之间`);
+    return { [attrs[0]]: value };
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(`${owner}的values必须包含${attrs.join('/')}对应数值`);
+  const result = {};
+  for (const attr of attrs) {
+    const value = Number(raw[attr]);
+    if (!Number.isFinite(value) || value < -10 || value > 10) throw new Error(`${owner}的values.${attr}必须在-10至10之间`);
+    result[attr] = value;
+  }
+  return result;
+}
+function contestCompositeScore(values, attrs, mode) {
+  const weights = CONTEST_WEIGHTS[attrs.length];
+  const weighted = attrs.reduce((sum, attr, index) => sum + contestClamp(values[attr], -10, 10) * weights[index], 0);
+  if (mode !== 'gate' || attrs.length === 1) return weighted;
+  const bottleneck = Math.min(...attrs.map(attr => contestClamp(values[attr], -10, 10)));
+  return bottleneck * 0.65 + weighted * 0.35;
+}
+function contestNormalizeJsonSource(raw) {
+  let text = String(raw ?? '')
+    .replace(/^\uFEFF/, '')
+    .replace(/[\u200B-\u200D\u2060]/g, '')
+    .trim();
+  // 酒馆或 Markdown 渲染链有时会把标签内部包成代码围栏/粗体。
+  text = text
+    .replace(/^\*{1,2}\s*/, '')
+    .replace(/\s*\*{1,2}$/, '')
+    .replace(/^```(?:json|javascript|js)?\s*/i, '')
+    .replace(/\s*```$/, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .trim();
+  // getChatMessages 在部分酒馆/助手版本中可能返回实体化后的正文。
+  if (/&(?:quot|apos|amp|lt|gt|#34|#39|#x22|#x27);/i.test(text)) {
+    const textarea = p.document.createElement('textarea');
+    textarea.innerHTML = text;
+    text = textarea.value.trim();
+  }
+  return text;
 }
 function contestValidatePayload(raw) {
   let value;
-  try { value = JSON.parse(raw); } catch (e) { throw new Error('判定标签中的JSON无法解析'); }
+  const source = contestNormalizeJsonSource(raw);
+  try { value = JSON.parse(source); }
+  catch (e) { throw new Error('判定标签中的JSON无法解析'); }
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('判定内容必须是JSON对象');
-  const id = String(value.id ?? '').trim();
-  if (!/^[A-Za-z0-9_.:-]{1,80}$/.test(id)) throw new Error('判定id只能使用字母、数字、点、冒号、下划线或短横线');
   const type = String(value.type ?? '').toUpperCase();
-  if (!Object.prototype.hasOwnProperty.call(CONTEST_ATTR, type)) throw new Error('type必须是S/P/E/C/I/A/L之一');
+  const attrs = type.split('');
+  if (attrs.length < 1 || attrs.length > 3 || new Set(attrs).size !== attrs.length || attrs.some(attr => !Object.prototype.hasOwnProperty.call(CONTEST_ATTR, attr))) {
+    throw new Error('type必须由1至3个不重复的S/P/E/C/I/A/L组成');
+  }
+  const mode = attrs.length === 1 ? 'single' : String(value.mode ?? 'blend').toLowerCase();
+  if (!['single', 'blend', 'gate'].includes(mode) || (attrs.length > 1 && mode === 'single')) throw new Error('复合判定mode必须是blend或gate');
   const scene = contestEscapeText(value.scene, 180);
   if (!scene) throw new Error('scene不能为空');
   const playerMod = value.playerMod == null ? 0 : Number(value.playerMod);
@@ -2859,13 +3043,35 @@ function contestValidatePayload(raw) {
     if (!enemy || typeof enemy !== 'object' || Array.isArray(enemy)) throw new Error(`第${index + 1}名敌人格式无效`);
     const name = contestEscapeText(enemy.name, 48);
     if (!name) throw new Error(`第${index + 1}名敌人缺少name`);
-    const enemyValue = Number(enemy.value);
-    if (!Number.isFinite(enemyValue) || enemyValue < -10 || enemyValue > 10) throw new Error(`${name}的value必须在-10至10之间`);
+    const values = contestNormalizeValues(attrs.length === 1 ? enemy.value : enemy.values, attrs, name);
     const mod = enemy.mod == null ? 0 : Number(enemy.mod);
     if (!Number.isInteger(mod) || mod < -3 || mod > 3) throw new Error(`${name}的mod必须是-3至3的整数`);
-    return { name, value: enemyValue, mod };
+    return attrs.length === 1 ? { name, value: values[attrs[0]], mod } : { name, values, mod };
   });
-  return { id, type, scene, playerMod, enemies };
+  return { type, attrs, mode, scene, playerMod, enemies };
+}
+function contestBodyText(text) {
+  // 仅排除有明确边界的隐藏内容，不根据“后面还有文字”猜测标签来自推理。
+  return String(text ?? '')
+    .replace(/<(think|thinking|analysis|reasoning|logic_check)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi, '')
+    .replace(/<(UpdateVariable|UpdateVariables)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '');
+}
+function contestScanTags(body) {
+  const opened = [...body.matchAll(/<DY_CONTEST\s*>/gi)].length;
+  const complete = [...body.matchAll(CONTEST_RAW_RE)];
+  let selected = null, payload = null, invalid = 0;
+  // 先完整扫描，再从后向前校验。残缺尾标签和无法解析的候选不能挡住前面的有效判定。
+  for (let index = complete.length - 1; index >= 0; index -= 1) {
+    try {
+      payload = contestValidatePayload(complete[index][1].trim());
+      selected = complete[index];
+      break;
+    } catch (_) { invalid += 1; }
+  }
+  // 全部无效时交给原错误提示流程，不编造掷骰结果。
+  return { opened, complete: complete.length, incomplete: Math.max(0, opened - complete.length),
+    invalid, selected: selected || complete[complete.length - 1] || null, payload };
 }
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
@@ -2889,7 +3095,10 @@ function contestListMessages() {
 async function contestReplaceCurrentSwipe(message, nextText) {
   const api = contestApi();
   if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
-  await api.setChatMessages([{ message_id: message.message_id, message: nextText }], { refresh: 'affected' });
+  _contestWritingMessage = true;
+  try {
+    await api.setChatMessages([{ message_id: message.message_id, message: nextText }], { refresh: 'affected' });
+  } finally { _contestWritingMessage = false; }
 }
 function contestStoreKey() { return `jmzq-contest-v1:${contestChatId()}`; }
 function contestReadStore() {
@@ -2899,44 +3108,48 @@ function contestReadStore() {
   } catch (e) { return []; }
 }
 function contestWriteStore(records) {
-  try { p.localStorage?.setItem(contestStoreKey(), JSON.stringify(records.slice(-50))); } catch (e) {}
+  try { p.localStorage?.setItem(contestStoreKey(), JSON.stringify(records)); } catch (e) {}
 }
 function contestSaveRecord(record) {
   const records = contestReadStore().filter(item => item?.key !== record.key);
   records.push(record);
   contestWriteStore(records);
 }
-function contestHasDuplicateId(id, sourceMessageId, sourceSwipeId) {
-  return contestListMessages().some(message => {
-    const current = contestCurrentSwipe(message);
-    if (message.message_id === sourceMessageId && current.swipeId === sourceSwipeId) return false;
-    CONTEST_RESULT_RE.lastIndex = 0;
-    return [...current.text.matchAll(CONTEST_RESULT_RE)].some(match => match[1] === id);
-  });
-}
 function contestResultTag(result) {
   const delta = result.delta > 0 ? `+${result.delta}` : String(result.delta);
-  return `<DY_CONTEST_RESULT id="${contestEscapeAttr(result.id)}" type="${result.type}·${CONTEST_ATTR[result.type]}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
+  return `<DY_CONTEST_RESULT type="${contestEscapeAttr(result.typeLabel)}" mode="${contestEscapeAttr(result.modeLabel)}" delta="${delta}" gap="${result.gap}" chance="${result.chance}" roll="${result.roll}" result="${result.outcome}">${contestEscapeText(result.scene, 180)}</DY_CONTEST_RESULT>`;
 }
-function contestErrorTag(id, reason) {
-  return `<DY_CONTEST_ERROR id="${contestEscapeAttr(id || 'invalid')}">${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
+function contestInternalId(sourceMessageId, sourceSwipeId, raw) {
+  return `c_${Number(sourceMessageId) || 0}_${Number(sourceSwipeId) || 0}_${contestHash(raw).toString(36)}`;
+}
+function contestErrorTag(reason) {
+  return `<DY_CONTEST_ERROR>${contestEscapeText(reason || '判定标签无效', 180)}</DY_CONTEST_ERROR>`;
 }
 function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, raw) {
-  const playerEffective = contestClamp(playerBase + payload.playerMod, -10, 10);
-  const enemyValues = payload.enemies.map(enemy => contestClamp(enemy.value + enemy.mod, -10, 10));
-  const enemyAverage = enemyValues.reduce((sum, value) => sum + value, 0) / enemyValues.length;
+  const attrs = payload.attrs || payload.type.split('');
+  const mode = payload.mode || (attrs.length === 1 ? 'single' : 'blend');
+  const playerValues = attrs.length === 1 ? { [attrs[0]]: Number(playerBase) } : playerBase;
+  const playerComposite = contestCompositeScore(playerValues, attrs, mode);
+  const playerEffective = contestClamp(playerComposite + payload.playerMod, -10, 10);
+  const enemyScores = payload.enemies.map(enemy => {
+    const values = attrs.length === 1 ? { [attrs[0]]: enemy.value } : enemy.values;
+    return contestClamp(contestCompositeScore(values, attrs, mode) + enemy.mod, -10, 10);
+  });
+  const enemyAverage = enemyScores.reduce((sum, value) => sum + value, 0) / enemyScores.length;
   const deltaRaw = playerEffective - enemyAverage;
   const delta = contestClamp(contestSignedRound(deltaRaw), -7, 7);
   const chance = CONTEST_CHANCE[String(delta)];
   const contentHash = contestHash(raw);
-  const seed = `${contestChatId()}|${sourceMessageId}|${sourceSwipeId}|${payload.id}|${contentHash}`;
+  const id = contestInternalId(sourceMessageId, sourceSwipeId, raw);
+  const seed = `${contestChatId()}|${sourceMessageId}|${sourceSwipeId}|${contentHash}`;
   const roll = contestStableRoll(seed);
   const outcome = contestOutcome(chance, roll);
   const computedAt = Date.now();
   return {
-    id: payload.id, type: payload.type, scene: payload.scene,
-    playerBase, playerMod: payload.playerMod, playerEffective,
-    enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: enemyValues[index] })),
+    id, type: payload.type, typeLabel: contestTypeLabel(payload.type), mode, modeLabel: CONTEST_MODE_LABEL[mode], scene: payload.scene,
+    attrs, weights: CONTEST_WEIGHTS[attrs.length], playerBase, playerComposite: Math.round(playerComposite * 10) / 10,
+    playerMod: payload.playerMod, playerEffective: Math.round(playerEffective * 10) / 10,
+    enemies: payload.enemies.map((enemy, index) => ({ ...enemy, effective: Math.round(enemyScores[index] * 10) / 10 })),
     enemyCount: payload.enemies.length, enemyAverage: Math.round(enemyAverage * 10) / 10,
     deltaRaw: Math.round(deltaRaw * 10) / 10, delta,
     gap: contestGap(delta), gapTier: contestGap(delta),
@@ -2945,65 +3158,91 @@ function contestCalculate(payload, playerBase, sourceMessageId, sourceSwipeId, r
     sourceMessageId, sourceSwipeId, computedAt, createdAt: computedAt,
   };
 }
-async function contestProcessMessage(message) {
-  if (!message || message.role !== 'assistant') return false;
+function contestProcessMessage(message) {
+  const chatId = contestChatId();
+  const swipeId = contestCurrentSwipe(message).swipeId;
+  return queueAssistantMessageWrite(() => {
+    if (chatId !== contestChatId()) return false;
+    const current = contestListMessages().find(item => item.message_id === message?.message_id);
+    if (!current || contestCurrentSwipe(current).swipeId !== swipeId) return false;
+    return contestProcessMessageNow(current);
+  });
+}
+async function contestProcessMessageNow(message) {
+  if (_contestGenerationActive || !message || message.role !== 'assistant') return false;
   const { swipeId, text } = contestCurrentSwipe(message);
-  CONTEST_RAW_RE.lastIndex = 0;
-  const matches = [...text.matchAll(CONTEST_RAW_RE)];
-  if (!matches.length) return false;
-  // 原始请求永久保留给第一条显示正则；同楼已有结果或错误即代表已经结算，不能重复计算。
-  CONTEST_RESULT_RE.lastIndex = 0;
-  CONTEST_ERROR_RE.lastIndex = 0;
-  if (CONTEST_RESULT_RE.test(text) || CONTEST_ERROR_RE.test(text)) return false;
-  if (matches.length !== 1) {
-    const next = `${text}${text.endsWith('\n') ? '' : '\n'}${contestErrorTag('multiple', '一条正文只能提交一次对抗判定')}`;
-    await contestReplaceCurrentSwipe(message, next);
-    return true;
-  }
-  const raw = matches[0][1].trim();
-  const retryKey = `${message.message_id}:${swipeId}:${contestHash(raw)}`;
-  let replacement;
-  try {
-    const payload = contestValidatePayload(raw);
-    if (contestHasDuplicateId(payload.id, message.message_id, swipeId)) throw new Error('判定id已在其他消息中使用，请为新对抗生成唯一id');
-    const playerBase = contestReadPlayerSpecial(payload.type);
-    if (playerBase == null) {
-      const retry = (_contestReadRetries.get(retryKey) || 0) + 1;
-      _contestReadRetries.set(retryKey, retry);
-      if (retry <= 4) { contestScheduleScan(350 * retry); return true; }
-      throw new Error(`无法读取玩家SPECIAL.${payload.type}，请确认开局变量已完成初始化`);
+  const body = contestBodyText(text);
+  const scan = contestScanTags(body);
+  p._jmzqContestTagScan = { messageId: message.message_id, swipeId, opened: scan.opened,
+    complete: scan.complete, incomplete: scan.incomplete, invalid: scan.invalid,
+    selectedIndex: scan.selected?.index ?? null };
+  const requests = scan.selected ? [scan.selected] : [];
+  if (!requests.length) return false;
+  const settled = new Set([...text.matchAll(/<!--DY_CONTEST_DONE:([a-z0-9_]+)-->/g)].map(match => match[1]));
+  // 老版无请求标记：只有位于最终请求之后的旧结果才视为已结算。
+  const legacyResults = [...body.matchAll(CONTEST_RESULT_RE)];
+  const legacyResult = settled.size ? null : legacyResults[legacyResults.length - 1];
+  const additions = [];
+  let failed = false;
+  for (const match of requests) {
+    const raw = match[1].trim();
+    const id = contestInternalId(message.message_id, swipeId, raw);
+    const key = `${message.message_id}:${swipeId}:${contestHash(raw)}`;
+    const saved = contestReadStore().find(record => record.key === key);
+    if (saved) {
+      const savedTag = contestResultTag(saved);
+      if (!body.includes(savedTag)) additions.push(savedTag);
+      if (!settled.has(id)) additions.push(`<!--DY_CONTEST_DONE:${id}-->`);
+      p._jmzqLastContest = saved;
+      continue;
     }
-    _contestReadRetries.delete(retryKey);
-    const result = contestCalculate(payload, playerBase, message.message_id, swipeId, raw);
-    replacement = contestResultTag(result);
-    contestSaveRecord({ ...result, key: `${message.message_id}:${swipeId}:${contestHash(raw)}` });
-    p._jmzqLastContest = result;
-  } catch (error) {
-    _contestReadRetries.delete(retryKey);
-    let id = 'invalid';
-    try { id = String(JSON.parse(raw)?.id || 'invalid'); } catch (e) {}
-    replacement = contestErrorTag(id, error?.message || error);
-    console.warn('[JMZQ] SPECIAL判定未执行：', error);
+    // 缓存被清理但正文结果仍在时，也不能重复掷骰。
+    if (settled.has(id) && scan.payload && legacyResults.some(result =>
+      result[1] === contestTypeLabel(scan.payload.type) && result[8] === contestEscapeText(scan.payload.scene, 180))) continue;
+    if (legacyResult && legacyResult.index > match.index) { additions.push(`<!--DY_CONTEST_DONE:${id}-->`); continue; }
+    try {
+      const payload = scan.payload || contestValidatePayload(raw);
+      const playerBase = contestReadPlayerSpecial(payload.type, message.message_id);
+      if (playerBase == null) throw new Error(`没有可用的玩家SPECIAL.${payload.type}存档，无法计算判定`);
+      const result = contestCalculate(payload, playerBase, message.message_id, swipeId, raw);
+      additions.push(`${contestResultTag(result)}\n<!--DY_CONTEST_DONE:${id}-->`);
+      contestSaveRecord({ ...result, key });
+      p._jmzqLastContest = result;
+    } catch (error) {
+      failed = true;
+      const tag = contestErrorTag(error?.message || error);
+      if (!text.includes(tag) && !additions.includes(tag)) additions.push(tag);
+      console.warn('[JMZQ] SPECIAL判定未执行：', error);
+    }
   }
-  // 计算结果作为第二枚标签追加到正文末尾；不替换模型原始的待判定标签。
-  const next = `${text}${text.endsWith('\n') ? '' : '\n'}${replacement}`;
-  await contestReplaceCurrentSwipe(message, next);
+  if (!additions.length) return false;
+  const cleanText = failed ? text : text.replace(CONTEST_ERROR_RE, '').trimEnd();
+  await contestReplaceCurrentSwipe(message, `${cleanText}${cleanText.endsWith('\n') ? '' : '\n'}${additions.join('\n')}`);
   return true;
 }
 async function contestScanRecent() {
-  if (_contestProcessing) return;
+  if (_contestGenerationActive) return;
+  if (_contestProcessing) { _contestScanPending = true; return; }
   _contestProcessing = true;
   try {
-    const messages = contestListMessages();
-    const recent = messages.filter(message => message?.role === 'assistant').slice(-8).reverse();
-    for (const message of recent) {
-      if (await contestProcessMessage(message)) break;
-    }
+    do {
+      _contestScanPending = false;
+      const assistants = contestListMessages().filter(message => message?.role === 'assistant');
+      const recent = (_contestScanFullHistory ? assistants : assistants.slice(-8)).reverse();
+      _contestScanFullHistory = false;
+      for (const message of recent) {
+        if (_contestGenerationActive) break;
+        await contestProcessMessage(message);
+      }
+    } while (_contestScanPending && !_contestGenerationActive);
   } finally { _contestProcessing = false; }
 }
-function contestScheduleScan(delay = 80) {
-  clearTimeout(_contestScanTimer);
+function contestScheduleScan(delay = 0) {
+  if (_contestGenerationActive) return;
+  // 已排队的扫描不被连续事件一再往后推迟；这不是冷却。
+  if (_contestScanTimer !== null) return;
   _contestScanTimer = setTimeout(() => {
+    _contestScanTimer = null;
     contestScanRecent().catch(error => console.warn('[JMZQ] SPECIAL判定扫描失败：', error));
   }, delay);
 }
@@ -3013,7 +3252,8 @@ function contestParseResultFromText(text, messageId, swipeId) {
   if (!matches.length) return null;
   const match = matches[matches.length - 1];
   return {
-    id: match[1], typeLabel: match[2], delta: match[3], gap: match[4],
+    id: contestInternalId(messageId, swipeId, match[0]),
+    typeLabel: match[1], modeLabel: match[2] || '单项', delta: match[3], gap: match[4],
     chance: Number(match[5]), roll: Number(match[6]), outcome: match[7], scene: contestEscapeText(match[8], 180),
     sourceMessageId: messageId, sourceSwipeId: swipeId,
   };
@@ -3039,7 +3279,7 @@ function contestFindInjectableResult(isRegeneration) {
     const applied = laterAssistants.some(item => {
       const current = contestCurrentSwipe(item);
       CONTEST_APPLIED_RE.lastIndex = 0;
-      return [...current.text.matchAll(CONTEST_APPLIED_RE)].some(match => match[1] === result.id);
+      return CONTEST_APPLIED_RE.test(current.text);
     });
     return applied ? null : result;
   }
@@ -3060,7 +3300,7 @@ function contestInjectResult(result) {
   contestClearPrompt();
   if (!result) return;
   const meaning = CONTEST_RESULT_MEANING[result.outcome] || '';
-  const content = `<对抗判定结果 id="${contestEscapeAttr(result.id)}">\n场景：${result.scene}\n检定：${result.typeLabel}｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<DY_CONTEST_APPLIED id="${contestEscapeAttr(result.id)}"/>；该确认标记不属于叙事内容。\n</对抗判定结果>`;
+  const content = `<对抗判定结果>\n场景：${result.scene}\n检定：${result.typeLabel}｜${result.modeLabel}判定｜差级${result.delta}（${result.gap}）｜成功率${result.chance}%｜掷值${result.roll}\n最终结果：${result.outcome}\n执行含义：${meaning}\n本轮必须先把这个结果完整写成正文事实。不得重掷、改判、淡化、跳过或重新输出<DY_CONTEST>。只有完整落实后，才在正文最末尾原样输出<!--DY_CONTEST_APPLIED-->；该确认标记不属于叙事内容。\n</对抗判定结果>`;
   try {
     const fn = p.injectPrompts || (typeof injectPrompts === 'function' ? injectPrompts : null);
     if (typeof fn === 'function') {
@@ -3083,64 +3323,1163 @@ function contestIsRegeneration(args) {
   try { return /regenerat|swipe|retry|重新|重试/i.test(JSON.stringify(args)); } catch (e) { return false; }
 }
 function onContestBeforeGeneration(...args) {
+  _contestGenerationActive = true;
+  clearTimeout(_contestScanTimer);
+  _contestScanTimer = null;
   contestInjectResult(contestFindInjectableResult(contestIsRegeneration(args)));
+}
+function onContestGenerationStopped() {
+  _contestGenerationActive = false;
+  contestClearPrompt();
+}
+function onContestMessageChanged(messageId) {
+  // setChatMessages会等待渲染事件；这里不能再等待同一个写回队列，否则互相等待。
+  if (_contestGenerationActive || _contestWritingMessage || _directorWritingMessage) return;
+  const id = typeof messageId === 'number' ? messageId : /^\d+$/.test(String(messageId)) ? Number(messageId) : null;
+  const message = id == null ? null : contestListMessages().find(item => item.message_id === id);
+  if (message) {
+    return contestProcessMessage(message).catch(error => console.warn('[JMZQ] 判定标签补检失败：', error));
+  }
+  contestScheduleScan();
+}
+function onContestChatEntered() {
+  _contestGenerationActive = false;
+  _contestScanFullHistory = true;
+  contestScheduleScan();
 }
 function onContestGenerationFinished() {
   contestClearPrompt();
-  contestScheduleScan(120);
-  setTimeout(() => contestScheduleScan(0), 700);
+  _contestGenerationActive = false;
+  return contestScanRecent().catch(error => console.warn('[JMZQ] 正文完成后的SPECIAL判定失败：', error));
 }
 
-const CONTEST_PENDING_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-pending-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定请求',
-  findRegex: '/<DY_CONTEST>\\s*\\{\\s*"id"\\s*:\\s*"([^"]+)"\\s*,\\s*"type"\\s*:\\s*"([SPECIAL])"\\s*,\\s*"scene"\\s*:\\s*"([^"]+)"[\\s\\S]*?<\\/DY_CONTEST>/g',
-  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:13px 15px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 30%,transparent);border-left:4px solid #d99a35;border-radius:10px;background:color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 94%,#d99a35 6%);color:var(--SmartThemeBodyColor,#e8edf1);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.3px;color:#d99a35;font-weight:800">SPECIAL CONTEST · REQUEST</div><div style="margin-top:5px;font-size:16px;font-weight:750">$3</div></div><span style="padding:5px 9px;border:1px solid color-mix(in srgb,#d99a35 45%,transparent);border-radius:999px;font-size:12px;color:#d99a35">$2 · 待判定</span></div><div style="margin-top:8px;font-size:11px;opacity:.62">判定编号 $1</div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_RESULT_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-result-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定结果',
-  findRegex: '/<DY_CONTEST_RESULT\\s+id="([^"]+)"\\s+type="([^"]+)"\\s+delta="([^"]+)"\\s+gap="([^"]+)"\\s+chance="(\\d+)"\\s+roll="(\\d+)"\\s+result="([^"]+)">([\\s\\S]*?)<\\/DY_CONTEST_RESULT>/g',
-  replaceString: '<div style="box-sizing:border-box;margin:12px 0;padding:14px 16px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 55%,transparent);border-left:4px solid var(--SmartThemeQuoteColor,#d04a43);border-radius:10px;background:linear-gradient(135deg,color-mix(in srgb,var(--SmartThemeBlurTintColor,#111820) 92%,transparent),color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 8%,var(--SmartThemeBlurTintColor,#111820)));color:var(--SmartThemeBodyColor,#e8edf1);box-shadow:0 8px 24px rgba(0,0,0,.18);font-family:Inter,\'Microsoft YaHei\',sans-serif"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap"><div><div style="font-size:10px;letter-spacing:2.5px;color:var(--SmartThemeQuoteColor,#e05a52);font-weight:800">SPECIAL CONTEST · $1</div><div style="margin-top:5px;font-size:20px;font-weight:800">$7</div></div><div style="padding:5px 9px;border:1px solid color-mix(in srgb,var(--SmartThemeQuoteColor,#d04a43) 35%,transparent);border-radius:999px;font-size:12px">$2 · $4</div></div><div style="margin-top:10px;line-height:1.7;font-size:14px">$8</div><div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px;font-size:12px"><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">差级 <b>$3</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">成功率 <b>$5%</b></span><span style="padding:7px 8px;border-radius:6px;background:rgba(127,127,127,.09)">掷值 <b>$6</b></span></div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_ERROR_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-error-card',
-  scriptName: '缄默之秋-SPECIAL对抗判定错误',
-  findRegex: '/<DY_CONTEST_ERROR\\s+id="([^"]*)">([\\s\\S]*?)<\\/DY_CONTEST_ERROR>/g',
-  replaceString: '<div style="margin:10px 0;padding:11px 13px;border:1px solid #c94242;border-radius:8px;background:rgba(150,30,30,.12);color:var(--SmartThemeBodyColor,#eee);font-family:Inter,\'Microsoft YaHei\',sans-serif"><b style="color:#ef6464">判定未执行 · $1</b><div style="margin-top:5px;font-size:13px;line-height:1.6">$2</div></div>',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-const CONTEST_APPLIED_REGEX = Object.freeze({
-  id: 'jmzq-special-contest-applied-hide',
-  scriptName: '缄默之秋-SPECIAL对抗判定确认隐藏',
-  findRegex: '/<DY_CONTEST_APPLIED\\s+id="([^"]+)"\\s*\\/>/g',
-  replaceString: '',
-  trimStrings: [], placement: [2], disabled: false, markdownOnly: true, promptOnly: false,
-  runOnEdit: true, substituteRegex: 0, minDepth: null, maxDepth: null,
-});
-async function ensureContestRegexes() {
-  try {
-    await api_updateTavernRegexes(regexes => {
-      if (!Array.isArray(regexes)) return;
-      for (const wanted of [CONTEST_PENDING_REGEX, CONTEST_RESULT_REGEX, CONTEST_ERROR_REGEX, CONTEST_APPLIED_REGEX]) {
-        const index = regexes.findIndex(item => item?.id === wanted.id || item?.scriptName === wanted.scriptName);
-        if (index >= 0) regexes[index] = { ...regexes[index], ...wanted };
-        else regexes.push({ ...wanted });
-      }
-    });
-  } catch (error) { console.warn('[JMZQ] SPECIAL判定显示正则同步失败：', error); }
-}
 p._jmzqContestDebug = {
   scan: contestScanRecent,
   calculate: contestCalculate,
   chance: CONTEST_CHANCE,
   last: () => p._jmzqLastContest || null,
 };
+
+// ═══════════════ 隐式剧情导演：变量事实 → 正文重点提醒 ═══════════════
+// 世界书是规则源，MVU是事实源，buildEnableSet是生效路由真源。
+// 导演按重要度最多压缩三项紧急后果，在本层MVU完成后写入当前助手正文尾部；
+// 由显示正则隐藏，下一轮模型随聊天上下文读取，不占用扩展提示缓存。
+const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
+const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
+const DIRECTOR_TAG_RE = /<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi;
+const DIRECTOR_CONFIG_KEY = 'jmzq-director-config-v1';
+const DIRECTOR_STORE_VERSION = 1;
+const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
+  enabled: true,
+  intensity: 'strict',
+  fatal: true,
+  survival: true,
+  infected: true,
+  npc: true,
+  camp: true,
+  world: true,
+});
+const DIRECTOR_INTENSITY = Object.freeze({
+  restrained: { chance: 0.72, ambientChance: 14, globalCooldown: 3, categoryCooldown: 6 },
+  strict: { chance: 1, ambientChance: 22, globalCooldown: 2, categoryCooldown: 4 },
+  brutal: { chance: 1.24, ambientChance: 30, globalCooldown: 1, categoryCooldown: 3 },
+});
+let _directorWriteChain = Promise.resolve();
+let _directorWritingMessage = false;
+let _directorRouteTimer = null;
+
+function directorReadConfig() {
+  try {
+    const raw = JSON.parse(p.localStorage?.getItem(DIRECTOR_CONFIG_KEY) || '{}');
+    const intensity = Object.prototype.hasOwnProperty.call(DIRECTOR_INTENSITY, raw?.intensity) ? raw.intensity : DIRECTOR_DEFAULT_CONFIG.intensity;
+    const next = { ...DIRECTOR_DEFAULT_CONFIG, ...(raw && typeof raw === 'object' ? raw : {}), intensity };
+    for (const key of ['enabled', 'fatal', 'survival', 'infected', 'npc', 'camp', 'world']) next[key] = next[key] !== false;
+    return next;
+  } catch (e) { return { ...DIRECTOR_DEFAULT_CONFIG }; }
+}
+function directorWriteConfig(next) {
+  const config = { ...DIRECTOR_DEFAULT_CONFIG, ...(next || {}) };
+  try { p.localStorage?.setItem(DIRECTOR_CONFIG_KEY, JSON.stringify(config)); } catch (e) {}
+  return config;
+}
+function directorStoreKey() { return `jmzq-director-v${DIRECTOR_STORE_VERSION}:${contestChatId()}`; }
+function directorReadStore() {
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(directorStoreKey()) || '{}');
+    return parsed && typeof parsed === 'object'
+      ? { history: Array.isArray(parsed.history) ? parsed.history : [], locks: parsed.locks && typeof parsed.locks === 'object' ? parsed.locks : {} }
+      : { history: [], locks: {} };
+  } catch (e) { return { history: [], locks: {} }; }
+}
+function directorWriteStore(store) {
+  try {
+    p.localStorage?.setItem(directorStoreKey(), JSON.stringify({
+      history: (store?.history || []).slice(-60),
+      locks: store?.locks || {},
+    }));
+  } catch (e) {}
+}
+function directorNumber(value) {
+  if (Array.isArray(value)) value = value[0];
+  if (value && typeof value === 'object') value = value.current ?? value.value ?? value.currentValue ?? value.当前值;
+  if (value == null || (typeof value === 'string' && value.trim() === '')) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+function directorRatio(current, maximum) {
+  const c = directorNumber(current), m = directorNumber(maximum);
+  return c == null || m == null || m <= 0 ? null : contestClamp(c / m, 0, 1);
+}
+function directorNationality(sd) {
+  return sd?.衍生状态?.nationality ?? sd?.衍生状态?.国籍 ?? sd?.国籍 ?? null;
+}
+function directorGameTimestamp(value) {
+  const parts = String(value || '').match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
+  if (!parts) return null;
+  const stamp = Date.UTC(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] || 0), Number(parts[5] || 0));
+  return Number.isFinite(stamp) ? stamp : null;
+}
+function directorSafeText(value, max = 96) {
+  return contestEscapeText(value, max)
+    .replace(/[<>]/g, '')
+    .replace(/JMZQ_DIRECTOR/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+function directorClipFragment(value, max) {
+  const text = directorSafeText(value, Math.max(max * 8, 320));
+  if (text.length <= max) return text;
+  if (max <= 1) return '…';
+  let head = text.slice(0, max - 1).trimEnd();
+  const boundaries = ['。', '；', '，', '、', '：', ' '];
+  const cut = Math.max(...boundaries.map(mark => head.lastIndexOf(mark)));
+  if (cut >= Math.floor(max * 0.58)) head = head.slice(0, cut + 1).trimEnd();
+  let suffix = '…';
+  if ((head.match(/“/g) || []).length > (head.match(/”/g) || []).length) suffix += '”';
+  if ((head.match(/（/g) || []).length > (head.match(/）/g) || []).length) suffix += '）';
+  return `${head.slice(0, Math.max(0, max - suffix.length)).trimEnd()}${suffix}`;
+}
+function directorCompactDirective(value, max) {
+  const text = directorSafeText(value, 900);
+  if (text.length <= max) return text;
+  const markers = ['本轮必须', '本轮只能', '本轮让', '必须', '只能'];
+  const markerAt = markers
+    .map(mark => text.indexOf(mark))
+    .filter(index => index > 0)
+    .sort((a, b) => a - b)[0];
+  if (markerAt == null) return directorClipFragment(text, max);
+  const contextMax = Math.min(44, Math.max(24, Math.floor(max * 0.38)));
+  const context = directorClipFragment(text.slice(0, markerAt), contextMax);
+  const joiner = /[。；，：！？]$/.test(context) ? '' : '；';
+  const instruction = text.slice(markerAt).trim();
+  const instructionMax = Math.max(24, max - context.length - joiner.length);
+  if (instruction.length <= instructionMax) return `${context}${joiner}${instruction}`.slice(0, max);
+  const finalMarkers = ['不得', '不可', '不能', '绝不'];
+  const finalAt = Math.max(...finalMarkers.map(mark => instruction.lastIndexOf(mark)));
+  if (finalAt > 0) {
+    const ending = instruction.slice(finalAt);
+    const endingMax = Math.min(Math.floor(instructionMax * 0.45), ending.length);
+    const preservedEnding = ending.length <= endingMax ? ending : `…${ending.slice(-(endingMax - 1))}`;
+    const leadingMax = Math.max(12, instructionMax - preservedEnding.length);
+    return `${context}${joiner}${directorClipFragment(instruction.slice(0, finalAt), leadingMax)}${preservedEnding}`.slice(0, max);
+  }
+  return `${context}${joiner}${directorClipFragment(instruction, instructionMax)}`.slice(0, max);
+}
+function directorCurrentLayerSource() {
+  const messages = contestListMessages();
+  const users = messages.filter(message => message?.role === 'user' || message?.is_user === true);
+  const assistants = messages.filter(message => message?.role === 'assistant' || message?.is_user === false);
+  const source = assistants[assistants.length - 1];
+  if (!source) return null;
+  const current = contestCurrentSwipe(source);
+  return {
+    // 采用助手楼层序号，避免用户/系统消息插入后导致楼层漂移。
+    floor: assistants.indexOf(source),
+    messageId: Number(source.message_id) || Math.max(0, messages.indexOf(source)),
+    swipeId: current.swipeId,
+    text: String(current.text ?? ''),
+    turn: users.length,
+  };
+}
+function directorLatestMessageIsAssistant() {
+  const messages = contestListMessages();
+  const latest = messages[messages.length - 1];
+  return !!latest && (latest.role === 'assistant' || latest.is_user === false);
+}
+function directorLatestUserIntent() {
+  const messages = contestListMessages();
+  const latest = [...messages].reverse().find(message => message?.role === 'user' || message?.is_user === true);
+  if (!latest) return '';
+  return directorSafeText(contestCurrentSwipe(latest).text, 240);
+}
+function directorHasExplicitIntent(text) {
+  const value = directorSafeText(text, 240);
+  if (!value) return false;
+  return !/^(继续|继续吧|下一步|然后呢|随便|都行|看看|观察|等待|休息|嗯+|好+|ok|go|无)$/i.test(value);
+}
+function directorStateFingerprint(sd) {
+  const core = sd?.核心状态 || {};
+  const env = sd?.环境 || {};
+  const camp = sd?.营地 || {};
+  const factions = Object.entries(sd?.势力发展 || {}).map(([name, value]) => [name, value?.阶段, value?.进展, value?.已覆灭]).sort();
+  const people = [
+    ...Object.entries(sd?.NPC || {}).map(([name, value]) => ['N', name, value?.relation, value?.status, value?.current_goal]),
+    ...Object.entries(sd?.队友 || {}).map(([name, value]) => ['T', name, value?.favor, value?.status, value?.current_goal]),
+  ].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+  const vehicles = Object.entries(sd?.载具 || {}).map(([name, value]) => [name, value?.condition, value?.fuel, value?.status, value?.location]).sort();
+  const shelters = Object.entries(sd?.建筑 || {}).map(([name, value]) => [name, value?.condition, value?.status, value?.location]).sort();
+  const tasks = (Array.isArray(sd?.任务队列) ? sd.任务队列 : []).map(value => [value?.目标, value?.优先级, value?.进度, value?.状态]);
+  const communications = {
+    public: Object.entries(sd?.公共通讯 || {}).map(([id, value]) => [id, value?.sender, value?.time, value?.content]).slice(-12),
+    private: Object.entries(sd?.私人通讯 || {}).map(([name, list]) => [name, Array.isArray(list) ? list.slice(-3) : list]).slice(-12),
+  };
+  const profile = {
+    nationality: directorNationality(sd),
+    skills: Object.entries(sd?.技能 || {}).map(([name, value]) => [name, value?.level, value?.desc]).sort(),
+    traits: Object.entries(sd?.特质 || {}).flatMap(([type, values]) => Array.isArray(values) ? values.map(value => [type, value]) : []).sort(),
+  };
+  return contestHash(JSON.stringify({
+    phase: sd?.世界阶段, hellMode: sd?.叙事模式 === '地狱', infMode: sd?.感染者行为模式, npcMode: sd?.NPC行为模式,
+    noDefined: sd?.无定义角色模式 === true, activity: sd?.当前活动 || [], core,
+    physical: sd?.衍生状态?.physical_status, mental: sd?.衍生状态?.mental_status,
+    env: { location: env.location, time: env.时间, weather: env.天气, temperature: env.temperature, radiation: env.radiation, threat: env.threat_level, noise: env.noise, comfort: env.comfort, hatred: env.hatred },
+    camp: { built: camp.已建立, access: camp.可访问, morale: camp.士气, operation: camp.经营 },
+    factions, people, vehicles, shelters, tasks, communications, profile,
+    events: Object.keys(sd?.世界事件 || {}), nearby: Object.keys(sd?.周围地点 || {}),
+    extra: sd?.扩展内容, superEvent: sd?.超事件,
+  })).toString(36);
+}
+function directorSourceText(text) {
+  return String(text || '').replace(DIRECTOR_TAG_RE, '')
+    .replace(CONTEST_RESULT_RE, '').replace(CONTEST_ERROR_RE, '').replace(/<!--DY_CONTEST_DONE:[a-z0-9_]+-->/g, '').trimEnd();
+}
+function directorSourceKey(sd, source) {
+  if (!source) return '';
+  const visibleText = directorSourceText(source.text);
+  DIRECTOR_TAG_RE.lastIndex = 0;
+  return `${contestChatId()}|floor:${source.floor}|${source.messageId}|swipe:${source.swipeId}|text:${contestHash(visibleText).toString(36)}|${directorStateFingerprint(sd)}|v3`;
+}
+function directorCandidate(id, category, priority, chance, weight, directive, supportEntries = [], options = {}) {
+  return {
+    id, category, priority, chance, weight, directive, supportEntries,
+    core: options.core === true,
+    corePath: options.corePath || '',
+    mandatory: options.mandatory === true,
+    crossed: options.crossed === true,
+    lockKey: options.lockKey || '',
+    cooldown: Number.isFinite(options.cooldown) ? options.cooldown : null,
+  };
+}
+function directorPickStable(items, seed) {
+  if (!items.length) return null;
+  const total = items.reduce((sum, item) => sum + Math.max(1, Number(item.weight) || 1), 0);
+  let cursor = contestHash(seed) % total;
+  for (const item of items) {
+    cursor -= Math.max(1, Number(item.weight) || 1);
+    if (cursor < 0) return item;
+  }
+  return items[items.length - 1];
+}
+function directorTemplate(id, seed, templates) {
+  if (!templates.length) return '';
+  return templates[contestHash(`${seed}|template|${id}`) % templates.length];
+}
+function directorThreatBand(value) {
+  const n = directorNumber(value) ?? 0;
+  if (n >= 91) return '天罚';
+  if (n >= 71) return '猎杀';
+  if (n >= 51) return '标记';
+  if (n >= 30) return '窥伺';
+  return '零散';
+}
+function directorReleaseResolvedLocks(sd) {
+  const store = directorReadStore();
+  let changed = false;
+  const hp = directorNumber(sd?.核心状态?.hp_current);
+  const infection = directorNumber(sd?.核心状态?.infection_current);
+  if (hp != null && hp > 0 && store.locks['fatal:player-hp-zero']) { delete store.locks['fatal:player-hp-zero']; changed = true; }
+  if (infection != null && infection < 90 && store.locks['fatal:infection-transform']) { delete store.locks['fatal:infection-transform']; changed = true; }
+  const stamp = directorGameTimestamp(sd?.环境?.时间);
+  if (stamp != null && stamp < Date.UTC(2030, 7, 24, 12, 0) && store.locks['timeline:instant-outbreak-20300824-noon']) {
+    delete store.locks['timeline:instant-outbreak-20300824-noon'];
+    changed = true;
+  }
+  if (changed) directorWriteStore(store);
+  return store;
+}
+function directorBuildCandidates(sd, source, config = directorReadConfig()) {
+  if (!sd || !source || !config.enabled) return [];
+  const seed = directorSourceKey(sd, source);
+  const phase = String(sd?.世界阶段 || '秩序期');
+  const postOutbreak = phase === '爆发期' || phase === '末世期';
+  const core = sd?.核心状态 || {};
+  const env = sd?.环境 || {};
+  const derived = sd?.衍生状态 || {};
+  const physical = directorSafeText(derived.physical_status || '', 150);
+  const mental = directorSafeText(derived.mental_status || '', 150);
+  const location = directorSafeText(env.location || '当前地点', 60) || '当前地点';
+  const activity = Array.isArray(sd?.当前活动) ? sd.当前活动.map(v => String(v)) : [];
+  const activitySet = new Set(activity);
+  const hp = directorNumber(core.hp_current), hpMax = directorNumber(core.hp_max), hpRatio = directorRatio(core.hp_current, core.hp_max);
+  const stamina = directorNumber(core.stamina_current), staminaMax = directorNumber(core.stamina_max), staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
+  const hunger = directorNumber(core.hunger_current), hungerMax = directorNumber(core.hunger_max);
+  const thirst = directorNumber(core.thirst_current), thirstMax = directorNumber(core.thirst_max);
+  const morale = directorNumber(core.morale_current), moraleMax = directorNumber(core.morale_max);
+  const infection = directorNumber(core.infection_current), infectionMax = directorNumber(core.infection_max);
+  const radiation = directorNumber(env.radiation) ?? 0, hatred = directorNumber(env.hatred) ?? 0;
+  const gameTimeText = directorSafeText(env.时间 || '', 48);
+  const gameStamp = directorGameTimestamp(gameTimeText);
+  const outbreakStamp = Date.UTC(2030, 7, 24, 12, 0);
+  const apocalypseStamp = Date.UTC(2030, 7, 26, 12, 0);
+  const outbreakHours = gameStamp == null ? null : (gameStamp - outbreakStamp) / 3600000;
+  const locks = directorReadStore().locks;
+
+  // 死亡角色不得在死亡提醒消费后继续抽普通随机事件。
+  if (hp === 0) {
+    if (!config.fatal) return [];
+    return [directorCandidate(
+      'fatal/player-hp-zero', 'fatal', 0, 100, 100,
+      `{{user}}当前生命值为0${hpMax != null ? `/${hpMax}` : ''}，生命已经耗尽。本轮必须将死亡作为既成且不可撤销的事实自然写入剧情，并描写现场反应与直接遗留后果；不得改写为普通昏迷、巧合获救、无依据复活或仍可行动。`,
+      postOutbreak ? ['机制-死亡', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
+      { mandatory: true, core: true, corePath: 'hp' }
+    )];
+  }
+
+  const candidates = [];
+  // 由时间直接触发：即使MVU已经改成爆发期/末世期，也不能漏掉瞬时转换。
+  if (gameStamp != null && gameStamp >= outbreakStamp) {
+    candidates.push(directorCandidate(
+      'fatal/phase-overdue-爆发期', 'event', 0, 100, 110,
+      `当前记录时间为“${gameTimeText}”，已经跨过2030年08月24日12:00。必须落实该时点全球约60%潜伏者“瞬时”集中激活与转化：无预告、无通知，不得改成逐步蔓延或延迟发生。若正文跨越该时点，描写当场突变；若时间已经过去，只承接既成后果，不在当前时刻重新爆发。按既定感染者模式演出，只写角色可感知事实，不强制玩家本人转化。`,
+      [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期'],
+      { mandatory: true, lockKey: 'timeline:instant-outbreak-20300824-noon' }
+    ));
+  }
+  const phaseBoundary = phase === '爆发期'
+      ? { stamp: apocalypseStamp, next: '末世期', event: '2030年08月26日12:00的末世期边界' }
+      : null;
+  if (phaseBoundary && gameStamp != null) {
+    if (gameStamp >= phaseBoundary.stamp) {
+      candidates.push(directorCandidate(
+        `fatal/phase-overdue-${phaseBoundary.next}`, 'event', 0, 100, 99,
+        `当前记录时间为“${gameTimeText}”，已经跨过${phaseBoundary.event}，但世界仍记录为“${phase}”。本轮必须在承接玩家行动时落实“${phaseBoundary.next}”已经到来的可观察现实；不得继续沿用旧阶段秩序，也不得把阶段变化解释成系统提示。`,
+        phaseBoundary.next === '爆发期'
+          ? [String(sd?.感染者行为模式 || '狂病型') === '普通型' ? '普通爆发期' : '世界观-爆发期']
+          : ['世界观-末世期'],
+        { mandatory: true, lockKey: `phase:${phaseBoundary.next}` }
+      ));
+    }
+  }
+  const halfInfected = /半感染|抗体|免疫停滞|保留人格/.test(physical);
+  if (config.fatal && config.infected && postOutbreak && infection != null && infection >= 90 && !halfInfected) {
+    candidates.push(directorCandidate(
+      'fatal/infection-transform', 'fatal', 0, 100, 95,
+      `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，且未记录半感染、抗体或免疫停滞状态，感染已越过不可逆转的转化界线。本轮必须让转化的身体变化与现场后果落地，并按“${directorSafeText(sd?.感染者行为模式 || '狂病型', 12)}”表现；不得无因逆转。`,
+      ['机制-COVID-30感染', '[mvu_update]感染进程'],
+      { mandatory: true, core: true, corePath: 'infection' }
+    ));
+  }
+
+  if (config.survival && hpRatio != null && hpRatio <= 0.12) {
+    const condition = physical && !/^健康/.test(physical) ? `当前伤情为“${physical}”` : '身体已经处于严重失血或损伤边缘';
+    candidates.push(directorCandidate(
+      'critical/health-collapse', 'critical', 1, 96, 94,
+      `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}，${condition}。本轮必须让伤势具体限制移动、发力、意识或止血，并继续产生迫近后果；没有及时且条件充分的救治，不得自行稳定。`,
+      postOutbreak ? ['机制-伤病与医疗', '机制-毁伤', '机制-高压后果与失败延续'] : ['大爆发前/规则-医疗与健康'],
+      { core: true, corePath: 'hp' }
+    ));
+  } else if (config.survival && hpRatio != null && hpRatio <= 0.3) {
+    candidates.push(directorCandidate(
+      'critical/serious-injury', 'critical', 1, 72, 78,
+      `{{user}}当前生命值为${hp}${hpMax != null ? `/${hpMax}` : ''}${physical && !/^健康/.test(physical) ? `，伤情为“${physical}”` : ''}。本轮必须在动作能力、疼痛、失血、恢复或恶化中落实至少一项直接影响，并让处理伤势占据真实时间与条件。`,
+      ['机制-伤病与医疗', '机制-毁伤'], { core: true, corePath: 'hp' }
+    ));
+  }
+
+  const exhausting = ['战斗', '探索', '潜行', '驾驶', '制造', '建造', '营地经营'].some(v => activitySet.has(v));
+  if (config.survival && stamina === 0 && exhausting) {
+    candidates.push(directorCandidate(
+      'critical/stamina-empty-active', 'critical', 1, 100, 91,
+      `{{user}}当前体力为0${staminaMax != null ? `/${staminaMax}` : ''}，却仍处于“${directorSafeText(activity.join('、') || '高强度行动', 48)}”。本轮必须写出脱力对速度、反应和持续行动的实质阻断；继续强撑必须损害生命或身体状态。`,
+      ['机制-体力', '机制-活动叠加与冲突'], { mandatory: true, core: true, corePath: 'stamina' }
+    ));
+  } else if (config.survival && staminaRatio != null && staminaRatio <= 0.15) {
+    candidates.push(directorCandidate(
+      'critical/stamina-near-empty', 'critical', 1, 72, 72,
+      `{{user}}当前体力为${stamina}${staminaMax != null ? `/${staminaMax}` : ''}，已接近耗尽。本轮必须让动作迟缓、失误风险或被迫停顿自然进入剧情；不得继续以满状态完成连续高强度行动。`,
+      ['机制-体力'], { core: true, corePath: 'stamina' }
+    ));
+  }
+
+  if (config.survival && thirst != null && thirst <= 10) {
+    candidates.push(directorCandidate(
+      'critical/dehydration', 'critical', 1, 90, 88,
+      `{{user}}当前饱水值为${thirst}${thirstMax != null ? `/${thirstMax}` : ''}，已处于严重脱水状态。本轮必须让眩晕、虚弱、判断下降或行动能力衰退成为现实压力，并让饮水或继续恶化成为无法忽略的问题。`,
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续'], { core: true, corePath: 'thirst' }
+    ));
+  }
+  if (config.survival && hunger != null && hunger <= 10) {
+    candidates.push(directorCandidate(
+      'critical/starvation', 'critical', 1, 82, 80,
+      `{{user}}当前饱食值为${hunger}${hungerMax != null ? `/${hungerMax}` : ''}，已经陷入重度饥饿。本轮必须把虚弱、恢复停滞、专注下降或身体恶化写成实际影响；不得靠意志长期无视进食需求。`,
+      ['机制-饱食度，饱水度与体重', '机制-高压后果与失败延续'], { core: true, corePath: 'hunger' }
+    ));
+  }
+  if (config.survival && config.infected && postOutbreak && infection != null && infection >= 60 && infection < 90) {
+    candidates.push(directorCandidate(
+      'critical/infection-danger', 'critical', 1, 78, 82,
+      `{{user}}当前感染值为${infection}${infectionMax != null ? `/${infectionMax}` : ''}，感染症状正在进入失控前的危险阶段。本轮必须让发热、疼痛、感官异常或行为控制恶化影响现场，并强化治疗时间正在缩短的压力；不得无因停滞或自愈。`,
+      ['机制-COVID-30感染', '[mvu_update]感染进程'], { core: true, corePath: 'infection' }
+    ));
+  }
+  if (config.survival && radiation >= 50) {
+    candidates.push(directorCandidate(
+      'critical/radiation-danger', 'environment', 1, 88, 84,
+      `{{user}}目前身处${location}，环境辐射值为${radiation}。本轮必须让暴露造成可感知的身体或装备压力，并迫使角色面对缩短停留、寻找屏蔽或继续承受剂量的现实取舍。`,
+      ['机制-天气与地质变化', '机制-伤病与医疗']
+    ));
+  }
+  if (config.survival && morale != null && morale <= 15) {
+    candidates.push(directorCandidate(
+      'critical/morale-break', 'relationship', 1, 72, 68,
+      `{{user}}当前情绪值为${morale}${moraleMax != null ? `/${moraleMax}` : ''}${mental && !/^冷静/.test(mental) ? `，心理状态为“${mental}”` : ''}。本轮必须让注意力、判断、交流或临场反应受到相称影响，但不得无因永久剥夺角色控制权。`,
+      ['机制-恐慌（默认不开，因为哈基米会绝望）', '[mvu_update]恐慌'], { core: true, corePath: 'morale' }
+    ));
+  }
+
+  const hostilePeople = Object.entries(sd?.NPC || {}).filter(([, value]) => directorNumber(value?.relation) != null && directorNumber(value.relation) <= -15);
+  if (config.npc && hostilePeople.length) {
+    const picked = directorPickStable(hostilePeople.map(([name, value]) => ({ name, value, weight: Math.max(1, Math.abs(directorNumber(value.relation) || -15)) })), `${seed}|hostile`);
+    const name = directorSafeText(picked?.name || '既有敌人', 48);
+    const relation = directorNumber(picked?.value?.relation);
+    const goal = directorSafeText(picked?.value?.current_goal || picked?.value?.thoughts || '', 90);
+    candidates.push(directorCandidate(
+      `situation/hostile-${contestHash(name).toString(36)}`, 'relationship', 2, 52, 63,
+      `${name}与{{user}}的当前关系值为${relation ?? '负值'}${goal ? `，其已记录目标是“${goal}”` : ''}。本轮让这份既有敌意通过其现实位置和有限信息产生一项可追溯行动；不得隔空锁定、读取玩家心理或凭空获得压倒性援军。`,
+      ['机制-复仇与宿敌']
+    ));
+  }
+
+  const endangeredTeammates = Object.entries(sd?.队友 || {}).filter(([, value]) => {
+    const personHp = directorNumber(value?.hp);
+    return personHp != null && personHp <= 25 || /重伤|濒死|失血|昏迷|被困|失联/.test(String(value?.status || ''));
+  });
+  if (config.npc && endangeredTeammates.length) {
+    const picked = directorPickStable(endangeredTeammates.map(([name, value]) => ({ name, value, weight: Math.max(1, 101 - (directorNumber(value?.hp) ?? 50)) })), `${seed}|teammate-danger`);
+    const name = directorSafeText(picked?.name || '同行者', 48);
+    const personHp = directorNumber(picked?.value?.hp);
+    const status = directorSafeText(picked?.value?.status || '情况危急', 100);
+    candidates.push(directorCandidate(
+      `situation/teammate-${contestHash(name).toString(36)}`, 'relationship', 2, 76, 74,
+      `${name}当前${personHp != null ? `生命值为${personHp}，` : ''}状态为“${status}”。本轮必须让这一具体处境影响队伍行动、交流或时间压力，并给{{user}}留下真实的应对空间；不得无因自愈、瞬间归队或用陌生救援抹去后果。`,
+      ['杂项-幸存者NPC关系推进', '机制-伤病与医疗']
+    ));
+  }
+
+  const camp = sd?.营地 || {};
+  const operation = camp?.经营 || {};
+  if (config.camp && camp.已建立 === true) {
+    const campAccessible = camp.可访问 === true;
+    const stress = Math.max(
+      directorNumber(operation.维护压力) || 0,
+      directorNumber(operation.噪音风险) || 0,
+      100 - (directorNumber(operation.稳定度) ?? 50),
+      directorNumber(camp.人数) > (directorNumber(operation.床位) || 0) ? 72 : 0,
+      (directorNumber(operation.食水日净值) || 0) < 0 ? 68 : 0,
+      (directorNumber(operation.医疗日净值) || 0) < 0 ? 64 : 0,
+      (directorNumber(operation.燃料日净值) || 0) < 0 ? 60 : 0
+    );
+    const bottleneck = directorSafeText(operation.当前瓶颈 || camp.运作情况 || '供需与人手', 88);
+    if (stress >= 60) {
+      const campFacts = [
+        directorNumber(operation.维护压力) >= 60 ? `维护压力${directorNumber(operation.维护压力)}` : '',
+        directorNumber(operation.噪音风险) >= 60 ? `噪音风险${directorNumber(operation.噪音风险)}` : '',
+        directorNumber(operation.稳定度) != null && directorNumber(operation.稳定度) <= 40 ? `稳定度${directorNumber(operation.稳定度)}` : '',
+        directorNumber(camp.人数) > (directorNumber(operation.床位) || 0) ? `人数${directorNumber(camp.人数)}、床位${directorNumber(operation.床位) || 0}` : '',
+        directorNumber(operation.食水日净值) < 0 ? `食水日净值${directorNumber(operation.食水日净值)}` : '',
+        directorNumber(operation.医疗日净值) < 0 ? `医疗日净值${directorNumber(operation.医疗日净值)}` : '',
+        directorNumber(operation.燃料日净值) < 0 ? `燃料日净值${directorNumber(operation.燃料日净值)}` : '',
+      ].filter(Boolean).join('、');
+      candidates.push(directorCandidate(
+        'situation/camp-pressure', 'camp', 2, 64, Math.round(stress),
+        campAccessible
+          ? `${directorSafeText(camp.名称 || '营地', 48)}当前瓶颈为“${bottleneck}”${campFacts ? `，具体记录：${campFacts}` : ''}。本轮必须让其中一项形成对应的经营后果或成员反应；不得替{{user}}修改长期方针，也不得凭空发动外敌袭击。`
+          : `${directorSafeText(camp.名称 || '营地', 48)}当前瓶颈为“${bottleneck}”${campFacts ? `，具体记录：${campFacts}` : ''}，且{{user}}目前无法直接管理。本轮只能通过可靠通讯、延迟报告或远方可观察后果体现；不得让{{user}}隔空操作营地。`,
+        ['机制-营地经营', '[mvu_update]活动-营地经营']
+      ));
+    } else {
+      candidates.push(directorCandidate(
+        'ambient/camp-life', 'camp', 3, 24, 28,
+        campAccessible
+          ? `本轮通过${directorSafeText(camp.名称 || '营地', 48)}的一项分工、维护、配给、成员互动或小幅改善体现其正在持续运作；事件必须来自现有人员和设施，不凭空奖励资源，也不机械安排袭击。`
+          : `让${directorSafeText(camp.名称 || '营地', 48)}通过一则可靠通讯或延迟报告呈现一项日常运作变化；{{user}}当前不能直接接触营地，禁止隔空操作设施、库存、任务和成员。`,
+        ['机制-营地经营'], { cooldown: 6 }
+      ));
+    }
+  }
+
+  const worldEvents = Object.entries(sd?.世界事件 || {});
+  if (config.world && worldEvents.length) {
+    const picked = directorPickStable(worldEvents.map(([name, value]) => ({ name, value, weight: 1 })), `${seed}|event`);
+    const title = directorSafeText(picked?.value?.title || picked?.name || '当前事件', 64);
+    const eventLocation = directorSafeText(picked?.value?.location || '', 48);
+    candidates.push(directorCandidate(
+      `situation/event-${contestHash(title).toString(36)}`, 'event', 3, 10, 8,
+      `既有事件“${title}”仍在影响局势。本轮让它通过${eventLocation ? `${eventLocation}相关的` : ''}环境变化、可靠通讯、人物反应或可观察线索产生一项具体余波；不得让{{user}}凭空获得后台全貌，也不得直接无因解决事件。`,
+      hatred >= 51 ? ['机制-找事儿'] : [], { cooldown: 16 }
+    ));
+  }
+
+  const vehicles = Object.entries(sd?.载具 || {});
+  if (config.world && vehicles.length && (activitySet.has('驾驶') || activitySet.has('探索'))) {
+    const pressured = vehicles.filter(([, value]) => (directorNumber(value?.fuel) ?? 100) <= 15 || (directorNumber(value?.condition) ?? 100) <= 35);
+    if (pressured.length) {
+      const picked = directorPickStable(pressured.map(([name, value]) => ({ name, value, weight: 101 - Math.min(directorNumber(value?.fuel) ?? 100, directorNumber(value?.condition) ?? 100) })), `${seed}|vehicle`);
+      const name = directorSafeText(picked?.name || picked?.value?.name || '当前载具', 48);
+      const fuel = directorNumber(picked?.value?.fuel), condition = directorNumber(picked?.value?.condition);
+      candidates.push(directorCandidate(
+        `situation/vehicle-${contestHash(name).toString(36)}`, 'resource', 2, 82, 78,
+        `${name}的${fuel != null && fuel <= 15 ? `燃料只剩${fuel}%` : ''}${fuel != null && fuel <= 15 && condition != null && condition <= 35 ? '，且' : ''}${condition != null && condition <= 35 ? `完整度仅${condition}%` : ''}。本轮必须让续航、故障、噪音或被迫停留成为真实限制；不得让载具无消耗继续行驶，也不得凭空生成燃料和零件。`,
+        ['物品-载具', '机制-驾驶与乘车']
+      ));
+    }
+  }
+
+  const damagedShelters = Object.entries(sd?.建筑 || {}).filter(([, value]) => (directorNumber(value?.condition) ?? 100) <= 40 || /严重受损|损毁|失效|坍塌/.test(String(value?.status || '')));
+  if (config.world && damagedShelters.length) {
+    const picked = directorPickStable(damagedShelters.map(([name, value]) => ({ name, value, weight: 101 - (directorNumber(value?.condition) ?? 40) })), `${seed}|shelter`);
+    const name = directorSafeText(picked?.name || '现有庇护所', 48);
+    const condition = directorNumber(picked?.value?.condition);
+    candidates.push(directorCandidate(
+      `situation/shelter-${contestHash(name).toString(36)}`, 'resource', 2, 64, 66,
+      `${name}${condition != null ? `的结构完整度仅${condition}%` : '已经明显失效'}。本轮让漏水、供能、防御、空间或继续损坏中的至少一项形成可观察后果，并保留维修、撤离或承受风险的选择；不得在没有材料与时间的情况下自动修复。`,
+      ['机制-建造庇护所', '机制-完整度']
+    ));
+  }
+
+  const activeTasks = (Array.isArray(sd?.任务队列) ? sd.任务队列 : []).filter(task => task && ['进行中', '失败', '中断'].includes(task.状态));
+  if (config.camp && sd?.营地?.已建立 === true && activeTasks.length) {
+    const picked = directorPickStable(activeTasks.map(task => ({ task, weight: task.优先级 === '紧急' ? 5 : task.状态 === '失败' ? 4 : 2 })), `${seed}|task`);
+    const task = picked?.task || {};
+    const target = directorSafeText(task.目标 || '既有营地任务', 80);
+    candidates.push(directorCandidate(
+      `situation/task-${contestHash(target).toString(36)}`, 'camp', 2, task.状态 === '失败' ? 78 : 48, task.优先级 === '紧急' ? 76 : 52,
+      sd?.营地?.可访问 === true
+        ? `营地任务“${target}”当前处于“${directorSafeText(task.状态 || '进行中', 16)}”，进度约${directorNumber(task.进度) ?? 0}%。本轮通过执行者、所需资源、时间或现场阻力表现一次实际推进、阻滞或失败余波；不得按对话轮数机械加进度，也不得替{{user}}改变任务方针。`
+        : `营地任务“${target}”当前处于“${directorSafeText(task.状态 || '进行中', 16)}”。{{user}}不在可直接管理营地的位置，本轮只能通过可靠通讯或延迟报告体现其进展、阻滞或失败余波；不得隔空调整任务或自动增加进度。`,
+      ['机制-营地经营', '[mvu_update]活动-营地经营']
+    ));
+  }
+
+  const communicationPool = [
+    ...Object.entries(sd?.公共通讯 || {}).map(([id, value]) => ({ id, contact: value?.sender || '公共频道', value })),
+    ...Object.entries(sd?.私人通讯 || {}).flatMap(([contact, list]) => (Array.isArray(list) ? list : []).map((value, index) => ({ id: `${contact}-${index}`, contact, value }))),
+  ].filter(item => item.value?.content);
+  if (config.world && communicationPool.length) {
+    const urgent = communicationPool.filter(item => /求救|紧急|警告|失联|袭击|封锁|撤离|感染|危险|最后/.test(String(item.value.content || '')));
+    const pool = urgent.length ? urgent : communicationPool.slice(-8);
+    const picked = directorPickStable(pool.map(item => ({ ...item, weight: urgent.length ? 3 : 1 })), `${seed}|communication`);
+    const contact = directorSafeText(picked?.contact || picked?.value?.sender || '通讯频道', 48);
+    const content = directorSafeText(picked?.value?.content || '', 120);
+    candidates.push(directorCandidate(
+      `situation/communication-${contestHash(String(picked?.id || content)).toString(36)}`, 'event', urgent.length ? 2 : 3, urgent.length ? 68 : 10, urgent.length ? 64 : 8,
+      `既有通讯中，${contact}传来的“${content}”值得在本轮产生一项可感知余波、时间压力或行动线索。只能依据消息内容和角色已知信息展开；不得替{{user}}发送回复、接受请求或把未经核实的消息直接写成全知事实。`,
+      ['机制-通讯'], { cooldown: urgent.length ? 4 : 8 }
+    ));
+  }
+
+  const factions = Object.entries(sd?.势力发展 || {}).filter(([, value]) => value && value.已覆灭 !== true && (directorNumber(value.进展) || 0) >= 50);
+  if (config.world && postOutbreak && factions.length) {
+    const picked = directorPickStable(factions.map(([name, value]) => ({ name, value, weight: Math.max(1, directorNumber(value.进展) || 1) })), `${seed}|faction`);
+    const factionName = directorSafeText(picked?.name || '当前势力', 48);
+    const stage = directorSafeText(picked?.value?.阶段 || '发展中', 16);
+    const progress = directorNumber(picked?.value?.进展);
+    candidates.push(directorCandidate(
+      `ambient/faction-${contestHash(factionName).toString(36)}`, 'faction', 3, 10, 8,
+      `${factionName}当前阶段为“${stage}”${progress != null ? `、进展${progress}` : ''}。让其影响通过角色能够接触的人员、道路、传闻、交易、地盘或通讯自然显现一次；规模必须匹配现状，不得把后台数值直接告诉{{user}}。`,
+      [], { cooldown: 8 }
+    ));
+  }
+
+  // 偶发校准狂病型演出；不要求生成遭遇，沿用日常提醒的抽签、条数上限与冷却。
+  if (config.infected && postOutbreak && String(sd?.感染者行为模式 || '狂病型') === '狂病型') {
+    candidates.push(directorCandidate(
+      'ambient/infected-portrayal', 'infected', 3, 25, 30,
+      '描写狂病型感染者时：禁止按传统丧尸演出COVID-30感染者，感染者必须有台词演出，体力描述为常人在肾上腺素分泌状态下的强化。无感染者出场时不必为此安排遭遇。',
+      [], { cooldown: 8 }
+    ));
+  }
+
+  const encounterRelevant = ['探索', '搜刮', '战斗', '潜行'].some(v => activitySet.has(v)) || hatred >= 31 || /危险|警戒|极危|敌/.test(String(env.threat_level || ''));
+  const quietCampWork = ['建造', '种植', '营地经营'].some(v => activitySet.has(v))
+    && hatred < 31 && !/危险|警戒|极危|敌/.test(String(env.threat_level || ''));
+  if (config.infected && postOutbreak && !quietCampWork) {
+    const mode = String(sd?.感染者行为模式 || '狂病型');
+    const band = directorThreatBand(hatred);
+    const noise = directorSafeText(env.noise || '周围动静不明', 48);
+    const threat = directorSafeText(env.threat_level || '未知', 24);
+    const high = hatred >= 51 || /危险|极危/.test(String(env.threat_level || ''));
+    const afterShelter = outbreakHours != null && outbreakHours >= 48;
+    const normalVariants = afterShelter
+      ? [
+          { name: '蹒跚者', behavior: '受声源吸引后沿可通行路线靠近，依靠数量和地形造成压力，没有预谋' },
+          { name: '奔跑者', behavior: '刚转化且能全速直冲声源，但平衡差、转向慢，不会绕路包抄' },
+          { name: '匍匐者', behavior: '下肢损毁后在低处安静拖行，危险来自近距离抓停而非追逐' },
+          { name: '静默者', behavior: '在封闭空间长期静止，只有活物近身才突然攻击，不能远距感知' },
+        ]
+      : [{ name: '普通蹒跚感染者', behavior: '被声源、视线或近距离活物吸引后直接接近，不会设伏、说话、用工具或战术包抄' }];
+    const normalVariant = normalVariants[contestHash(`${seed}|infected-kind`) % normalVariants.length];
+    const kind = mode === '普通型' ? `普通型·${normalVariant.name}` : '狂病型·COVID-30感染者';
+    const behavior = mode === '普通型'
+      ? normalVariant.behavior
+      : high
+        ? '保留低阶狩猎本能，可沿已有线索追踪、试探并利用环境，但受感知、路线、伤势与已有情报限制'
+        : '凶残且会观察、欺骗或追踪，但此时只能形成有来源的零星踪迹或有限接触，不能凭空锁定玩家';
+    const shelterLimit = outbreakHours != null && outbreakHours >= 0 && outbreakHours < 48
+      ? (mode === '普通型' ? '当前仍在大爆发后两日庇护期，无主动严重暴露时只用单只普通感染者。' : '当前仍在大爆发后两日庇护期，无严重噪音、高危闯入或既有追击时只用单只普通感染者。')
+      : '';
+    const directive = `本轮可在${location}低概率安排“${kind}”的踪迹、接近或遭遇：${behavior}。当前环境威胁为“${threat}”、仇恨层级为“${band}”、动静为“${noise}”。${shelterLimit}必须先给出来源、征兆和可响应空间，不强制开战${mode === '普通型' ? '，不得展现战术预谋' : ''}，不得凭空刷新或为克制玩家临时加能力。`;
+    candidates.push(directorCandidate(
+      `ambient/infected-${mode}`, 'infected', hatred >= 71 ? 2 : 3, high ? 48 : 25, high ? 58 : 34,
+      directive,
+      mode === '普通型'
+        ? ['普通的动态威胁与安逸惩罚', '普通感染者遭遇', ...(afterShelter ? ['普通感染者多样性'] : [])]
+        : ['机制-动态威胁与安逸惩罚', '杂项-感染者遭遇动态生成'],
+      { cooldown: high ? 4 : 6 }
+    ));
+  }
+
+  if (config.npc && sd?.无定义角色模式 !== true && !activitySet.has('战斗')) {
+    const mode = String(sd?.NPC行为模式 || '正常型');
+    const nationality = directorSafeText(directorNationality(sd) || '未记录国籍', 24);
+    const skillNames = Object.entries(sd?.技能 || {})
+      .sort((left, right) => (directorNumber(right[1]?.level) || 0) - (directorNumber(left[1]?.level) || 0))
+      .slice(0, 2).map(([name]) => directorSafeText(name, 28)).filter(Boolean);
+    const traitNames = Object.values(sd?.特质 || {}).flatMap(values => Array.isArray(values) ? values : [])
+      .slice(0, 2).map(value => directorSafeText(value, 28)).filter(Boolean);
+    const knownNpcPool = Object.entries(sd?.NPC || {}).filter(([, value]) => !/死亡|已故|失踪/.test(String(value?.status || '')));
+    const knownNpc = directorPickStable(knownNpcPool.map(([name, value]) => ({ name, value, weight: 1 })), `${seed}|known-npc`);
+    const profileClues = [
+      `国籍“${nationality}”`,
+      skillNames.length ? `技能“${skillNames.join('、')}”` : '',
+      traitNames.length ? `特质“${traitNames.join('、')}”` : '',
+    ].filter(Boolean).join('、');
+    const npcSupport = mode === '全员恶人型'
+      ? [phase === '秩序期' ? 'NPC生成-恶意型-秩序期' : 'NPC生成-恶意型-爆发期与末世期', ...(postOutbreak ? ['恶意社交法则'] : [])]
+      : [phase === '秩序期' ? 'NPC生成-正常型-秩序期' : 'NPC生成-正常型-爆发期与末世期', ...(postOutbreak ? ['杂项-末世社交互动法则'] : [])];
+    const modeDirection = mode === '全员恶人型'
+      ? '对方的自利、伪装和退让必须具有具体收益、风险与现实代价，不能写成无脑嗜杀。'
+      : '对方可以合作、拒绝、试探、求助或敌对，选择必须来自其处境、目标与有限信息。';
+    candidates.push(directorCandidate(
+      `ambient/npc-${mode}`, 'npc', 3, 21, 30,
+      knownNpc
+        ? `本轮可让已建档人物“${directorSafeText(knownNpc.name, 48)}”依据其当前状态“${directorSafeText(knownNpc.value?.status || '正常', 48)}”和目标“${directorSafeText(knownNpc.value?.current_goal || '未记录', 64)}”，通过与${location}相容的现实路径重新进入剧情。必须承接{{user}}的${profileClues}，产生一项具体互动或摩擦；${modeDirection}不得强迫招募、恋爱、赠送物资或结仇。`
+        : `本轮可在${location}安排一名与{{user}}现有档案线索（${profileClues}）有现实交集的NPC出场。其身份、装备、出现路径和目的必须来自当前地点、国家、阶段与职业环境；${modeDirection}不得强迫招募、恋爱、赠送物资或结仇。`,
+      npcSupport,
+      { cooldown: 7 }
+    ));
+  }
+
+  if (config.world) {
+    const weather = directorSafeText(env.天气 || '', 36);
+    const temperature = directorSafeText(env.temperature || '', 36);
+    const environmentThreat = directorSafeText(env.threat_level || '未评估', 28);
+    const nearby = Object.entries(sd?.周围地点 || {});
+    const nearbyPick = directorPickStable(nearby.map(([name, value]) => ({ name, value, weight: value?.可前往 === false ? 1 : 2 })), `${seed}|nearby`);
+    const nearbyText = nearbyPick ? `已知地点“${directorSafeText(nearbyPick.name, 48)}”` : '当前环境';
+    const envTemplates = [
+      `${location}当前天气为“${weather || '未记录'}”、体感为“${temperature || '未记录'}”、威胁为“${environmentThreat}”。从这些既有条件中选一个真实薄弱点形成需要时间、物资或风险应对的具体压力；不给出无代价最优解。`,
+      `让${nearbyText}通过声光、道路、痕迹、通讯或能见度变化呈现一条可追溯线索，并给{{user}}留下调查、绕行、隐蔽、求援或撤退的空间；不得把线索直接写成成功收益。`,
+      `本轮让${location}已记录的天气“${weather || '未记录'}”、体感“${temperature || '未记录'}”或威胁“${environmentThreat}”产生一项可感知后果。变化必须符合时间与空间连续性，不凭空制造灾难，也不自动替{{user}}解决。`,
+    ];
+    candidates.push(directorCandidate(
+      'ambient/environment', 'environment', 3, 10, 8,
+      directorTemplate('ambient/environment', seed, envTemplates),
+      weather.startsWith('终年') ? [weather] : [], { cooldown: 12 }
+    ));
+
+    const itemValues = Object.values(sd?.物品 || {}).filter(item => item && typeof item === 'object' && !item.type);
+    const categories = new Set(itemValues.filter(item => (directorNumber(item.count) || 0) > 0).map(item => item.category));
+    const missing = ['食物与水', '医疗药品', '燃料能源', '工具零件'].filter(category => !categories.has(category));
+    if (missing.length || (hunger != null && hunger < 55) || (thirst != null && thirst < 55)) {
+      const pressure = directorSafeText(missing[contestHash(`${seed}|resource`) % Math.max(1, missing.length)] || '生存物资', 24);
+      candidates.push(directorCandidate(
+        'ambient/resource-dilemma', 'resource', 3, 28, 36,
+        `围绕{{user}}当前欠缺的“${pressure}”制造一个符合${location}条件的资源取舍：必须在时间、风险、消耗或人情中付出代价。可以给线索和机会，但不得直接把物资送到手中或宣告搜刮成功。`,
+        activitySet.has('搜刮') ? ['机制-搜刮物资', '杂项-搜刮结果动态生成'] : [], { cooldown: 6 }
+      ));
+    }
+  }
+  return candidates;
+}
+function directorIsWorldReminder(candidate) {
+  return /^(?:situation\/event-|ambient\/faction-|ambient\/environment$|situation\/communication-)/.test(String(candidate.id || ''));
+}
+function directorCandidateCoolingDown(candidate, source, store, intensity) {
+  if (candidate.mandatory || candidate.priority === 0) return false;
+  const history = store.history || [];
+  if (candidate.priority >= 3 && directorIsWorldReminder(candidate)) {
+    const previous = [...history].reverse().find(directorIsWorldReminder);
+    if (previous && source.turn - Number(previous.turn || 0) < 6) return true;
+  }
+  const last = history[history.length - 1];
+  // 日常随机项必须共享硬冷却，不能靠NPC/感染者/环境等分类轮流绕过。
+  const priorityFloor = candidate.priority >= 3 ? 3 : candidate.priority === 2 ? 2 : 1;
+  const globalCooldown = Math.max(priorityFloor, Number(intensity.globalCooldown) || 0);
+  if (last && source.turn - Number(last.turn || 0) < globalCooldown) return true;
+  const categoryLast = [...history].reverse().find(item => item.category === candidate.category);
+  const worldReminder = candidate.priority >= 3 && directorIsWorldReminder(candidate);
+  const categoryCooldown = worldReminder ? 6 : (candidate.cooldown ?? intensity.categoryCooldown);
+  if (categoryLast && source.turn - Number(categoryLast.turn || 0) < categoryCooldown) return true;
+  const exactLast = [...history].reverse().find(item => item.id === candidate.id);
+  return !!(exactLast && source.turn - Number(exactLast.turn || 0) < (worldReminder ? 6 : Math.max(8, categoryCooldown + 3)));
+}
+function directorCrossedLow(current, previous, threshold) {
+  const now = directorNumber(current), before = directorNumber(previous);
+  return now != null && before != null && before > threshold && now <= threshold;
+}
+function directorCrossedHigh(current, previous, threshold) {
+  const now = directorNumber(current), before = directorNumber(previous);
+  return now != null && before != null && before < threshold && now >= threshold;
+}
+function directorApplyThresholdCrossings(candidates, sd, beforeSd) {
+  if (!beforeSd) return candidates;
+  const core = sd?.核心状态 || {}, beforeCore = beforeSd?.核心状态 || {};
+  const env = sd?.环境 || {}, beforeEnv = beforeSd?.环境 || {};
+  const crossings = new Set();
+  const hpRatio = directorRatio(core.hp_current, core.hp_max);
+  const beforeHpRatio = directorRatio(beforeCore.hp_current, beforeCore.hp_max);
+  const staminaRatio = directorRatio(core.stamina_current, core.stamina_max);
+  const beforeStaminaRatio = directorRatio(beforeCore.stamina_current, beforeCore.stamina_max);
+  if (directorCrossedLow(hpRatio, beforeHpRatio, 0.12)) crossings.add('critical/health-collapse');
+  else if (directorCrossedLow(hpRatio, beforeHpRatio, 0.3)) crossings.add('critical/serious-injury');
+  if (directorCrossedLow(core.stamina_current, beforeCore.stamina_current, 0)) {
+    crossings.add(candidates.some(candidate => candidate.id === 'critical/stamina-empty-active')
+      ? 'critical/stamina-empty-active'
+      : 'critical/stamina-near-empty');
+  } else if (directorCrossedLow(staminaRatio, beforeStaminaRatio, 0.15)) crossings.add('critical/stamina-near-empty');
+  if (directorCrossedLow(core.thirst_current, beforeCore.thirst_current, 10)) crossings.add('critical/dehydration');
+  if (directorCrossedLow(core.hunger_current, beforeCore.hunger_current, 10)) crossings.add('critical/starvation');
+  if (directorCrossedHigh(core.infection_current, beforeCore.infection_current, 60)) crossings.add('critical/infection-danger');
+  if (directorCrossedHigh(env.radiation, beforeEnv.radiation, 50)) crossings.add('critical/radiation-danger');
+  if (directorCrossedLow(core.morale_current, beforeCore.morale_current, 15)) crossings.add('critical/morale-break');
+  return candidates.map(candidate => crossings.has(candidate.id)
+    ? { ...candidate, crossed: true, mandatory: true, chance: 100, weight: candidate.weight + 1000 }
+    : candidate);
+}
+function directorApplyCoreChanges(candidates, sd, beforeSd) {
+  if (!beforeSd) return candidates;
+  const core = sd?.核心状态 || {}, before = beforeSd?.核心状态 || {};
+  const changed = {
+    hp: directorNumber(core.hp_current) !== directorNumber(before.hp_current),
+    stamina: directorNumber(core.stamina_current) !== directorNumber(before.stamina_current),
+    hunger: directorNumber(core.hunger_current) !== directorNumber(before.hunger_current),
+    thirst: directorNumber(core.thirst_current) !== directorNumber(before.thirst_current),
+    infection: directorNumber(core.infection_current) !== directorNumber(before.infection_current),
+    morale: directorNumber(core.morale_current) !== directorNumber(before.morale_current),
+  };
+  return candidates.map(candidate => candidate.core && changed[candidate.corePath]
+    ? { ...candidate, mandatory: true, chance: 100, weight: candidate.weight + 1000 }
+    : candidate);
+}
+function directorRankCandidates(candidates, sourceKey) {
+  return [...candidates].sort((left, right) =>
+    left.priority - right.priority
+    || Number(right.crossed) - Number(left.crossed)
+    || Number(right.mandatory) - Number(left.mandatory)
+    || Number(right.weight || 0) - Number(left.weight || 0)
+    || (contestHash(`${sourceKey}|rank|${left.id}`) - contestHash(`${sourceKey}|rank|${right.id}`))
+  );
+}
+function directorSelectPlan(sd, source = directorCurrentLayerSource(), config = directorReadConfig(), beforeSd = null) {
+  if (!sd || !source || !config.enabled) return null;
+  const sourceKey = directorSourceKey(sd, source);
+  const store = directorReleaseResolvedLocks(sd);
+  const inFlightPlan = p._jmzqDirectorInFlightPlan;
+  const pendingLocks = new Set((inFlightPlan?.items || []).map(item => item.lockKey).filter(Boolean));
+  const intensity = DIRECTOR_INTENSITY[config.intensity] || DIRECTOR_INTENSITY.strict;
+  // 创角中的爽文/正常/困难只影响特质预算，不是游戏难度；只有地狱模式提高导演压力。
+  const narrativeChance = String(sd?.叙事模式 || '') === '地狱' ? 1.24 : 1;
+  const candidates = directorApplyCoreChanges(
+    directorApplyThresholdCrossings(directorBuildCandidates(sd, source, config), sd, beforeSd),
+    sd,
+    beforeSd,
+  );
+  const eligible = candidates.filter(candidate => {
+    if (candidate.priority >= 3) return false;
+    if (candidate.lockKey && (store.locks[candidate.lockKey] || pendingLocks.has(candidate.lockKey))) return false;
+    if (directorCandidateCoolingDown(candidate, source, store, intensity)) return false;
+    if (candidate.mandatory) return true;
+    const chance = contestClamp(Math.round(candidate.chance * intensity.chance * narrativeChance), 0, 100);
+    return (contestHash(`${sourceKey}|gate|${candidate.id}`) % 100) < chance;
+  });
+  const ranked = directorRankCandidates(eligible, sourceKey);
+  const urgent = ranked.filter(candidate => candidate.priority <= 1);
+  // 有P0/P1时只发紧急后果且最多三项；否则P2、P3都只取一项，避免复合注入过长。
+  const coreUrgent = urgent.filter(candidate => candidate.core || (candidate.priority === 0 && candidate.mandatory));
+  const selected = urgent.length
+    ? [...coreUrgent, ...urgent.filter(candidate => !coreUrgent.includes(candidate)).slice(0, Math.max(0, 3 - coreUrgent.length))]
+    : ranked.filter(candidate => candidate.priority === 2).slice(0, 1);
+  if (!selected.length) {
+    const ambientPool = candidates.filter(candidate =>
+      candidate.priority === 3
+      && !(candidate.lockKey && (store.locks[candidate.lockKey] || pendingLocks.has(candidate.lockKey)))
+      && !directorCandidateCoolingDown(candidate, source, store, intensity)
+    );
+    // P3只做一次整组抽签，避免多个约20%候选叠加成高频必出；命中后最多选一项。
+    const ambientChance = contestClamp(Math.round((intensity.ambientChance || 0) * narrativeChance), 0, 100);
+    if (ambientPool.length && (contestHash(`${sourceKey}|ambient-gate`) % 100) < ambientChance) {
+      const weightedPool = ambientPool.map(candidate => ({
+        ...candidate,
+        weight: Math.max(1, Math.round((Number(candidate.weight) || 1) * Math.max(1, Number(candidate.chance) || 1) / 25)),
+      }));
+      const picked = directorPickStable(weightedPool, `${sourceKey}|ambient-pick`);
+      if (picked) selected.push(picked);
+    }
+  }
+  if (!selected.length) return null;
+  const items = selected.map(candidate => ({
+    category: candidate.category,
+    priority: candidate.priority,
+    core: candidate.core,
+    mandatory: candidate.mandatory,
+    crossed: candidate.crossed,
+    id: candidate.id,
+    directive: candidate.directive,
+    supportEntries: [...new Set(candidate.supportEntries || [])],
+    lockKey: candidate.lockKey || '',
+  }));
+  return {
+    version: 3,
+    sourceKey,
+    sourceFloor: source.floor,
+    sourceMessageId: source.messageId,
+    sourceSwipeId: source.swipeId,
+    sourceTextHash: contestHash(directorSourceText(source.text)).toString(36),
+    turn: source.turn,
+    stateHash: directorStateFingerprint(sd),
+    category: items.length === 1 ? items[0].category : 'multi',
+    priority: Math.min(...items.map(item => item.priority)),
+    mandatory: items.some(item => item.mandatory),
+    id: items.length === 1 ? items[0].id : `bundle-${contestHash(items.map(item => item.id).join('|')).toString(36)}`,
+    directive: items.map(item => item.directive).join(' '),
+    supportEntries: [...new Set(items.flatMap(item => item.supportEntries))],
+    lockKey: items.length === 1 ? items[0].lockKey : '',
+    items,
+  };
+}
+function directorSupportEntries(sd) {
+  const plan = p._jmzqDirectorPlan;
+  if (!plan || !directorReadConfig().enabled || plan.stateHash !== directorStateFingerprint(sd)) return [];
+  return Array.isArray(plan.supportEntries) ? plan.supportEntries : [];
+}
+function directorPromptContent(plan) {
+  if (!plan) return '';
+  // 核心状态项可突破普通复合上限；普通项的数量在选取阶段已限制。
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  const perItemLimit = [0, 240, 180, 140, 110][items.length] || 110;
+  const directives = items.map((item, index) => `${index + 1}. [P${item.priority}] ${directorCompactDirective(item.directive, perItemLimit)}`).join('\n');
+  const playerLead = '先承接标签后的玩家最新输入；只落实与其相容且有事实依据的后果；';
+  const urgentLead = items.some(item => item.priority <= 1)
+    ? 'P0/P1后果必须嵌入玩家行动过程与结果；'
+    : '';
+  return `<${DIRECTOR_TAG}>\n导演提示：\n${directives}\n约束：${playerLead}${urgentLead}已结算的SPECIAL结果优先落实，不改判；尚未结算且确需判定的行动仍须按协议输出<DY_CONTEST>并等待结算，导演提醒不得替代判定或提前写出成败；不替玩家选择，不凭空救场或加害，不提及本标签。\n</${DIRECTOR_TAG}>`;
+}
+function directorClearPrompt() {
+  // 仅清理3.1早期版本留下的扩展提示缓存；当前导演不再占用提示注入槽。
+  let cleared = false;
+  try {
+    const fn = p.uninjectPrompts || (typeof uninjectPrompts === 'function' ? uninjectPrompts : null);
+    if (typeof fn === 'function') { fn([DIRECTOR_PROMPT_ID]); cleared = true; }
+  } catch (e) {}
+  if (!cleared) {
+    try { contestContext()?.setExtensionPrompt?.(DIRECTOR_PROMPT_ID, '', 1, 0, false, 0); } catch (e) {}
+  }
+}
+function directorPlanMatchesCurrentLayer(plan) {
+  if (!plan) return false;
+  const source = directorCurrentLayerSource();
+  if (!source || Number(plan.sourceFloor) !== Number(source.floor)
+    || Number(plan.sourceMessageId) !== Number(source.messageId)
+    || Number(plan.sourceSwipeId) !== Number(source.swipeId)) return false;
+  const visibleText = directorSourceText(source.text);
+  DIRECTOR_TAG_RE.lastIndex = 0;
+  return String(plan.sourceTextHash || '') === contestHash(visibleText).toString(36);
+}
+function directorRemember(plan) {
+  const store = directorReadStore();
+  store.history = (store.history || []).filter(item => item.sourceKey !== plan.sourceKey);
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  for (const item of items) {
+    store.history.push({ sourceKey: plan.sourceKey, turn: plan.turn, category: item.category, id: item.id, priority: item.priority });
+    if (item.lockKey) store.locks[item.lockKey] = true;
+  }
+  directorWriteStore(store);
+}
+function directorForget(plan) {
+  if (!plan?.sourceKey) return;
+  const store = directorReadStore();
+  store.history = (store.history || []).filter(item => item.sourceKey !== plan.sourceKey);
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  for (const item of items) {
+    if (item.lockKey) delete store.locks[item.lockKey];
+  }
+  directorWriteStore(store);
+}
+function directorUpdateStatus(plan, state = '') {
+  if (!directorStatus) return;
+  if (!directorReadConfig().enabled) { directorStatus.textContent = '导演已关闭'; return; }
+  if (!plan) { directorStatus.textContent = state || '静默待机 · 本轮无必要提醒'; return; }
+  const labels = { fatal: '致命后果', critical: '生存后果', infected: '感染者', npc: 'NPC', camp: '营地', environment: '环境', relationship: '关系', resource: '资源', faction: '势力', event: '事件' };
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  const summary = items.length === 1 ? (labels[items[0].category] || items[0].category) : `${items.length}项重要导向`;
+  directorStatus.textContent = `${state || '候选已就绪'} · P${plan.priority} ${summary}`;
+  directorStatus.title = items.map(item => item.directive).join('\n');
+}
+function directorWritePlanToMessage(plan) {
+  return queueAssistantMessageWrite(() => directorWritePlanToMessageNow(plan));
+}
+async function directorWritePlanToMessageNow(plan) {
+  directorClearPrompt();
+  const api = contestApi();
+  if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
+  const messages = contestListMessages().filter(message => message?.role === 'assistant' || message?.is_user === false);
+  const sourceId = Number(plan?.sourceMessageId);
+  const sourceFloor = Number(plan?.sourceFloor);
+  if (plan && (!Number.isInteger(sourceFloor) || !directorPlanMatchesCurrentLayer(plan))) {
+    throw new Error('导演来源楼层、swipe或正文已变化，拒绝写入旧计划');
+  }
+  const updates = [];
+  for (const [floor, message] of messages.entries()) {
+    const current = contestCurrentSwipe(message);
+    DIRECTOR_TAG_RE.lastIndex = 0;
+    const cleaned = current.text.replace(DIRECTOR_TAG_RE, '').replace(/\n{3,}$/g, '\n\n').trimEnd();
+    const isSource = !!plan && floor === sourceFloor && Number(message.message_id) === sourceId;
+    const next = isSource
+      ? `${cleaned}${cleaned ? '\n' : ''}${directorPromptContent(plan)}`
+      : cleaned;
+    if (next !== current.text) updates.push({ message_id: message.message_id, message: next });
+  }
+  if (plan && !messages.some((message, floor) => floor === sourceFloor && Number(message.message_id) === sourceId)) {
+    throw new Error(`未找到导演来源消息 ${sourceId}`);
+  }
+  if (!updates.length) {
+    directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
+    return true;
+  }
+  _directorWritingMessage = true;
+  try {
+    await api.setChatMessages(updates, { refresh: 'affected' });
+  } finally {
+    _directorWritingMessage = false;
+  }
+  p._jmzqInjectedDirector = plan || null;
+  directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
+  return true;
+}
+function directorQueueMessageWrite(plan) {
+  _directorWriteChain = _directorWriteChain
+    .catch(() => {})
+    .then(() => directorWritePlanToMessage(plan))
+    .catch(error => {
+      console.warn('[JMZQ] 隐式剧情导演正文写回失败：', error);
+      directorUpdateStatus(plan, '正文写回失败');
+      return false;
+    });
+  return _directorWriteChain;
+}
+function directorPrepareFromSnapshot(sd, source = directorCurrentLayerSource(), beforeSd = null) {
+  const config = directorReadConfig();
+  const sourceKey = sd && source ? directorSourceKey(sd, source) : '';
+  const existing = p._jmzqDirectorPlan;
+  // 某些MVU版本或兼容层会重复广播同一最终快照。保留首次计算出的跨阈值标记与排序。
+  if (config.enabled && existing && !existing.committed && sourceKey && existing.sourceKey === sourceKey) {
+    directorQueueMessageWrite(existing);
+    directorUpdateStatus(existing, '正在核对正文尾部');
+    return existing;
+  }
+  directorClearPrompt();
+  const plan = config.enabled && sd && source ? directorSelectPlan(sd, source, config, beforeSd) : null;
+  p._jmzqDirectorPlan = plan;
+  directorQueueMessageWrite(plan);
+  directorUpdateStatus(plan, plan ? '等待写入当前正文' : '清理旧导演标签');
+  return plan;
+}
+function directorPrepare() {
+  return directorPrepareFromSnapshot(readStatData(), directorCurrentLayerSource());
+}
+function directorScheduleRouteRefresh(expectedStateHash, attempt = 0) {
+  clearTimeout(_directorRouteTimer);
+  if (!expectedStateHash) return;
+  _directorRouteTimer = setTimeout(() => {
+    const sd = readStatData();
+    if (sd && directorStateFingerprint(sd) === expectedStateHash) {
+      autoSwitch();
+      return;
+    }
+    if (attempt < 12) directorScheduleRouteRefresh(expectedStateHash, attempt + 1);
+  }, attempt === 0 ? 80 : Math.min(800, 120 + attempt * 60));
+}
+function onDirectorMvuUpdated(variables, variablesBeforeUpdate) {
+  // MVU也会在用户消息上走解析流程；导演只接受刚完成的assistant楼层快照。
+  if (!directorLatestMessageIsAssistant()) return;
+  const sd = variables?.stat_data;
+  if (!sd) return;
+  const plan = directorPrepareFromSnapshot(sd, directorCurrentLayerSource(), variablesBeforeUpdate?.stat_data || null);
+  // 即使本层没有候选也要刷新一次，以撤销上一轮仅为导演临时补开的条目。
+  directorScheduleRouteRefresh(directorStateFingerprint(sd));
+  return plan;
+}
+function directorItemMatchesIntent(item, intent) {
+  const value = directorSafeText(intent, 240);
+  const patterns = {
+    infected: /探索|搜刮|战斗|攻击|开枪|射击|逃|躲|潜行|外出|前往|离开|调查|侦察|感染者|丧尸/,
+    npc: /交谈|询问|对话|联系|寻找|会面|交易|帮助|招募|跟随|人物|NPC|前往|探索/,
+    relationship: /交谈|询问|对话|联系|寻找|会面|关系|帮助|治疗|营救|队友|同伴/,
+    camp: /营地|基地|配给|建造|维修|任务|成员|经营|防御|生产/,
+    resource: /探索|搜刮|寻找|物资|食物|饮水|药|燃料|维修|庇护所|休息|前往|赶路|调查/,
+    environment: /探索|观察|调查|前往|赶路|离开|躲避|寻找|天气|道路|地点/,
+    faction: /通讯|新闻|广播|势力|事件|调查|前往|观察|交易/,
+    event: /通讯|请求|研究|制造|建造|维修|拆除|经营|任务|行动|查看|处理/,
+  };
+  return (patterns[item.category] || /./).test(value);
+}
+function directorPlanForGeneration(plan) {
+  if (!plan) return null;
+  const intent = directorLatestUserIntent();
+  if (!directorHasExplicitIntent(intent)) return plan;
+  const items = Array.isArray(plan.items) && plan.items.length ? plan.items : [plan];
+  if (items.every(item => item.priority >= 3) && !items.some(item => directorItemMatchesIntent(item, intent))) return null;
+  return { ...plan, playerIntentActive: true };
+}
+function onDirectorBeforeGeneration(...args) {
+  const plan = p._jmzqDirectorPlan;
+  if (!plan || !directorReadConfig().enabled) return;
+  if (!directorPlanMatchesCurrentLayer(plan)) {
+    directorClearPrompt();
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    delete p._jmzqDirectorGenerationAborted;
+    directorUpdateStatus(null, '当前楼层已变化 · 等待新MVU更新');
+    return;
+  }
+  delete p._jmzqDirectorCommittedPlan;
+  // 重生成/重试正在替换导演计划的来源正文，不能把旧正文结尾状态带回其开头。
+  if (contestIsRegeneration(args)) {
+    directorUpdateStatus(plan, '重生成 · 等待新MVU快照');
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    return;
+  }
+  delete p._jmzqDirectorGenerationAborted;
+  // 超事件仍走独立强制阶段；SPECIAL判定则与导演并行注入，互不清理、互不改判。
+  if (p._jmzqSuperEventPromptKey) {
+    plan.inFlight = false;
+    directorUpdateStatus(plan, '本轮让路给超事件');
+    return;
+  }
+  // 标签已经在上一层MVU完成后写入助手正文；这里不再创建扩展提示缓存。
+  plan.inFlight = true;
+  p._jmzqDirectorInFlightPlan = plan;
+  directorUpdateStatus(plan, '正文尾部标签已生效');
+}
+function onDirectorGenerationCompleted() {
+  const plan = p._jmzqDirectorInFlightPlan || p._jmzqDirectorPlan;
+  if (p._jmzqDirectorGenerationAborted) {
+    // 暂停/取消后即使宿主补发generation_ended，也不能把已作废计划重新当成成功生成。
+    directorClearPrompt();
+    if (plan) directorUpdateStatus(null, '生成已取消 · 等待新的MVU更新');
+    return;
+  }
+  // 只有正文成功完成后，才消费冷却与P0状态锁。
+  if (plan?.inFlight && !plan.committed) {
+    directorRemember(plan);
+    plan.committed = true;
+    p._jmzqDirectorCommittedPlan = plan;
+  }
+  delete p._jmzqDirectorInFlightPlan;
+  directorUpdateStatus(plan, '正文已完成 · 等待MVU更新');
+}
+function onDirectorGenerationStopped() {
+  delete p._jmzqDirectorInFlightPlan;
+  p._jmzqDirectorGenerationAborted = true;
+  const plan = p._jmzqDirectorPlan;
+  if (plan) plan.inFlight = false;
+  // 某些宿主会先发generation_ended再发stopped；撤销错误消费的历史与锁。
+  const committed = p._jmzqDirectorCommittedPlan;
+  if (plan?.committed) directorForget(plan);
+  if (committed && committed !== plan) directorForget(committed);
+  // 停止意味着本次正文没有可靠的MVU最终快照：立即作废计划、计数和正文尾部标签。
+  delete p._jmzqDirectorPlan;
+  delete p._jmzqInjectedDirector;
+  directorClearPrompt();
+  directorQueueMessageWrite(null);
+  directorUpdateStatus(null, '生成已取消 · 等待新的MVU更新');
+}
+function onDirectorSourceInvalidated() {
+  if (_directorWritingMessage || _contestWritingMessage) return;
+  delete p._jmzqDirectorInFlightPlan;
+  const plan = p._jmzqDirectorPlan;
+  const committed = p._jmzqDirectorCommittedPlan;
+  if (plan?.committed) directorForget(plan);
+  if (committed && committed !== plan) directorForget(committed);
+  delete p._jmzqDirectorGenerationAborted;
+  delete p._jmzqDirectorPlan;
+  delete p._jmzqDirectorCommittedPlan;
+  delete p._jmzqInjectedDirector;
+}
+function directorPreviewCurrent() {
+  const sd = readStatData();
+  const source = directorCurrentLayerSource();
+  const plan = directorSelectPlan(sd, source, directorReadConfig());
+  directorUpdateStatus(plan, plan ? '当前预览' : '当前没有命中');
+  if (typeof showToast === 'function') showToast(plan ? `导演候选：P${plan.priority} ${plan.category}` : '当前状态无需导演提醒');
+  return plan;
+}
+p._jmzqDirectorDebug = {
+  prepare: directorPrepare,
+  preview: directorPreviewCurrent,
+  candidates: () => directorBuildCandidates(readStatData(), directorCurrentLayerSource(), directorReadConfig()),
+  plan: () => p._jmzqDirectorPlan || null,
+  prompt: plan => directorPromptContent(plan || p._jmzqDirectorPlan),
+  forGeneration: directorPlanForGeneration,
+  clear: directorClearPrompt,
+};
+
+function directorSyncForm(config = directorReadConfig()) {
+  if (directorEnabledInput) directorEnabledInput.checked = config.enabled;
+  if (directorIntensityInput) directorIntensityInput.value = config.intensity;
+  if (directorFatalInput) directorFatalInput.checked = config.fatal;
+  if (directorSurvivalInput) directorSurvivalInput.checked = config.survival;
+  if (directorInfectedInput) directorInfectedInput.checked = config.infected;
+  if (directorNpcInput) directorNpcInput.checked = config.npc;
+  if (directorCampInput) directorCampInput.checked = config.camp;
+  if (directorWorldInput) directorWorldInput.checked = config.world;
+  directorUpdateStatus(p._jmzqDirectorPlan || null, config.enabled ? '配置已加载' : '导演已关闭');
+}
+function directorSaveForm() {
+  const config = directorWriteConfig({
+    enabled: directorEnabledInput?.checked !== false,
+    intensity: directorIntensityInput?.value || DIRECTOR_DEFAULT_CONFIG.intensity,
+    fatal: directorFatalInput?.checked !== false,
+    survival: directorSurvivalInput?.checked !== false,
+    infected: directorInfectedInput?.checked !== false,
+    npc: directorNpcInput?.checked !== false,
+    camp: directorCampInput?.checked !== false,
+    world: directorWorldInput?.checked !== false,
+  });
+  if (!config.enabled) {
+    directorClearPrompt();
+    delete p._jmzqDirectorPlan;
+    directorQueueMessageWrite(null);
+    directorUpdateStatus(null, '导演已关闭');
+  } else {
+    directorClearPrompt();
+    directorUpdateStatus(null, '配置已保存 · 等待MVU更新');
+  }
+  return config;
+}
+
 function showSuperEventPopup(event, stage, text) {
   const doc = p.document;
   const old = doc.getElementById('jmzq-super-event-modal'); if (old) old.remove();
@@ -3237,7 +4576,7 @@ function stripSuperEventContinentBlock(value) {
   const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return String(value || '')
     .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_START)}[\\s\\S]*?${escape(SUPER_EVENT_CONTINENT_END)}(?:\\r?\\n)?`, 'g'), '')
-    // 旧版本内容只有一行：仅删标记行，绝不截断其后的其他洲际动态。
+    // 旧版本内容只有一行：仅删标记行，完整保留后续其他洲际动态。
     .replace(new RegExp(`${escape(SUPER_EVENT_CONTINENT_PREFIX)}[^\\r\\n]*(?:\\r?\\n)?`, 'g'), '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
@@ -3376,13 +4715,22 @@ const CONTRACT_MODE_ENTRIES = [
   '[mvu_plot]魅魔契约-审查', '魅魔契约-契约诅咒',
   '魅魔契约-异能-sp_charm_aura', '魅魔契约-异能-sp_pheromone_control',
   '魅魔契约-异能-sp_dream_weave', '魅魔契约-异能-sp_touch_read',
-  '魅魔契约-异能-sp_soul_anchor', '地狱模式-变种感染者',
+  '魅魔契约-异能-sp_soul_anchor', '[mvu_plot]地狱模式-叙事审查',
+  '地狱模式-枪声寂灭与资源荒漠', '地狱模式-变种感染者',
 ];
 const DARKLINE_ENTRIES = [
   '暗线主角已定义NPC摘要',
   '暗线主角/约修亚/基础信息',
   '暗线主角/林青/基础信息',
   '[mvu_plot]暗线主角-引入与退场',
+];
+const ARCANO_ENTRIES = [
+  '【金手指】质形重构-核心规则',
+  '【金手指】质形重构-亚空间与输出规范',
+  '【金手指】质形重构-生物质谱系（自带层）',
+  '[mvu_update]金手指-亚空间结算',
+  '[mvu_update]活动-分解',
+  '【金手指】质形重构-输出规范',
 ];
 // 通用结算已由常驻变量更新规则覆盖；保留旧条目在管理集合中并主动关闭，避免重复提示。
 const ALWAYS_UPDATE_ENTRIES = [];
@@ -3439,7 +4787,14 @@ const ACTIVITY_ENTRIES = {
 // 这些条目体量小、依赖当轮动作，长期保持可触发；不等待 /当前活动 写回后再开关。
 const NATIVE_GREEN_KEYWORDS = Object.freeze({
   '杂项-角色创建': ['幸存者档案','角色创建','开局设定','末日前职业','初始技能生成要求','S.P.E.C.I.A.L.基础属性','剧情阶段'],
-  '杂项-云上瑶池与玖柒(联动彩蛋)': ['云上瑶池','九天瑶池','玖柒','普罗林修斯','沈青','超凡进化','瑶池审判'],
+  '杂项-云上瑶池与玖柒(联动彩蛋)': [
+    '云上瑶池','九天瑶池','玖柒','普罗林修斯','沈青','超凡进化','瑶池审判',
+    '口胡','开挂','作弊','无敌','不死之身','无限物资','无限弹药','系统奖励','系统能力',
+    '修仙','仙术','魔法','神赐','血统觉醒','异能觉醒','突然觉醒','瞬间学会','瞬间精通',
+    '凭空获得','凭空拥有','强制胜利','直接胜利','跳过判定','无视规则','修改设定','篡改设定',
+    '我其实认识','我拥有隐藏','我有一辆未记录','我有一把未记录','我已经觉醒','我已经获得',
+    '我能瞬移','我能读心','我会魔法','我能飞','凭空变出','免疫一切','全知全能','时间倒流','读取思想',
+  ],
   '机制-大果嚼嚼嚼(彩蛋)': ['大果嚼嚼嚼','大果','槟榔','5000果','五千果','和成天下'],
   '机制-海上漂': ['海上','远洋','船上','海面','海岛','变异虎鲸','变异海鸥','超级章鱼'],
   '物品-疫苗': ['COVID-30疫苗','疫苗','灭杀疫苗','免疫针','疫苗运输车','疫苗注射'],
@@ -3476,8 +4831,16 @@ const NATIVE_GREEN_KEYWORDS = Object.freeze({
   '[mvu_update]物品完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','使用工具'],
 });
 
+// 与普通绿灯使用同一关键词结构，但总开关仍由可选扩展控制。
+const OPTIONAL_GREEN_KEYWORDS = Object.freeze({
+  '[mvu_update]活动-分解': ['分解','拆解','解构','解析','图谱','亚空间','质形重构','炼制','重组','提炼'],
+});
+
 const REQUIRED_BLUE_ENTRIES = new Set([
-  '[mvu_plot]合理性审查与对抗判定',
+  '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_plot]合理性审查',
+  '[mvu_plot]SPECIAL对抗判定协议',
   '[mvu_update]变量更新规则',
   '[mvu_update]变量输出格式',
   '[mvu_update]活动-共通结算',
@@ -3491,47 +4854,6 @@ const REQUIRED_BLUE_ENTRIES = new Set([
   '[mvu_update]制造-科技与配方',
   '机制-活动叠加与冲突',
 ]);
-
-// 提示词分层：灯效只决定是否触发，位置和深度决定触发后的注意力。
-// MVU 自身会在变量模型末端注入强制任务，只有最短的格式保险占 depth 0。
-const PROMPT_LAYER_PROFILES = Object.freeze({
-  '[mvu_update]变量输出格式强化': { position: 4, depth: 0, role: 0, order: 1000 },
-  '[mvu_update]变量输出格式': { position: 4, depth: 1, role: 0, order: 999 },
-  '[mvu_update]变量更新规则': { position: 4, depth: 2, role: 0, order: 998 },
-  '[mvu_update]人物-建档与关系': { position: 4, depth: 3, role: 0, order: 970 },
-  '[mvu_update]通讯-公共': { position: 4, depth: 3, role: 0, order: 969 },
-  '[mvu_update]通讯-私人': { position: 4, depth: 3, role: 0, order: 968 },
-  '[mvu_update]物品分类': { position: 4, depth: 3, role: 0, order: 967 },
-  '[mvu_update]制造-科技与配方': { position: 4, depth: 3, role: 0, order: 966 },
-  '[mvu_update]活动-共通结算': { position: 4, depth: 3, role: 0, order: 965 },
-  '[mvu_update]环境-时地与事件': { position: 4, depth: 3, role: 0, order: 964 },
-  '[mvu_update]状态-身心与技能': { position: 4, depth: 3, role: 0, order: 963 },
-  '[mvu_update]载具建筑-位置与库存': { position: 4, depth: 3, role: 0, order: 962 },
-  '[mvu_plot]合理性审查与对抗判定': { position: 4, depth: 0, role: 0, order: 1000 },
-  '[mvu_plot]正文操作请求处理': { position: 4, depth: 1, role: 0, order: 990 },
-  '[mvu_plot]杂项-合理性审查': { position: 0, depth: 4, role: null, order: 400 },
-  '[mvu_plot]普通审查': { position: 0, depth: 4, role: null, order: 400 },
-});
-
-function getPromptLayerProfile(entryName, entry) {
-  if (PROMPT_LAYER_PROFILES[entryName]) return PROMPT_LAYER_PROFILES[entryName];
-  if (/^\[mvu_update\]/i.test(entryName)) {
-    const isKeywordRule = Array.isArray(NATIVE_GREEN_KEYWORDS[entryName]) || (entry && entry.constant === false);
-    return { position: 1, depth: 4, role: null, order: isKeywordRule ? 760 : 720 };
-  }
-  return null;
-}
-
-function applyPromptLayerProfile(entry, profile) {
-  if (!profile) return false;
-  const mismatch = Number(entry.position) !== profile.position || Number(entry.depth) !== profile.depth ||
-    entry.role !== profile.role || Number(entry.order) !== profile.order;
-  entry.position = profile.position;
-  entry.depth = profile.depth;
-  entry.role = profile.role;
-  entry.order = profile.order;
-  return mismatch;
-}
 
 function readGameTimestamp(value) {
   const parts = String(value || '').match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
@@ -3640,6 +4962,7 @@ const BIG_ROUTE_KEYWORDS = Object.freeze({
   '机制-完整度': ['损坏','耐久','完整度','维修','修理','保养','破损','断裂','开火','射击','战斗','拆解','制造','工具'],
   '机制-制造': ['制造','制作','合成','加工','改装','维修','修理','保养','工作台','研究配方','组装','拆解设备'],
   '物品-载具': ['驾驶','驾车','开车','乘车','坐车','上车','下车','启动车辆','停车','行驶','车内','车上','摩托','船只'],
+  '机制-复仇与宿敌': ['复仇','报复','寻仇','宿敌','死敌','旧怨','追杀','清算','敌对','仇人','血仇'],
 });
 
 function readRecentTriggerText() {
@@ -3706,6 +5029,8 @@ function buildEnableSet(sd, triggerText = '') {
     if (hasPregnancyFlow) ADULT_EXTRA_PREGNANCY_ENTRIES.forEach(e => enable.add(e));
   }
   if (extra.暗线主角 === true && !noDefinedRoleMode) DARKLINE_ENTRIES.forEach(e => enable.add(e));
+  // 质形重构完整隔离：只有变量开关明确为 true 时才启用六条独立规则。
+  if (extra.质形重构 === true) ARCANO_ENTRIES.forEach(e => enable.add(e));
 
   // 配方规范只在存在待审核项时加载，并按申请类别精确路由；审核完成删除
   // 预审项后自动关闭，避免日常制造长期携带整套配方知识。
@@ -3788,6 +5113,8 @@ function buildEnableSet(sd, triggerText = '') {
     Object.entries(powerEntries).forEach(([name, entry]) => { if (String(selected).includes(name)) enable.add(entry); });
   }
   if (narrativeMode === '地狱' || customTraits.some(v => String(v).startsWith('[地狱异能]'))) {
+    enable.add('[mvu_plot]地狱模式-叙事审查');
+    enable.add('地狱模式-枪声寂灭与资源荒漠');
     enable.add('地狱模式-变种感染者');
   }
 
@@ -3799,6 +5126,9 @@ function buildEnableSet(sd, triggerText = '') {
       '大爆发前/规则-社会秩序', '大爆发前/规则-冲突与应对',
     ]) enable.add(e);
   } else if (phase === '爆发期' || phase === '末世期') {
+    // 世界崩溃后的高压因果对所有创角配点档位一致生效；不把叙事模式误作难度开关。
+    enable.add('机制-高压后果与失败延续');
+    enable.add('机制-死亡');
     enable.add('[mvu_update]威胁压力');
     if (sd?.衍生状态?.camp === '流浪') enable.add('世界观-流浪者');
     if (activitySet.has('探索') || activitySet.has('搜刮')) enable.add('杂项-幸存者据点动态生成');
@@ -3845,7 +5175,7 @@ function buildEnableSet(sd, triggerText = '') {
       enable.add('机制-动态威胁与安逸惩罚');
       enable.add('[mvu_update]威胁压力');
     }
-    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('杂项-感染者遭遇动态生成');
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('杂项-感染者遭遇动态生成');
   } else if (infMode === '普通型') {
     enable.add('[mvu_plot]普通审查');
     if (activitySet.has('探索') || activitySet.has('战斗') || activitySet.has('潜行')) enable.add('普通场景强化(可选)');
@@ -3859,16 +5189,22 @@ function buildEnableSet(sd, triggerText = '') {
       for (const e of ['普通感染者多样性', '普通-机制-丧尸尸潮', '普通的动态威胁与安逸惩罚']) enable.add(e);
       enable.add('[mvu_update]威胁压力');
     }
-    if (phase === '末世期' && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('普通感染者遭遇');
+    if ((phase === '爆发期' || phase === '末世期') && (activitySet.has('探索') || activitySet.has('搜刮'))) enable.add('普通感染者遭遇');
   }
 
-  const npcRelevant = activitySet.has('对话') || activitySet.has('交易') || activitySet.has('探索') || Object.keys(sd?.NPC ?? {}).length > 0;
+  const npcTextRelevant = /遇见|碰见|结识|陌生人|幸存者|路人|居民|军人|警察|医生|队伍|团伙|交谈|询问|求助|招募|救人/.test(currentText);
+  const npcRelevant = activitySet.has('对话') || activitySet.has('交易') || activitySet.has('探索') || npcTextRelevant || Object.keys(sd?.NPC ?? {}).length > 0;
   if (npcMode === '正常型') {
-    if (npcRelevant) enable.add('杂项-NPC动态生成');
+    if (npcRelevant) enable.add(phase === '秩序期' ? 'NPC生成-正常型-秩序期' : 'NPC生成-正常型-爆发期与末世期');
     if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('杂项-末世社交互动法则');
   } else if (npcMode === '全员恶人型') {
-    if (npcRelevant) enable.add('恶意的NPC生成');
+    if (npcRelevant) enable.add(phase === '秩序期' ? 'NPC生成-恶意型-秩序期' : 'NPC生成-恶意型-爆发期与末世期');
     if (npcRelevant && (phase === '爆发期' || phase === '末世期')) enable.add('恶意社交法则');
+  }
+
+  const hasContinuingEnemy = Object.values(sd?.NPC ?? {}).some(v => v && Number(v.relation) <= -15);
+  if (hasContinuingEnemy || BIG_ROUTE_KEYWORDS['机制-复仇与宿敌'].some(keyword => currentText.includes(keyword))) {
+    enable.add('机制-复仇与宿敌');
   }
 
   const summaryMap = {
@@ -3919,12 +5255,17 @@ function buildEnableSet(sd, triggerText = '') {
   const weather = sd?.环境?.天气 ?? '';
   if (weather.startsWith('终年')) enable.add(weather);
 
+  // 导演候选若依赖某条机制规则，只把该候选本轮所需的条目并入路由。
+  // 候选生成本身受世界阶段、模式、活动与无定义角色模式约束，不能借此越过硬门槛。
+  directorSupportEntries(sd).forEach(entryName => enable.add(entryName));
+
   return enable;
 }
 
 var MANAGED_ENTRIES = new Set([
-  // 旧版重复裁决锁仅用于识别并关闭；新版唯一入口是“合理性审查与对抗判定”。
+  // 两个肘击条目是玩家自定义的常驻槽位；只保证开启，不写入内容或改动深度。
   '[mvu_plot]肘击输出正文的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
+  '[mvu_update]肘击更新变量的AI(妮卡社音酱留给大家用的，要长期肘的东西放里面)',
   ...ALWAYS_UPDATE_ENTRIES,
   ...Object.values(PHASE_UPDATE_ENTRIES),
   ...Object.values(INFECTED_UPDATE_ENTRIES),
@@ -3945,13 +5286,14 @@ var MANAGED_ENTRIES = new Set([
   '杂项-搜刮结果动态生成','杂项-幸存者NPC关系推进',
   '机制-搜刮物资','机制-半感染者生存机制','机制-沉浸式体验','机制-种田！我要种田！',
   '世界观-末世期','世界观-COVID-30变体感染者',
-  '机制-官方安全区行为','机制-痛啊好痛啊！','机制-死亡',
+  '机制-官方安全区行为','机制-痛啊好痛啊！','机制-死亡','机制-高压后果与失败延续',
   '世界观-COVID-30感染者行为总纲','[mvu_plot]杂项-合理性审查','杂项-场景强化(可选)',
   '世界观-爆发期','机制-动态威胁与安逸惩罚','杂项-感染者遭遇动态生成',
   '普通丧尸COVID-30感染者','[mvu_plot]普通审查','普通场景强化(可选)',
   '普通爆发期','普通感染者多样性','普通-机制-丧尸尸潮',
   '普通的动态威胁与安逸惩罚','普通感染者遭遇',
-  '杂项-NPC动态生成','杂项-末世社交互动法则','恶意的NPC生成','恶意社交法则',
+  'NPC生成-正常型-秩序期','NPC生成-正常型-爆发期与末世期','杂项-末世社交互动法则',
+  'NPC生成-恶意型-秩序期','NPC生成-恶意型-爆发期与末世期','恶意社交法则','机制-复仇与宿敌',
   '华国已定义NPC摘要','美利坚国已定义NPC摘要','日本国已定义NPC摘要',
   '大毛国已定义NPC摘要','法国已定义NPC摘要',
   '世界观-日本国暗线','世界观-美利坚爆发前','世界观-美利坚爆发后势力格局',
@@ -3978,12 +5320,86 @@ var MANAGED_ENTRIES = new Set([
   ...ADULT_EXTRA_BASE_ENTRIES,
   ...ADULT_EXTRA_POST_OUTBREAK_ENTRIES,
   ...ADULT_EXTRA_PREGNANCY_ENTRIES,
+  ...ARCANO_ENTRIES,
   ...CONTRACT_MODE_ENTRIES,
   ...SUPER_EVENT_POOL.map(e => e.entry),
   SUPER_EVENT_UPDATE_ENTRY, SUPER_EVENT_CATALOG_ENTRY,
 ]);
 
-async function applyToWorldbook(enableSet, wbName, nat, sd) {
+// 保存小助手上次实际写入的启用快照。玩家手动开关条目后，
+// 当前状态会与快照产生偏差；此时只提示，不擅自覆盖玩家选择。
+const _worldbookBaselines = new Map();
+const _worldbookManualOverrides = new Map();
+function worldbookBaselineKey(wbName) {
+  return `jmzq-worldbook-baseline:${wbName}`;
+}
+function worldbookOverridesKey(wbName) {
+  return `jmzq-worldbook-overrides:${wbName}`;
+}
+function snapshotWorldbookEnabled(entries) {
+  const snapshot = {};
+  for (const entry of entries || []) {
+    const name = entry.comment || entry.name || entry.title || '';
+    if (!name) continue;
+    snapshot[name] = entry.enabled === true || entry.disable === false;
+  }
+  return snapshot;
+}
+function loadWorldbookBaseline(wbName) {
+  if (_worldbookBaselines.has(wbName)) return _worldbookBaselines.get(wbName);
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(worldbookBaselineKey(wbName)) || 'null');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      _worldbookBaselines.set(wbName, parsed);
+      return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+function saveWorldbookBaseline(wbName, entries) {
+  const snapshot = snapshotWorldbookEnabled(entries);
+  _worldbookBaselines.set(wbName, snapshot);
+  try { p.localStorage?.setItem(worldbookBaselineKey(wbName), JSON.stringify(snapshot)); } catch (_) {}
+  return snapshot;
+}
+function loadWorldbookOverrides(wbName) {
+  if (_worldbookManualOverrides.has(wbName)) return { ..._worldbookManualOverrides.get(wbName) };
+  try {
+    const parsed = JSON.parse(p.localStorage?.getItem(worldbookOverridesKey(wbName)) || 'null');
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      _worldbookManualOverrides.set(wbName, parsed);
+      return { ...parsed };
+    }
+  } catch (_) {}
+  return {};
+}
+function saveWorldbookOverrides(wbName, overrides) {
+  const clean = { ...overrides };
+  _worldbookManualOverrides.set(wbName, clean);
+  try { p.localStorage?.setItem(worldbookOverridesKey(wbName), JSON.stringify(clean)); } catch (_) {}
+  return clean;
+}
+function findWorldbookDrift(entries, baseline) {
+  if (!baseline) return [];
+  const current = snapshotWorldbookEnabled(entries);
+  const names = new Set([...Object.keys(baseline), ...Object.keys(current)]);
+  return [...names].filter(name => current[name] !== baseline[name]);
+}
+
+async function checkWorldbookDrift() {
+  if (_runningPromise) return;
+  try {
+    const wbName = await api_resolveWorldbookName();
+    const baseline = loadWorldbookBaseline(wbName);
+    if (!baseline) return;
+    const entries = await api_getWorldbook(wbName);
+    if (!Array.isArray(entries)) return;
+    const driftEntries = findWorldbookDrift(entries, baseline);
+    if (driftEntries.length) autoSwitch();
+  } catch (_) {}
+}
+
+async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false) {
   if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
     throw new Error('TavernHelper 世界书接口不可用，请确认酒馆助手已启用');
   }
@@ -3997,18 +5413,59 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
   }
   if (!Array.isArray(entries)) throw new Error(`世界书“${wbName}”返回的数据不是条目数组`);
 
+  const baseline = loadWorldbookBaseline(wbName);
+  const currentSnapshot = snapshotWorldbookEnabled(entries);
+  const externalDrift = findWorldbookDrift(entries, baseline);
+  const storedOverrides = loadWorldbookOverrides(wbName);
+  let manualOverrides = forcePreset ? {} : storedOverrides;
+  if (!forcePreset) {
+    for (const name of externalDrift) {
+      const previous = manualOverrides[name];
+      const presetState = previous && typeof previous === 'object'
+        ? previous.preset === true
+        : baseline?.[name] === true;
+      manualOverrides[name] = { value: currentSnapshot[name] === true, preset: presetState };
+    }
+  }
   let changed = false;
   const enabledList = [];
   const disabledList = [];
+  if (forcePreset && baseline) {
+    const restoreNames = new Set([...Object.keys(storedOverrides), ...externalDrift]);
+    for (const entry of entries) {
+      const name = entry.comment || entry.name || entry.title || '';
+      if (!name || !restoreNames.has(name)) continue;
+      const stored = storedOverrides[name];
+      const baselineState = stored && typeof stored === 'object'
+        ? stored.preset === true
+        : baseline[name] === true;
+      const currentState = entry.enabled === true || entry.disable === false;
+      if (currentState === baselineState) continue;
+      entry.enabled = baselineState;
+      if ('disable' in entry) entry.disable = !baselineState;
+      changed = true;
+      (baselineState ? enabledList : disabledList).push(name);
+    }
+  }
+  function preserveManualState(name, desiredState) {
+    if (!Object.prototype.hasOwnProperty.call(manualOverrides, name)) return desiredState;
+    const stored = manualOverrides[name];
+    const manualState = stored && typeof stored === 'object' ? stored.value === true : stored === true;
+    if (manualState === desiredState) {
+      delete manualOverrides[name];
+      return desiredState;
+    }
+    manualOverrides[name] = { value: manualState, preset: desiredState };
+    return manualState;
+  }
   let sectionCountry = null;
   let sectionKind = null;
   const supportedCountries = new Set(['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非']);
 
   for (const entry of entries) {
     const entryName = entry.comment || entry.name || entry.title || '';
-    if (applyPromptLayerProfile(entry, getPromptLayerProfile(entryName, entry))) changed = true;
     if (entryName === '[mvu_update]变量输出格式强化') {
-      const shouldEnable = getMvuCfg()?.更新方式 === '随AI输出';
+      const shouldEnable = preserveManualState(entryName, getMvuCfg()?.更新方式 === '随AI输出');
       const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
       entry.constant = true;
       entry.selective = false;
@@ -4033,14 +5490,17 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
     }
 
     const nativeGreenKeys = NATIVE_GREEN_KEYWORDS[entryName];
+    const optionalGreenKeys = OPTIONAL_GREEN_KEYWORDS[entryName];
     const isNativeGreen = Array.isArray(nativeGreenKeys);
+    const isOptionalGreen = Array.isArray(optionalGreenKeys);
     const isRequiredBlue = REQUIRED_BLUE_ENTRIES.has(entryName);
     const isManaged = MANAGED_ENTRIES.has(entryName);
     const isCountryExclusive = (sectionKind === '专有条目' || sectionKind === '势力发展') && !!sectionCountry;
     const factionDetail = FACTION_DETAIL_INDEX.get(entryName);
-    if (!isManaged && !isCountryExclusive && !isNativeGreen && !isRequiredBlue) continue;
+    if (!isManaged && !isCountryExclusive && !isNativeGreen && !isOptionalGreen && !isRequiredBlue) continue;
 
     let shouldEnable = (isNativeGreen || isRequiredBlue) ? true : (isManaged ? enableSet.has(entryName) : true);
+    if (isOptionalGreen) shouldEnable = enableSet.has(entryName);
     if (isCountryExclusive) {
       shouldEnable = sectionCountry === nat && (!isManaged || enableSet.has(entryName));
 	  if (factionDetail) {
@@ -4048,9 +5508,10 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
 	    shouldEnable = stage === 4 && enableSet.has(entryName);
 	  }
     }
+    shouldEnable = preserveManualState(entryName, shouldEnable);
     let configMismatch = false;
-    if (isNativeGreen) {
-      const expectedKeys = [...new Set(nativeGreenKeys)];
+    if (isNativeGreen || isOptionalGreen) {
+      const expectedKeys = [...new Set(isOptionalGreen ? optionalGreenKeys : nativeGreenKeys)];
       configMismatch = entry.constant !== false || entry.selective !== true ||
         JSON.stringify(entry.key || []) !== JSON.stringify(expectedKeys) ||
         Number(entry.scanDepth) !== 2 || entry.caseSensitive !== false || entry.matchWholeWords !== false;
@@ -4089,7 +5550,8 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
       !!parts[0] && !!parts[2] && parts[3] === '基础信息';
     if (!isCharacterDetail) continue;
 
-    const shouldEnable = !noDefinedRoleMode && !!nat && (parts[0] === nat || enableSet.has(detailName));
+    const shouldEnable = preserveManualState(detailName,
+      !noDefinedRoleMode && !!nat && (parts[0] === nat || enableSet.has(detailName)));
     const stateMismatch = entry.enabled !== shouldEnable || ('disable' in entry && entry.disable === shouldEnable);
     if (stateMismatch) {
       entry.enabled = shouldEnable;
@@ -4107,8 +5569,12 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
     }
   }
 
+  saveWorldbookBaseline(wbName, entries);
+  manualOverrides = saveWorldbookOverrides(wbName, manualOverrides);
+  const manualEntries = Object.keys(manualOverrides);
+
   const activeEntries = entries
-    .filter(entry => entry.enabled === true && String(entry.content || '').trim().length > 0)
+    .filter(entry => (entry.enabled === true || entry.disable === false) && String(entry.content || '').trim().length > 0)
     .map(entry => entry.comment || entry.name || entry.title || '')
     .filter(Boolean);
 
@@ -4118,17 +5584,22 @@ async function applyToWorldbook(enableSet, wbName, nat, sd) {
     wbNames: [wbName],
     totalEntries: entries.length,
     activeEntries,
+    preservedManualChanges: manualEntries.length > 0,
+    driftEntries: manualEntries,
   };
 }
 
 var _runningPromise = null;
 var _pendingSwitch  = false;
+var _forcePresetPending = false;
 var _debounceTimer  = null;
 var _postUpdateTimer = null;
 
-async function autoSwitch() {
+async function autoSwitch(options = {}) {
+  const forcePreset = options?.forcePreset === true;
   if (_runningPromise) {
     _pendingSwitch = true;
+    _forcePresetPending = _forcePresetPending || forcePreset;
     return _runningPromise;
   }
 
@@ -4156,7 +5627,7 @@ async function autoSwitch() {
       }
       const wbName = await api_resolveWorldbookName();
       const nationality = readNationality(sd);
-	  const result = await applyToWorldbook(enableSet, wbName, nationality, sd);
+	  const result = await applyToWorldbook(enableSet, wbName, nationality, sd, forcePreset);
       // 同步输出格式强化条目状态
       await syncOutputFormatFlag().catch(() => {});
       const logSummary = result.log.map(l =>
@@ -4173,6 +5644,7 @@ async function autoSwitch() {
           业火归途: sd.扩展内容?.业火归途 === true,
           瑟瑟加强: sd.扩展内容?.瑟瑟加强 === true,
           暗线主角: sd.扩展内容?.暗线主角 === true,
+          质形重构: sd.扩展内容?.质形重构 === true,
           当前活动: Array.isArray(sd.当前活动) ? sd.当前活动 : [],
           超事件: sd.超事件?.事件ID ? `${sd.超事件.事件ID} / 进展${sd.超事件.进展 ?? 0}%` : '未启用',
         },
@@ -4182,6 +5654,8 @@ async function autoSwitch() {
         worldbookName: wbName,
         totalEntries: result.totalEntries,
         activeEntries: result.activeEntries,
+        preservedManualChanges: result.preservedManualChanges === true,
+        driftEntries: result.driftEntries || [],
       };
     } catch (err) {
       console.error('[JMZQ] 执行失败:', err);
@@ -4195,8 +5669,10 @@ async function autoSwitch() {
     bubble && bubble.classList.remove('running');
 
     if (_pendingSwitch) {
+      const forceNext = _forcePresetPending;
       _pendingSwitch = false;
-      setTimeout(() => autoSwitch(), 100);
+      _forcePresetPending = false;
+      setTimeout(() => autoSwitch({ forcePreset: forceNext }), 100);
     }
   }
 }
@@ -4239,11 +5715,27 @@ const CONTEST_BEFORE_EVENTS = [
 ];
 const CONTEST_FINISH_EVENTS = [
   'generation_ended', 'GENERATION_ENDED',
-  'generation_stopped', 'GENERATION_STOPPED',
   'message_received', 'MESSAGE_RECEIVED',
-  'character_message_rendered', 'CHARACTER_MESSAGE_RENDERED',
+];
+const CONTEST_STOP_EVENTS = ['generation_stopped', 'GENERATION_STOPPED'];
+const CONTEST_CHANGE_EVENTS = ['message_swiped', 'MESSAGE_SWIPED', 'message_edited', 'MESSAGE_EDITED', 'character_message_rendered', 'CHARACTER_MESSAGE_RENDERED'];
+const CONTEST_CHAT_EVENTS = ['chat_id_changed', 'chat_changed', 'CHAT_CHANGED'];
+const DIRECTOR_MVU_EVENTS = [
+  // MVU源码：Schema调和完成后发出，事件参数中的variables.stat_data就是本层最终快照。
+  'mag_variable_update_ended_for_zod',
+];
+const DIRECTOR_COMPLETE_EVENTS = [
+  // 正文正常完成后才消费导演冷却和一次性状态锁。
+  'generation_ended', 'GENERATION_ENDED',
+];
+const DIRECTOR_STOP_EVENTS = [
+  'generation_stopped', 'GENERATION_STOPPED',
+];
+const DIRECTOR_INVALIDATE_EVENTS = [
+  // 来源正文被切换或编辑后，旧计划失效；不监听消息渲染事件，避免误删新MVU计划。
   'message_swiped', 'MESSAGE_SWIPED',
   'message_edited', 'MESSAGE_EDITED',
+  'message_deleted', 'MESSAGE_DELETED',
 ];
 
 if (typeof eventOn === 'function') {
@@ -4258,14 +5750,32 @@ if (typeof eventOn === 'function') {
   }
   for (const evt of CONTEST_BEFORE_EVENTS) {
     try { eventOn(evt, onContestBeforeGeneration); } catch(e) {}
+    try { eventOn(evt, onDirectorBeforeGeneration); } catch(e) {}
   }
   for (const evt of CONTEST_FINISH_EVENTS) {
     try { eventOn(evt, onContestGenerationFinished); } catch(e) {}
   }
+  for (const evt of CONTEST_STOP_EVENTS) { try { eventOn(evt, onContestGenerationStopped); } catch(e) {} }
+  for (const evt of CONTEST_CHANGE_EVENTS) { try { eventOn(evt, onContestMessageChanged); } catch(e) {} }
+  for (const evt of CONTEST_CHAT_EVENTS) { try { eventOn(evt, onContestChatEntered); } catch(e) {} }
+  for (const evt of DIRECTOR_MVU_EVENTS) {
+    try { eventOn(evt, onDirectorMvuUpdated); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_COMPLETE_EVENTS) {
+    try { eventOn(evt, onDirectorGenerationCompleted); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_STOP_EVENTS) {
+    try { eventOn(evt, onDirectorGenerationStopped); } catch(e) {}
+  }
+  for (const evt of DIRECTOR_INVALIDATE_EVENTS) {
+    try { eventOn(evt, onDirectorSourceInvalidated); } catch(e) {}
+  }
 p._jmzqCleanup = function() {
   clearSuperEventPrompt();
   contestClearPrompt();
+  directorClearPrompt();
   clearTimeout(_contestScanTimer);
+  clearTimeout(_directorRouteTimer);
   clearTimeout(_debounceTimer);
   clearTimeout(_postUpdateTimer);
     delete p._jmzqSuperEventCatchupId;
@@ -4277,8 +5787,19 @@ p._jmzqCleanup = function() {
         try { eventOff(evt, onSuperEventGenerationFinished); } catch(e) {}
       }
       for (const evt of CONTEST_BEFORE_EVENTS) { try { eventOff(evt, onContestBeforeGeneration); } catch(e) {} }
+      for (const evt of CONTEST_BEFORE_EVENTS) { try { eventOff(evt, onDirectorBeforeGeneration); } catch(e) {} }
       for (const evt of CONTEST_FINISH_EVENTS) { try { eventOff(evt, onContestGenerationFinished); } catch(e) {} }
+      for (const evt of CONTEST_STOP_EVENTS) { try { eventOff(evt, onContestGenerationStopped); } catch(e) {} }
+      for (const evt of CONTEST_CHANGE_EVENTS) { try { eventOff(evt, onContestMessageChanged); } catch(e) {} }
+      for (const evt of CONTEST_CHAT_EVENTS) { try { eventOff(evt, onContestChatEntered); } catch(e) {} }
+      for (const evt of DIRECTOR_MVU_EVENTS) { try { eventOff(evt, onDirectorMvuUpdated); } catch(e) {} }
+      for (const evt of DIRECTOR_COMPLETE_EVENTS) { try { eventOff(evt, onDirectorGenerationCompleted); } catch(e) {} }
+      for (const evt of DIRECTOR_STOP_EVENTS) { try { eventOff(evt, onDirectorGenerationStopped); } catch(e) {} }
+      for (const evt of DIRECTOR_INVALIDATE_EVENTS) { try { eventOff(evt, onDirectorSourceInvalidated); } catch(e) {} }
     }
+    delete p._jmzqDirectorPlan;
+    delete p._jmzqInjectedDirector;
+    delete p._jmzqDirectorGenerationAborted;
   };
 } else {
 }
@@ -4290,7 +5811,14 @@ function refreshUI() {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   if (r.ok) {
-    statusDot.className = 'jmzq-dot ok';
+    statusDot.className = r.preservedManualChanges ? 'jmzq-dot idle' : 'jmzq-dot ok';
+    if (worldbookDrift) {
+      worldbookDrift.style.display = r.preservedManualChanges ? 'flex' : 'none';
+      const label = worldbookDrift.querySelector('span');
+      if (label) label.textContent = r.preservedManualChanges
+        ? `世界书启用状况出现偏差（${r.driftEntries?.length || 0}项）`
+        : '世界书启用状况出现偏差';
+    }
     statTags.innerHTML = [
       r.stat.phase   && `<span class="jmzq-tag">${r.stat.phase}</span>`,
       r.stat.nat     && `<span class="jmzq-tag">${r.stat.nat}</span>`,
@@ -4306,6 +5834,7 @@ function refreshUI() {
     }
   } else {
     statusDot.className = 'jmzq-dot err';
+    if (worldbookDrift) worldbookDrift.style.display = 'none';
     statTags.innerHTML = `<span class="jmzq-tag err">ERROR</span>`;
     if (activeCount) activeCount.textContent = '读取失败';
     if (activeEntries) activeEntries.innerHTML = `<span style="font-size:9px;color:#e74c3c;">${escapeHtml(r.error || '未知错误')}</span>`;
@@ -4317,9 +5846,9 @@ async function checkWorldbookCount() {
     const wbName = await api_resolveWorldbookName();
     const entries = await api_getWorldbook(wbName);
     if (!Array.isArray(entries)) return;
-    // 当前可导入的缄默之秋3.0世界书由组装脚本生成，共 567 条（含锚点）。
+    // 当前可导入的缄默之秋3.2世界书由组装脚本生成，共 585 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
-    const expected = 567;
+    const expected = 585;
     statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
     statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
@@ -4329,7 +5858,65 @@ async function checkWorldbookCount() {
 }
 
 // --- 事件绑定 ---
+let _jmzqPullingLatest = false;
+async function pullLatestHelper() {
+  if (_jmzqPullingLatest || !pullLatestBtn) return;
+  _jmzqPullingLatest = true;
+  pullLatestBtn.disabled = true;
+  pullLatestBtn.textContent = '拉取中';
+  showToast('正在绕过缓存拉取 @master 最新公开版…');
+  let lastError = null;
+  for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
+    const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now();
+    try {
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const source = await response.text();
+      const remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
+      if (!remoteMarker) throw new Error('@master 仍是旧版，未发现版本标记');
+      const parts = version => version.split('.').map(value => Number(value) || 0);
+      const remote = parts(remoteMarker[1]);
+      const current = parts(JMZQ_VERSION);
+      const remoteIsOlder = remote.some((value, index) => value !== current[index] && value < current[index]
+        && remote.slice(0, index).every((prefix, prefixIndex) => prefix === current[prefixIndex]));
+      if (remoteIsOlder) throw new Error(`@master 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+      // 保留当前实例直至新模块真正开始执行；新版启动后会自行回收旧 DOM、定时器与监听器。
+      delete p._jmzqLoaded;
+      await import(url + '&jmzq_module=1');
+      return;
+    } catch (error) {
+      lastError = error;
+      p._jmzqLoaded = true;
+    }
+  }
+  _jmzqPullingLatest = false;
+  pullLatestBtn.disabled = false;
+  pullLatestBtn.textContent = '拉取';
+  showToast('拉取失败：' + (lastError?.message || '网络不可用'));
+}
+
+pullLatestBtn?.addEventListener('click', pullLatestHelper);
 refreshBtn.addEventListener('click', async () => { syncOutputFormatFlag().then(() => checkConfig()); refreshMvuConfigStatus(); autoSwitch(); checkEjsTemplate(); showToast('已刷新'); });
+
+worldbookSyncPreset?.addEventListener('click', async () => {
+  worldbookSyncPreset.disabled = true;
+  try {
+    await autoSwitch({ forcePreset: true });
+    showToast('世界书已同步当前预设机制');
+  } finally {
+    worldbookSyncPreset.disabled = false;
+  }
+});
+
+const directorConfigInputs = [
+  directorEnabledInput, directorIntensityInput, directorFatalInput, directorSurvivalInput,
+  directorInfectedInput, directorNpcInput, directorCampInput, directorWorldInput,
+].filter(Boolean);
+directorConfigInputs.forEach(input => input.addEventListener('change', () => {
+  directorSaveForm();
+  showToast(directorEnabledInput?.checked === false ? '隐式剧情导演已关闭' : '隐式剧情导演配置已保存');
+}));
+directorSyncForm();
 
 manualWbApply.addEventListener('click', () => {
   const name = manualWbSelect.value;
@@ -4561,7 +6148,11 @@ ewcSyncMvuDom().catch(() => {});
 _jmzqPopulateWbSelect();
 syncOutputFormatFlag().then(() => checkConfig());
 // 每5秒自动检测一次配置（模型切换后呼吸灯自动跟上，无需打开面板）
-const configPollTimer = setInterval(() => { syncOutputFormatFlag().then(() => checkConfig()); updateBackendCode(); }, 5000);
+const configPollTimer = setInterval(() => {
+  syncOutputFormatFlag().then(() => checkConfig());
+  updateBackendCode();
+  checkWorldbookDrift();
+}, 5000);
 
 // 定时轮询 MVU/ZOD 状态，变化时自动切换世界书
 let _lastStatKey = '';
@@ -4579,7 +6170,7 @@ const statPollTimer = setInterval(() => {
       .join(',');
     const superEventKey = `${sd.扩展内容?.超事件 === true}|${sd.超事件?.事件ID || ''}|${sd.超事件?.进展 ?? 0}|${sd.超事件?.已解决 === true}`;
     const factionKey = Object.entries(sd.势力发展 || {}).map(([name, value]) => `${name}:${value?.阶段 || ''}:${value?.进展 ?? 0}:${value?.已覆灭 === true}`).sort().join(',');
-    const key = `${sd.世界阶段}|${sd.环境?.时间 || ''}|${factionKey}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
+    const key = `${sd.世界阶段}|${sd.环境?.时间 || ''}|${factionKey}|${sd.叙事模式}|${readNationality(sd)}|${sd.感染者行为模式}|${sd.NPC行为模式}|${sd.环境?.天气}|${sd.扩展内容?.业火归途 === true}|${sd.扩展内容?.瑟瑟加强 === true}|${sd.扩展内容?.暗线主角 === true}|${sd.扩展内容?.质形重构 === true}|${superEventKey}|${activeActivities}|${physiologyStages}|${pendingRecipeKey}`;
     if (key !== _lastStatKey) {
       _lastStatKey = key;
       autoSwitch();
@@ -4589,8 +6180,10 @@ const statPollTimer = setInterval(() => {
 
 refreshMvuConfigStatus();
 checkEjsTemplate();
-ensureContestRegexes();
 contestScheduleScan(500);
+// 导演只接受 MVU 更新完成事件，不在脚本加载时用旧快照补算，避免永远慢一轮。
+directorClearPrompt();
+directorUpdateStatus(null, '等待当前层MVU更新');
 
 // 注册世界书状态刷新事件
 const onJmzqDone = () => { refreshUI(); checkWorldbookCount(); };
@@ -4606,6 +6199,7 @@ p._jmzqCleanup = function() {
   clearTimeout(_postUpdateTimer);
   clearInterval(configPollTimer);
   clearInterval(statPollTimer);
+  ewcRestoreFetchHook();
   p.document.removeEventListener('mousedown', onOutsidePanelPress);
   p.document.removeEventListener('touchstart', onOutsidePanelPress);
   p.document.removeEventListener('pointermove', onBubbleMove);
@@ -4641,6 +6235,7 @@ window._jmzqCleanupAll = function() {
     delete p._jmzqLoaded;
   } catch(e) {}
 };
+p._jmzqWindowCleanup = window._jmzqCleanupAll;
 window.addEventListener('pagehide', window._jmzqCleanupAll);
 window.addEventListener('beforeunload', window._jmzqCleanupAll);
 
