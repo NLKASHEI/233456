@@ -1,15 +1,16 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   await import('https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
+//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.8';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.8';
-const JMZQ_CDN_URL = 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
+const JMZQ_VERSION = '3.2.9';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.9';
+const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
+const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  JMZQ_CDN_URL,
-  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js',
   'https://raw.githubusercontent.com/NLKASHEI/233456/open/缄默之秋配置小助手.min.js',
+  JMZQ_CDN_URL,
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js',
 ];
 const WORLDBOOK_NAME = '缄默之秋3.2';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
@@ -5939,7 +5940,15 @@ async function pullLatestHelper() {
     const compare = remote.findIndex((value, index) => value !== current[index]);
     if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@open 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
 
-    const loader = 'await import(' + JSON.stringify(JMZQ_CDN_URL + '?t=') + ' + Date.now());';
+    // 使用不可变版本标签加载实际脚本。这样即使 @open 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
+    const releaseUrl = JMZQ_RELEASE_CDN_ROOT + 'v' + remoteMarker[1] + '/缄默之秋配置小助手.min.js';
+    const releaseOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') releaseOptions.signal = AbortSignal.timeout(30000);
+    const releaseResponse = await fetch(releaseUrl + '?jmzq_verify=' + Date.now(), releaseOptions);
+    if (!releaseResponse.ok) throw new Error(`版本文件返回 HTTP ${releaseResponse.status}`);
+    const releaseSource = await releaseResponse.text();
+    if (!releaseSource.includes(`JMZQ_RELEASE:${remoteMarker[1]}`)) throw new Error(`版本标签 v${remoteMarker[1]} 尚未同步，请稍后重试`);
+    const loader = 'await import(' + JSON.stringify(releaseUrl + '?t=') + ' + Date.now());';
     // 改写当前角色脚本为永久防缓存加载器；修改自身会销毁 iframe，因此由父页面延迟保存并刷新。
     await runInParent(`(() => {
       setTimeout(async () => {
