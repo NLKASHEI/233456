@@ -1,14 +1,15 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
+//   await import('https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.6';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.6';
+const JMZQ_VERSION = '3.2.8';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.8';
+const JMZQ_CDN_URL = 'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
-  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
-  'https://raw.githubusercontent.com/NLKASHEI/233456/master/缄默之秋配置小助手.min.js',
+  JMZQ_CDN_URL,
+  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/open/缄默之秋配置小助手.min.js',
 ];
 const WORLDBOOK_NAME = '缄默之秋3.2';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
@@ -773,7 +774,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
-        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="绕过缓存拉取 @master 最新公开版">拉取</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @open 重新拉取并刷新页面">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -1099,7 +1100,7 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'apihub.veletis.com', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
 const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
@@ -1986,13 +1987,40 @@ function ewcReadRequestMeta(init) {
   try {
     if (!init || typeof init.body !== 'string' || !init.body.trim()) return result;
     const body = JSON.parse(init.body);
-    const modelKeys = ['model', 'chat_completion_model', 'custom_model', 'openai_model', 'claude_model'];
-    const urlKeys = ['reverse_proxy', 'server_url', 'custom_url', 'api_url', 'base_url'];
-    for (const key of modelKeys) {
-      if (typeof body?.[key] === 'string' && body[key].trim()) { result.model = body[key].trim(); break; }
+    const readText = key => typeof body?.[key] === 'string' ? body[key].trim() : '';
+    const source = String(body?.chat_completion_source || body?.source || body?.api_type || '').trim().toLowerCase();
+    const sourceModelKeys = {
+      claude: 'claude_model', openai: 'openai_model', makersuite: 'google_model',
+      google: 'google_model', vertexai: 'vertexai_model', openrouter: 'openrouter_model',
+      ai21: 'ai21_model', mistralai: 'mistralai_model', custom: 'custom_model',
+      cohere: 'cohere_model', perplexity: 'perplexity_model', groq: 'groq_model',
+      siliconflow: 'siliconflow_model', electronhub: 'electronhub_model', chutes: 'chutes_model',
+      nanogpt: 'nanogpt_model', deepseek: 'deepseek_model', aimlapi: 'aimlapi_model',
+      xai: 'xai_model', pollinations: 'pollinations_model', cometapi: 'cometapi_model',
+      moonshot: 'moonshot_model', fireworks: 'fireworks_model', azure_openai: 'azure_openai_model',
+      zai: 'zai_model'
+    };
+
+    // model 是后端请求直接提交的模型；否则优先读取当前来源对应字段。
+    // chat_completion_model 只作当前来源字段缺失时的兼容回退，避免把通用保存字段当成当前模型。
+    result.model = readText('model');
+    if (!result.model && sourceModelKeys[source]) result.model = readText(sourceModelKeys[source]);
+    if (!result.model) result.model = readText('chat_completion_model');
+    if (!result.model && !source) {
+      const candidates = [...new Set(Object.values(sourceModelKeys).map(readText).filter(Boolean))];
+      if (candidates.length === 1) result.model = candidates[0];
     }
-    for (const key of urlKeys) {
-      if (typeof body?.[key] === 'string' && body[key].trim()) { result.apiUrl = body[key].trim(); break; }
+
+    const sourceUrlKeys = source === 'custom'
+      ? ['reverse_proxy', 'custom_url', 'server_url', 'api_url', 'base_url']
+      : ['reverse_proxy', 'server_url', 'api_url', 'base_url'];
+    for (const key of sourceUrlKeys) {
+      const value = readText(key);
+      if (value) { result.apiUrl = value; break; }
+    }
+    if (!result.apiUrl && !source) {
+      const candidates = [...new Set(['reverse_proxy', 'custom_url', 'server_url', 'api_url', 'base_url'].map(readText).filter(Boolean))];
+      if (candidates.length === 1) result.apiUrl = candidates[0];
     }
   } catch (e) {}
   return result;
@@ -5863,30 +5891,81 @@ async function pullLatestHelper() {
   _jmzqPullingLatest = true;
   pullLatestBtn.disabled = true;
   pullLatestBtn.textContent = '拉取中';
-  showToast('正在绕过缓存拉取 @master 最新公开版…');
+  showToast('正在清理缓存并拉取 @open 最新公开版…');
   let lastError = null;
-  for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
-    const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now();
+  try {
+    const trees = await api_getScriptTrees();
+    const matches = [];
+    const ownId = typeof getScriptId === 'function' ? getScriptId() : null;
+    const walk = nodes => nodes.forEach(node => {
+      if (node.type === 'folder') walk(node.scripts || []);
+      else if (node.type === 'script' && (ownId ? node.id === ownId :
+        node.name === '缄默之秋配置小助手' || /233456@[^\s'"`]+\/缄默之秋配置小助手(?:\.min)?\.js/.test(node.content || ''))) matches.push(node);
+    });
+    walk(trees);
+    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @open 导入代码');
+
+    // 删除 Cache Storage 中所有旧分支版本；普通 HTTP 缓存再由 no-store 与随机参数双重绕过。
     try {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const source = await response.text();
-      const remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
-      if (!remoteMarker) throw new Error('@master 仍是旧版，未发现版本标记');
-      const parts = version => version.split('.').map(value => Number(value) || 0);
-      const remote = parts(remoteMarker[1]);
-      const current = parts(JMZQ_VERSION);
-      const remoteIsOlder = remote.some((value, index) => value !== current[index] && value < current[index]
-        && remote.slice(0, index).every((prefix, prefixIndex) => prefix === current[prefixIndex]));
-      if (remoteIsOlder) throw new Error(`@master 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
-      // 保留当前实例直至新模块真正开始执行；新版启动后会自行回收旧 DOM、定时器与监听器。
-      delete p._jmzqLoaded;
-      await import(url + '&jmzq_module=1');
-      return;
-    } catch (error) {
-      lastError = error;
-      p._jmzqLoaded = true;
+      const storage = p.caches || window.caches;
+      if (storage) for (const key of await storage.keys()) {
+        const cache = await storage.open(key);
+        for (const request of await cache.keys()) {
+          const cachedUrl = decodeURI(request.url);
+          if (/^https:\/\/[^/]*jsdelivr\.net\/gh\/NLKASHEI\/233456@[^/]+\/缄默之秋配置小助手(?:\.min)?\.js(?:\?|$)/.test(cachedUrl)) await cache.delete(request);
+        }
+      }
+    } catch (error) { console.warn('[缄默之秋] 缓存不可访问，将直接绕过缓存重新拉取', error); }
+
+    let remoteMarker = null;
+    for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
+      const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      try {
+        const fetchOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') fetchOptions.signal = AbortSignal.timeout(30000);
+        const response = await fetch(url, fetchOptions);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const source = await response.text();
+        if (!source.includes('jmzq-panel') || /^\s*</.test(source)) throw new Error('CDN 返回的内容不是小助手脚本');
+        remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
+        if (!remoteMarker) throw new Error('@open 未发现版本标记');
+        break;
+      } catch (error) { lastError = error; }
     }
+    if (!remoteMarker) throw lastError || new Error('所有下载地址均不可用');
+    const parts = version => version.split('.').map(value => Number(value) || 0);
+    const remote = parts(remoteMarker[1]);
+    const current = parts(JMZQ_VERSION);
+    const compare = remote.findIndex((value, index) => value !== current[index]);
+    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@open 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+
+    const loader = 'await import(' + JSON.stringify(JMZQ_CDN_URL + '?t=') + ' + Date.now());';
+    // 改写当前角色脚本为永久防缓存加载器；修改自身会销毁 iframe，因此由父页面延迟保存并刷新。
+    await runInParent(`(() => {
+      setTimeout(async () => {
+        try {
+          await TavernHelper.updateScriptTreesWith(trees => {
+            let found = false;
+            function walk(nodes) { for (const node of nodes) {
+              if (node.type === 'folder') walk(node.scripts || []);
+              else if (node.id === ${JSON.stringify(matches[0].id)}) { node.content = ${JSON.stringify(loader)}; found = true; }
+            } }
+            walk(trees);
+            if (!found) throw new Error('当前角色已变化，请重新打开小助手');
+            return trees;
+          }, { type: 'character' });
+          location.reload();
+        } catch (error) {
+          const button = document.getElementById('jmzq-pull-latest');
+          if (button) { button.disabled = false; button.textContent = '拉取'; }
+          alert('小助手拉取失败：' + (error.message || error));
+        }
+      }, 100);
+      return true;
+    })()`);
+    return;
+  } catch (error) {
+    lastError = error;
   }
   _jmzqPullingLatest = false;
   pullLatestBtn.disabled = false;
