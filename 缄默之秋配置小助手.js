@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.1';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.1';
+const JMZQ_VERSION = '3.3.2';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.2';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
@@ -1102,7 +1102,7 @@ function showToast(msg) {
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'apihub.veletis.com', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novai','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','api.leostudio.cc'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novai','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','api.leostudio.cc','aiwangyou','xindu.xyz'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
   const value = String(url || '').toLowerCase();
@@ -5004,7 +5004,30 @@ function readRecentTriggerText() {
   }
 }
 
+// 世界书按阶段变量或游戏时间任一已达到的阶段切换；只计算路由，不改写 MVU。
+function resolveWorldbookPhase(sd) {
+  const phases = ['秩序期', '爆发期', '末世期'];
+  const variableRank = Math.max(0, phases.indexOf(sd?.世界阶段));
+  const timeText = String(sd?.环境?.时间 || '');
+  const parts = timeText.match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
+  const stamp = readGameTimestamp(timeText);
+  let timeRank = 0;
+  if (parts && stamp != null) {
+    const date = new Date(stamp);
+    const expected = [Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] || 0), Number(parts[5] || 0)];
+    const actual = [date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes()];
+    // Date.UTC 会自动归一化不存在的日期，不能让错误时间误触发阶段切换。
+    if (actual.every((value, index) => value === expected[index])) {
+      if (stamp >= Date.UTC(2030, 7, 26, 12, 0)) timeRank = 2;
+      else if (stamp >= Date.UTC(2030, 7, 24, 12, 0)) timeRank = 1;
+    }
+  }
+  return phases[Math.max(variableRank, timeRank)];
+}
+
 function buildEnableSet(sd, triggerText = '') {
+  // 后续阶段条目、国家/NPC/感染者分支及导演补充条目共用同一有效阶段。
+  sd = { ...sd, 世界阶段: resolveWorldbookPhase(sd) };
   const enable = new Set();
   const nat           = readNationality(sd);
   const phase         = sd?.世界阶段 ?? '秩序期';
@@ -5664,7 +5687,7 @@ async function autoSwitch(options = {}) {
       p._jmzqLastResult = {
         time: Date.now(), ok: true,
         stat: {
-          phase:  sd.世界阶段,
+          phase:  resolveWorldbookPhase(sd),
           叙事模式: sd.叙事模式,
           nat:    nationality,
           感染者: sd.感染者行为模式,
