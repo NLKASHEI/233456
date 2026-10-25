@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.3';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.3';
+const JMZQ_VERSION = '3.3.4';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.4';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
@@ -3080,9 +3080,8 @@ function contestValidatePayload(raw) {
 }
 function contestBodyText(text) {
   // 仅排除有明确边界的隐藏内容，不根据“后面还有文字”猜测标签来自推理。
-  return String(text ?? '')
+  return directorStripBlocks(text)
     .replace(/<(think|thinking|analysis|reasoning|logic_check)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi, '')
     .replace(/<(UpdateVariable|UpdateVariables)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '');
 }
 function contestScanTags(body) {
@@ -3103,13 +3102,16 @@ function contestScanTags(body) {
 }
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
-  const text = Array.isArray(message?.swipes) ? message.swipes[swipeId] : message?.message;
+  // 当前正文可能经过插图/编辑，不能用尚未同步的 swipe 反向覆盖它；空正文也有效。
+  const text = typeof message?.message === 'string' ? message.message
+    : typeof message?.mes === 'string' ? message.mes
+      : Array.isArray(message?.swipes) ? message.swipes[swipeId] : '';
   return { swipeId, text: String(text ?? '') };
 }
 function contestListMessages() {
   const api = contestApi();
   if (typeof api?.getChatMessages === 'function') {
-    try { return api.getChatMessages('0-{{lastMessageId}}', { include_swipes: true }) || []; } catch (e) {}
+    try { return api.getChatMessages('0-{{lastMessageId}}', { include_swipes: false }) || []; } catch (e) {}
   }
   const chat = contestContext()?.chat;
   return Array.isArray(chat) ? chat.map((item, index) => ({
@@ -3394,7 +3396,11 @@ p._jmzqContestDebug = {
 // 由显示正则隐藏，下一轮模型随聊天上下文读取，不占用扩展提示缓存。
 const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
 const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
-const DIRECTOR_TAG_RE = /<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi;
+const DIRECTOR_TAG_RE = /(^[ \t]*(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?(?:^[ \t]*\2[ \t]*(?=\r?$)|(?![\s\S]))|^[ \t]*<JMZQ_DIRECTOR(?:[ \t]+[^<>\r\n]*)?>[ \t]*\r?\n(?:(?!<\/?JMZQ_DIRECTOR\b)[\s\S])*?<JMZQ_DIRECTOR\b[\s\S]*$)|^[ \t]*<JMZQ_DIRECTOR(?:[ \t]+[^<>\r\n]*)?>[ \t]*\r?\n(?:(?!<\/?JMZQ_DIRECTOR\b)[\s\S])*?^[ \t]*<\/JMZQ_DIRECTOR[ \t]*>[ \t]*(?=\r?$)/gim;
+const _directorOwnedTargets = new Map();
+function directorStripBlocks(text) {
+  return String(text ?? '').replace(DIRECTOR_TAG_RE, '$1');
+}
 const DIRECTOR_CONFIG_KEY = 'jmzq-director-config-v1';
 const DIRECTOR_STORE_VERSION = 1;
 const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
@@ -3578,7 +3584,7 @@ function directorStateFingerprint(sd) {
   })).toString(36);
 }
 function directorSourceText(text) {
-  return String(text || '').replace(DIRECTOR_TAG_RE, '')
+  return directorStripBlocks(text)
     .replace(CONTEST_RESULT_RE, '').replace(CONTEST_ERROR_RE, '').replace(/<!--DY_CONTEST_DONE:[a-z0-9_]+-->/g, '').trimEnd();
 }
 function directorSourceKey(sd, source) {
@@ -4271,35 +4277,55 @@ async function directorWritePlanToMessageNow(plan) {
   directorClearPrompt();
   const api = contestApi();
   if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
-  const messages = contestListMessages().filter(message => message?.role === 'assistant' || message?.is_user === false);
-  const sourceId = Number(plan?.sourceMessageId);
-  const sourceFloor = Number(plan?.sourceFloor);
-  if (plan && (!Number.isInteger(sourceFloor) || !directorPlanMatchesCurrentLayer(plan))) {
+  const chatId = contestChatId();
+  if (plan && (!Number.isInteger(Number(plan.sourceFloor)) || !directorPlanMatchesCurrentLayer(plan))) {
     throw new Error('导演来源楼层、swipe或正文已变化，拒绝写入旧计划');
   }
-  const updates = [];
-  for (const [floor, message] of messages.entries()) {
+  // 只处理本次计划来源和本运行周期实际写过且未被改动的消息，不清洗全部历史。
+  const targets = new Map();
+  for (const [key, owned] of _directorOwnedTargets) {
+    if (owned.chatId === chatId) targets.set(owned.messageId, { key, owned });
+  }
+  if (plan) targets.set(Number(plan.sourceMessageId), {
+    ...targets.get(Number(plan.sourceMessageId)), isSource: true,
+  });
+  const pending = [];
+  for (const [messageId, target] of targets) {
+    const message = contestListMessages().find(item => Number(item.message_id) === messageId);
+    if (!message || !(message.role === 'assistant' || message.is_user === false)) continue;
     const current = contestCurrentSwipe(message);
-    DIRECTOR_TAG_RE.lastIndex = 0;
-    const cleaned = current.text.replace(DIRECTOR_TAG_RE, '').replace(/\n{3,}$/g, '\n\n').trimEnd();
-    const isSource = !!plan && floor === sourceFloor && Number(message.message_id) === sourceId;
-    const next = isSource
-      ? `${cleaned}${cleaned ? '\n' : ''}${directorPromptContent(plan)}`
-      : cleaned;
-    if (next !== current.text) updates.push({ message_id: message.message_id, message: next });
+    const owned = target.owned;
+    const unchangedOwned = owned && owned.swipeId === current.swipeId && owned.text === current.text;
+    // 图片、人工编辑或 swipe 已变化时，不再撤销旧写入，更不使用缓存正文覆盖。
+    if (!target.isSource && !unchangedOwned) {
+      _directorOwnedTargets.delete(target.key);
+      continue;
+    }
+    const cleaned = unchangedOwned ? owned.base : directorStripBlocks(current.text);
+    const block = target.isSource ? directorPromptContent(plan) : '';
+    const next = target.isSource ? cleaned + (cleaned && !cleaned.endsWith('\n') ? '\n' : '') + block : cleaned;
+    if (next !== current.text) pending.push({ messageId, current, next, base: cleaned, isSource: target.isSource, key: target.key });
   }
-  if (plan && !messages.some((message, floor) => floor === sourceFloor && Number(message.message_id) === sourceId)) {
-    throw new Error(`未找到导演来源消息 ${sourceId}`);
+  // 在紧邻写入处重读；队列等待期间的正文、楼层或 swipe 改动不能被旧快照覆盖。
+  if (contestChatId() !== chatId || (plan && !directorPlanMatchesCurrentLayer(plan))) return false;
+  for (const item of pending) {
+    const latest = contestListMessages().find(message => Number(message.message_id) === item.messageId);
+    if (!latest || !(latest.role === 'assistant' || latest.is_user === false)) return false;
+    const current = contestCurrentSwipe(latest);
+    if (current.swipeId !== item.current.swipeId || current.text !== item.current.text) return false;
   }
-  if (!updates.length) {
-    directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
-    return true;
-  }
-  _directorWritingMessage = true;
-  try {
-    await api.setChatMessages(updates, { refresh: 'affected' });
-  } finally {
-    _directorWritingMessage = false;
+  if (pending.length) {
+    _directorWritingMessage = true;
+    try {
+      await api.setChatMessages(pending.map(item => ({ message_id: item.messageId, message: item.next })), { refresh: 'affected' });
+    } finally { _directorWritingMessage = false; }
+    for (const item of pending) {
+      if (item.key) _directorOwnedTargets.delete(item.key);
+      if (item.isSource) {
+        const key = JSON.stringify([chatId, item.messageId, item.current.swipeId]);
+        _directorOwnedTargets.set(key, { chatId, messageId: item.messageId, swipeId: item.current.swipeId, text: item.next, base: item.base });
+      }
+    }
   }
   p._jmzqInjectedDirector = plan || null;
   directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
