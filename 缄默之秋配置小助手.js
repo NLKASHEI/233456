@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.7';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.7';
+const JMZQ_VERSION = '3.3.8';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.8';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
@@ -1948,10 +1948,11 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
-// ── 请求截断说明 / 第三方中转风险 ──
-// 部分第三方 API 中转服务可能对请求进行模型重定向、路由替换或额外系统提示词注入，标称模型不一定等于实际调用模型。
-// 示例截图仅用于提示此类风险，不能单凭截图认定特定服务存在不当行为，应结合可验证的请求与响应记录判断。
-// 既然已经能查阅 GitHub 源码，建议同时核验中转服务的模型路由说明、隐私政策及实际响应，谨慎选择可信服务。
+// ── 请求截断说明 / 中转站掺水与模型伪装 ──
+// 截断名单依据维护者收集的多方反馈及复核结果整理，涵盖相关中转站地址、关键词及惯用名。
+// 拦截针对的是偷换模型、掺水路由及在用户不知情时向请求注入系统提示词等做法。
+// 挂着高规格模型的招牌，后台却调用其他模型，还让模型伪装身份，用户花的钱和得到的服务根本对不上。
+// 仓库 README 附有模型重定向与系统提示词注入的截图及中转服务选择建议。
 // ── 静默截断兼容响应 ──
 function makeFakeCompletion(init) {
   var isStream = true;
