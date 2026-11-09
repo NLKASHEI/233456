@@ -3,8 +3,9 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.6';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.6';
+const JMZQ_VERSION = '3.2.7';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.7';
+const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
   'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
@@ -898,6 +899,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
               <option value="聊天消息">聊天消息</option>
               <option value="工具调用">工具调用</option>
               <option value="格式化输出">格式化输出</option>
+              <option value="格式化输出(v4兼容)">格式化输出(v4兼容)</option>
             </select>
           </div>
           <div class="jmzq-mvu-row">
@@ -915,6 +917,10 @@ p.document.body.insertAdjacentHTML('beforeend', `
           <label class="jmzq-mvu-check-row">
             <input type="checkbox" id="jmzq-mvu-auto-request"><span class="jmzq-mvu-check-box"></span><span>启用自动请求</span>
           </label>
+          <div class="jmzq-mvu-row">
+            <label class="jmzq-mvu-label" for="jmzq-mvu-min-request-length">最小请求字数</label>
+            <input class="jmzq-mvu-input num" id="jmzq-mvu-min-request-length" type="number" min="0" step="1">
+          </div>
           <!-- 高级参数 -->
           <div class="jmzq-mvu-collapse-header" id="jmzq-mvu-adv-toggle">
             <span class="jmzq-mvu-collapse-arrow" id="jmzq-mvu-adv-arrow">▶</span><span>高级参数</span>
@@ -1042,6 +1048,7 @@ const mvuRespFormat = p.document.getElementById('jmzq-mvu-resp-format');
 const mvuRequestMode = p.document.getElementById('jmzq-mvu-request-mode');
 const mvuRequestCount = p.document.getElementById('jmzq-mvu-request-count');
 const mvuAutoRequest = p.document.getElementById('jmzq-mvu-auto-request');
+const mvuMinRequestLength = p.document.getElementById('jmzq-mvu-min-request-length');
 const mvuApiUrl = p.document.getElementById('jmzq-mvu-api-url');
 
 // 气泡启动位置校正：防止因窗口尺寸变化导致拖出屏幕
@@ -1108,6 +1115,59 @@ function isConfigUrlBlacklisted(url) {
     CONFIG_URL_BLACKLIST_PATTERNS.some(pattern => pattern.test(value));
 }
 
+function shouldWarnFlashModel(name) {
+  // 仅识别 Gemini 3 / 3.0 Flash，包括服务商前缀和 preview 等后缀。
+  return /(?:^|[^a-z0-9])gemini[\s_-]*3(?:[.\s_-]0)?[\s_-]*flash(?=$|[^a-z0-9])/i.test(String(name || ''));
+}
+
+function findRecommendedExtraModel(ids) {
+  const patterns = [
+    /(?:^|[^a-z0-9])gemini[\s_-]*3[.\s_-]8[\s_-]*(?:flash|f)(?=$|[^a-z0-9])/i,
+    /(?:^|[^a-z0-9])(?:doubao[\s_-]*)?seed[\s_-]*2[.\s_-]1[\s_-]*lite(?=$|[^a-z0-9])/i,
+    /(?:^|[^a-z0-9])glm[\s_-]*5[.\s_-]3[\s_-]*(?:flash|f)(?=$|[^a-z0-9])/i
+  ];
+  for (const pattern of patterns) {
+    const id = ids.find(value => pattern.test(value));
+    if (id) return id;
+  }
+  return '';
+}
+
+function fillExtraModelOptions(select, ids) {
+  const doc = select.ownerDocument;
+  const options = doc.createDocumentFragment();
+  for (const id of ids) {
+    const option = doc.createElement('option');
+    option.value = id;
+    option.textContent = id;
+    options.appendChild(option);
+  }
+  select.replaceChildren(options);
+}
+
+function supportsMvuMinRequestLength(settings) {
+  // 新版 MVU 同时提供触发标签。旧配置可能已被小助手写入字数字段，不能用它判断支持情况。
+  return typeof settings?.触发标签 === 'string';
+}
+
+function getMvuExtraConfigIssues(em) {
+  const issues = [];
+  if (em.启用自动请求 !== true) issues.push('自动请求未开启');
+  if (supportsMvuMinRequestLength(em) && em.最小请求字数 !== 50) issues.push('最小请求字数应为 50');
+  const name = String(em.模型名称 || '');
+  if (/gemini/i.test(name)) {
+    if (em.随机头部 !== true) issues.push('Gemini 应开启随机头部');
+    if (em.应答格式 !== '聊天消息') issues.push('Gemini 应使用聊天消息');
+  } else if (/deepseek/i.test(name)) {
+    if (em.随机头部 !== false) issues.push('DeepSeek 应关闭随机头部');
+    if (em.应答格式 !== '格式化输出(v4兼容)') issues.push('DeepSeek 应使用 V4 兼容格式化输出');
+    if (em.top_p !== 0.95) issues.push('DeepSeek top_p 应为 0.95');
+  } else if (name && em.随机头部 !== false) {
+    issues.push('非 Gemini 应关闭随机头部');
+  }
+  return issues;
+}
+
 function checkConfig() {
   try {
     updateBackendCode();
@@ -1131,6 +1191,7 @@ function checkConfig() {
       }
       if (isExtra) {
         const em = cfg.额外模型解析配置 || {};
+        issues.push(...getMvuExtraConfigIssues(em));
         if (!em.api地址 || !em.api地址.trim()) issues.push('API地址未填写');
         if (_mvuOutputFormatEnabled) issues.push('随AI条目误开启');
       } else if (isSuiAI) {
@@ -1442,14 +1503,15 @@ function buildCompatChecks() {
   const cfg = getMvuCfg();
   normalizeMvuCompatKeys(cfg);
   const compat = cfg && cfg.兼容性 ? cfg.兼容性 : {};
-  const preferred = ['更新到聊天变量', '显示老旧功能', 'sendas不视为user消息'];
+  const preferred = ['额外模型解析非阻塞', '更新到聊天变量', '显示老旧功能', 'sendas不视为user消息'];
   const keys = [
     ...preferred.filter(k => Object.prototype.hasOwnProperty.call(compat, k)),
     ...Object.keys(compat).filter(k => !preferred.includes(k) && k !== 'sandas不视为user消息'),
   ];
   mvuCompatChecks.innerHTML = keys.map(k => {
     const checked = compat[k] ? ' checked' : '';
-    return '<label class="jmzq-mvu-check-row"><input type="checkbox" class="jmzq-mvu-compat-check" data-key="' + k + '"' + checked + '><span class="jmzq-mvu-check-box"></span><span>' + k + '</span></label>';
+    const label = k === '额外模型解析非阻塞' ? '额外模型解析不阻塞正文显示（实验性）' : k;
+    return '<label class="jmzq-mvu-check-row"><input type="checkbox" class="jmzq-mvu-compat-check" data-key="' + k + '"' + checked + '><span class="jmzq-mvu-check-box"></span><span>' + label + '</span></label>';
   }).join('');
 }
 
@@ -1478,6 +1540,9 @@ function syncMvuToForm(cfg) {
   mvuRequestMode.value = em.请求方式 || bu.请求方式 || '依次请求，失败后重试';
   mvuRequestCount.value = em.请求次数 ?? bu.请求次数 ?? 1;
   mvuAutoRequest.checked = em.启用自动请求 ?? bu.启用自动请求 ?? true;
+  mvuMinRequestLength.disabled = !supportsMvuMinRequestLength(em);
+  mvuMinRequestLength.title = mvuMinRequestLength.disabled ? '当前 MVU 版本不支持最小请求字数' : '';
+  mvuMinRequestLength.value = mvuMinRequestLength.disabled ? 0 : em.最小请求字数 ?? bu.最小请求字数 ?? 0;
   mvuApiUrl.value = em.api地址 || bu.api地址 || '';
   mvuApiKey.value = em.密钥 || bu.密钥 || '';
   const modelName = em.模型名称 || bu.模型名称 || '';
@@ -1538,6 +1603,7 @@ function writeMvuConfig() {
   em.请求方式 = mvuRequestMode.value;
   em.请求次数 = parseInt(mvuRequestCount.value) || 1;
   em.启用自动请求 = mvuAutoRequest.checked;
+  if (supportsMvuMinRequestLength(em)) em.最小请求字数 = Math.max(0, Math.floor(Number(mvuMinRequestLength.value) || 0));
   em.api地址 = mvuApiUrl.value;
   em.密钥 = mvuApiKey.value;
   em.模型名称 = mvuModelName.value;
@@ -1583,6 +1649,7 @@ function ewcBackupToEwcYH() {
   bu.请求方式 = em.请求方式;
   bu.请求次数 = em.请求次数;
   bu.启用自动请求 = em.启用自动请求;
+  if (supportsMvuMinRequestLength(em)) bu.最小请求字数 = em.最小请求字数;
   bu.api地址 = em.api地址;
   bu.密钥 = em.密钥;
   bu.模型名称 = em.模型名称;
@@ -1616,6 +1683,7 @@ function ewcRestoreFromEwcYH() {
   if (!em.请求方式 && bu.请求方式) em.请求方式 = bu.请求方式;
   if (em.请求次数 === undefined && bu.请求次数 !== undefined) em.请求次数 = bu.请求次数;
   if (em.启用自动请求 === undefined && bu.启用自动请求 !== undefined) em.启用自动请求 = bu.启用自动请求;
+  if (supportsMvuMinRequestLength(em) && em.最小请求字数 === undefined && bu.最小请求字数 !== undefined) em.最小请求字数 = bu.最小请求字数;
   if (!em.api地址 && bu.api地址) em.api地址 = bu.api地址;
   if (!em.密钥 && bu.密钥) em.密钥 = bu.密钥;
   if (!em.模型名称 && bu.模型名称) em.模型名称 = bu.模型名称;
@@ -1728,7 +1796,12 @@ function ewcSyncMvuDom() {
 
     // 自动请求
     el = findField('自动请求');
-    if (el) setVal(el, em.启用自动请求 !== false);
+    if (el?.type === 'checkbox' && em.启用自动请求 !== undefined) {
+      setVal(el, em.启用自动请求);
+      await Promise.resolve(); // 等待 MVU 挂载自动请求的条件字段。
+    }
+    el = doc.querySelector('.mvu-section input[aria-label="最小请求字数"]') || findField('最小请求字数');
+    if (el && typeof em.触发标签 === 'string' && em.最小请求字数 !== undefined) setVal(el, em.最小请求字数);
 
     // API 地址
     el = findField('API 地址');
@@ -1783,7 +1856,8 @@ function ewcSyncMvuDom() {
     // 兼容性
     var compatKeys = Object.keys(compat);
     for (var c = 0; c < compatKeys.length; c++) {
-      el = findField(compatKeys[c]);
+      el = findField(compatKeys[c] === '额外模型解析非阻塞'
+        ? '额外模型解析不阻塞正文显示（实验性）' : compatKeys[c]);
       if (el) setVal(el, !!compat[compatKeys[c]]);
     }
 
@@ -1798,35 +1872,80 @@ function ewcSyncMvuDom() {
 // 无感应用：直接重载 MVU 的 Pinia store，成功时不刷新页面。
 // 兼容新版 MVU 的 Vue 挂载方式，同时保留刷新兜底。
 async function mvuLiveApply(cfg) {
-  const cfgJson = cfg ? JSON.stringify(cfg) : null;
+  if (!cfg) return { ok: false };
+  const cfgJson = JSON.stringify(cfg);
   return runInParent(`(async () => {
     try {
-      ${cfgJson ? 'var cfg = JSON.parse(' + JSON.stringify(cfgJson) + '); if (window.SillyTavern && window.SillyTavern.extensionSettings) window.SillyTavern.extensionSettings.mvu_settings = cfg;' : ''}
-      if (window.SillyTavern && typeof window.SillyTavern.saveSettingsDebounced === 'function') window.SillyTavern.saveSettingsDebounced();
+      var host = window.SillyTavern;
+      var context = host?.getContext?.() || host;
+      var extensionSettings = context?.extensionSettings || host?.extensionSettings;
+      if (!extensionSettings) return { ok: false };
+      var cfg = JSON.parse(${JSON.stringify(cfgJson)});
+      extensionSettings.mvu_settings = cfg;
+      // 找到 MVU 面板挂载点 → Vue app → Pinia store
+      // 策略1：遍历全文档所有 Vue 挂载点（[data-v-app] / [script_id] / [__vue_app__]），
+      // 逐个检查其 pinia 里是否含「MVU变量框架」store。
+      // 不再只查 #extensions_settings2，也不取第一个带 __vue_app__ 的元素——
+      // 其它扩展（如小白X/世界助手等）的 Vue 应用可能先挂载，其 pinia 里没有 MVU 的 store。
       var store = null;
-      var roots = document.querySelectorAll('[data-v-app], [script_id], [__vue_app__]');
-      for (var i = 0; i < roots.length && !store; i++) {
-        var app = roots[i].__vue_app__;
-        var pinia = app && app.config && app.config.globalProperties && app.config.globalProperties.$pinia;
-        var candidate = pinia && pinia._s && pinia._s.get('MVU变量框架');
-        if (candidate) store = candidate;
-        if (!store && app && app._instance && app._instance.setupState && app._instance.setupState.store && app._instance.setupState.store.$id === 'MVU变量框架') store = app._instance.setupState.store;
-      }
-      if (!store && window.__mvuStoreRef && window.__mvuStoreRef.value) store = window.__mvuStoreRef.value;
-      if (!store) return { ok: false };
-      if (typeof store._reload_settings === 'function') {
-        store._reload_settings();
-        if (store.settings && cfg) {
-          var em = cfg.额外模型解析配置 || {};
-          var ok = store.settings.更新方式 === cfg.更新方式 || !!(store.settings.额外模型解析配置 && store.settings.额外模型解析配置.模型名称 === em.模型名称);
-          if (!ok) return { ok: false };
+      var appRoots = document.querySelectorAll('[data-v-app], [script_id], [__vue_app__]');
+      for (var ai = 0; ai < appRoots.length; ai++) {
+        var candApp = appRoots[ai].__vue_app__;
+        if (!candApp) continue;
+        var candPinia = candApp.config && candApp.config.globalProperties && candApp.config.globalProperties.$pinia;
+        var candStore = candPinia && candPinia._s && candPinia._s.get('MVU变量框架');
+        if (candStore && candStore.should_enable !== false) { store = candStore; break; }
+        if (candApp._instance && candApp._instance.setupState && candApp._instance.setupState.store && candApp._instance.setupState.store.$id === 'MVU变量框架' && candApp._instance.setupState.store.should_enable !== false) {
+          store = candApp._instance.setupState.store; break;
         }
-      } else if (store.settings && window.SillyTavern && window.SillyTavern.extensionSettings) {
-        store.settings = window.SillyTavern.extensionSettings.mvu_settings;
       }
-      return { ok: true };
+      // 策略2：MVU 面板挂在 [script_id] div 上，向下遍历其组件树找 setupState.store
+      if (!store) {
+        var roots = document.querySelectorAll('[script_id]');
+        for (var ri = 0; ri < roots.length && !store; ri++) {
+          var queue = [roots[ri]];
+          var guard = 0;
+          while (queue.length && guard < 2000) {
+            guard++;
+            var el = queue.pop();
+            if (!el || !el.children) continue;
+            var inst = el.__vueParentComponent;
+            if (inst && inst.setupState && inst.setupState.store) {
+              var s = inst.setupState.store;
+            if (s.$id === 'MVU变量框架' && s.should_enable !== false) { store = s; break; }
+            }
+            var kids = el.children;
+            for (var k = kids.length - 1; k >= 0; k--) queue.push(kids[k]);
+          }
+        }
+      }
+      // 策略3：MVU 若显式暴露了 store 引用则直接取用
+      var exposed = window.__mvuStoreRef?.value;
+      if (!store && exposed?.$id === 'MVU变量框架' && exposed.should_enable !== false) store = exposed;
+      if (!store || typeof store._reload_settings !== 'function') return { ok: false };
+      await store._reload_settings();
+      var st = store.settings;
+      var emCfg = cfg.额外模型解析配置 || {};
+      function matches(expected, actual, keys) {
+        return keys.every(function(key) { return expected[key] === undefined || actual?.[key] === expected[key]; });
+      }
+      var compatCfg = cfg.兼容性 || {};
+      if (!st || st.更新方式 !== cfg.更新方式
+        || (typeof st.兼容性?.额外模型解析非阻塞 === 'boolean'
+          && !matches(compatCfg, st.兼容性, ['额外模型解析非阻塞']))
+        || !matches(emCfg, st.额外模型解析配置, ['模型来源', '模型名称', '启用自动请求', '随机头部', '应答格式', 'top_p'])
+        || (typeof st.额外模型解析配置?.触发标签 === 'string'
+          && !matches(emCfg, st.额外模型解析配置, ['最小请求字数']))) return { ok: false };
+      var effective = store.effective_settings || st;
+      var overridden = effective.更新方式 !== st.更新方式
+        || (cfg.更新方式 === '额外模型解析' && (
+          !matches(emCfg, effective.额外模型解析配置, ['启用自动请求'])
+          || (typeof st.额外模型解析配置?.触发标签 === 'string'
+            && !matches(emCfg, effective.额外模型解析配置, ['最小请求字数']))
+        ));
+      return { ok: true, overridden: overridden };
     } catch (e) { return { ok: false }; }
-  })()`);
+  })()`, 5000);
 }
 
 // 无感应用：ST-Prompt-Template 暴露 setFeatures 时直接同步内存设置。
@@ -2073,8 +2192,8 @@ async function fetchModels() {
     const models = data.data || data.models || data;
     const ids = (Array.isArray(models) ? models : []).map(m => m.id || m.model || (typeof m === 'string' ? m : '')).filter(Boolean);
     if (ids.length === 0) { showToast('未获取到模型列表'); return; }
-    mvuModelName.innerHTML = ids.map(id => '<option value="' + id + '">' + id + '</option>').join('');
-    if (ids.length > 0) mvuModelName.value = ids.includes('gemini-2.5-pro') ? 'gemini-2.5-pro' : ids[0];
+    fillExtraModelOptions(mvuModelName, ids);
+    mvuModelName.value = findRecommendedExtraModel(ids) || ids[0];
     showToast('已获取 ' + ids.length + ' 个模型');
     updateBackendCode();
   } catch (e) {
@@ -2104,9 +2223,10 @@ async function fetchModelsInDialog() {
     const models = data.data || data.models || data;
     const ids = (Array.isArray(models) ? models : []).map(m => m.id || m.model || (typeof m === 'string' ? m : '')).filter(Boolean);
     if (ids.length === 0) { showToast('未获取到模型列表'); return; }
-    dlgModel.innerHTML = ids.map(id => '<option value="' + id + '">' + id + '</option>').join('');
-    dlgModel.value = ids.includes('gemini-2.5-pro') ? 'gemini-2.5-pro' : (ids.includes('gemini-3.1-pro') ? 'gemini-3.1-pro' : (ids.includes('gemini-3.5-flash') ? 'gemini-3.5-flash' : ids[0]));
-    showToast('已获取 ' + ids.length + ' 个模型，已选推荐模型');
+    fillExtraModelOptions(dlgModel, ids);
+    const recommended = findRecommendedExtraModel(ids);
+    dlgModel.value = recommended || ids[0];
+    showToast('已获取 ' + ids.length + ' 个模型' + (recommended ? '，已选推荐模型' : ''));
     updateBackendCode();
   } catch (e) {
     showToast('获取模型失败: ' + e.message);
@@ -2193,7 +2313,10 @@ function refreshMvuConfigStatus() {
     const notifOk = n['MVU框架加载成功'] && n['变量初始化成功'] && n['变量更新出错'] && n['额外模型解析中'];
     mvuStatus.innerHTML =
       (mode === '额外模型解析' || mode === '随AI输出' ? '🟢' : '🔴') + ' 更新方式: ' + (mode || '未知') + '<br>' +
-      (notifOk ? '🟢' : '🔴') + ' 四项通知: ' + (notifOk ? '全部开启' : '未全部开启');
+      (notifOk ? '🟢' : '🔴') + ' 四项通知: ' + (notifOk ? '全部开启' : '未全部开启') +
+      (mode === '额外模型解析'
+        ? getMvuExtraConfigIssues(cfg.额外模型解析配置 || {}).map(issue => '<br>🔴 ' + issue).join('')
+        : '');
   } catch (e) {
     mvuStatus.textContent = '读取MVU配置出错';
   }
@@ -2226,11 +2349,51 @@ function adaptExtraModelConfig(em) {
   return { isGemini, isDeepSeek };
 }
 
+function normProfileUrl(url) {
+  return String(url || '').replace(/\/+$/, '').toLowerCase();
+}
+
+function uniqueProfileName(baseName, apiUrl, profiles) {
+  let name = baseName || '默认';
+  if (!profiles.some(pr => pr.名称 === name)) return name;
+  let host = '';
+  try { host = new URL(apiUrl).host; } catch(e) { host = ''; }
+  if (host && !profiles.some(pr => pr.名称 === (name + '@' + host))) {
+    return name + '@' + host;
+  }
+  let i = 2;
+  while (profiles.some(pr => pr.名称 === (name + '(' + i + ')'))) i++;
+  return name + '(' + i + ')';
+}
+
+function saveOptimalMvuProfile(em) {
+  // 保存为方案（URL + 模型名 组合去重）
+  if (em.api地址 && em.模型名称) {
+    if (!Array.isArray(em.api方案列表)) em.api方案列表 = [];
+    const _u = normProfileUrl(em.api地址);
+    const _m = String(em.模型名称).toLowerCase();
+    const _existing = em.api方案列表.find(pr =>
+      pr.api地址 && normProfileUrl(pr.api地址) === _u &&
+      pr.模型名称 && String(pr.模型名称).toLowerCase() === _m
+    );
+    if (_existing) {
+      _existing.密钥 = em.密钥;
+      _existing.模型名称 = em.模型名称;
+      em.当前api方案 = _existing.名称;
+    } else {
+      const _profName = uniqueProfileName(em.模型名称, em.api地址, em.api方案列表);
+      em.api方案列表.push({ 名称: _profName, api地址: em.api地址, 密钥: em.密钥, 模型名称: em.模型名称 });
+      em.当前api方案 = _profName;
+    }
+  }
+}
+
 // 一键最优配置
 async function applyOptimalMvuConfig() {
   try {
     const cfg = getMvuCfg();
     if (!cfg) { showToast('mvu_settings 不存在，请确认已安装MVU变量框架'); return; }
+    clearTimeout(_mvuSaveTimer);
 
     cfg.通知 = cfg.通知 || {};
     cfg.通知['MVU框架加载成功'] = true;
@@ -2245,6 +2408,7 @@ async function applyOptimalMvuConfig() {
     em.请求方式 = '依次请求，失败后重试';
     em.请求次数 = 1;
     em.启用自动请求 = true;
+    if (supportsMvuMinRequestLength(em)) em.最小请求字数 = 50;
     em.最大回复token数 = 65535;
     em.温度 = 1;
     em.频率惩罚 = 0;
@@ -2256,6 +2420,7 @@ async function applyOptimalMvuConfig() {
     em.模型名称 = mvuModelName.value;
     em.兼容假流式 = /假流/i.test(mvuModelName.value);
     const _adp = adaptExtraModelConfig(em);
+    saveOptimalMvuProfile(em);
 
     cfg.自动清理变量 = cfg.自动清理变量 || {};
     const ac = cfg.自动清理变量;
@@ -2265,6 +2430,7 @@ async function applyOptimalMvuConfig() {
     ac.触发恢复变量的最近楼层数 = 10;
 
     cfg.兼容性 = cfg.兼容性 || {};
+    cfg.兼容性['额外模型解析非阻塞'] = false;
     cfg.兼容性['更新到聊天变量'] = true;
     cfg.兼容性['显示老旧功能'] = false;
     // 新版 MVU 的正式字段名是 sendas；旧拼写只应由迁移层读取。
@@ -2289,10 +2455,13 @@ async function applyOptimalMvuConfig() {
       }
     } catch(e) {}
 
-    syncMvuToForm(cfg);
-    mvuStatus.innerHTML = '🟢 更新方式: 额外模型解析<br>🟢 四项通知: 全部开启';
+    refreshMvuConfigStatus();
     const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
-    if (live && live.ok) {
+    if (live?.ok && live.overridden) {
+      mvuStatus.textContent = '全局配置已应用，当前角色卡覆盖了更新方式或自动请求设置';
+      showToast(mvuStatus.textContent);
+      checkConfig();
+    } else if (live?.ok) {
       showToast('MVU最优配置已无感应用（未刷新页面）' + (_adp.isDeepSeek ? '，DeepSeek已自动适配' : (_adp.isGemini ? '，Gemini已自动适配' : '')));
       checkConfig();
     } else {
@@ -2309,6 +2478,7 @@ async function applySuiAIMvuConfig() {
   try {
     const cfg = getMvuCfg();
     if (!cfg) { showToast('mvu_settings 不存在'); return; }
+    clearTimeout(_mvuSaveTimer);
     cfg.通知 = cfg.通知 || {};
     cfg.通知['MVU框架加载成功'] = true;
     cfg.通知['变量初始化成功'] = true;
@@ -2321,11 +2491,11 @@ async function applySuiAIMvuConfig() {
     cfg.自动清理变量.要保留变量的最近楼层数 = 20;
     cfg.自动清理变量.触发恢复变量的最近楼层数 = 10;
     cfg.兼容性 = cfg.兼容性 || {};
+    cfg.兼容性['额外模型解析非阻塞'] = false;
     cfg.兼容性['更新到聊天变量'] = true;
     cfg.兼容性['显示老旧功能'] = false;
     cfg.兼容性['sendas不视为user消息'] = false;
     delete cfg.兼容性['sandas不视为user消息'];
-    adaptExtraModelConfig(cfg.额外模型解析配置 = cfg.额外模型解析配置 || {});
     ewcBackupToEwcYH();
     await saveSettings();
     // 开启世界书条目
@@ -2342,7 +2512,11 @@ async function applySuiAIMvuConfig() {
     mvuUpdateMode.value = '随AI输出';
     refreshMvuConfigStatus();
     const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
-    if (live && live.ok) {
+    if (live?.ok && live.overridden) {
+      mvuStatus.textContent = '全局配置已应用，当前角色卡覆盖了更新方式';
+      showToast(mvuStatus.textContent);
+      checkConfig();
+    } else if (live?.ok) {
       showToast('随AI输出配置已无感应用（未刷新页面）');
       checkConfig();
     } else {
@@ -2355,6 +2529,7 @@ async function applySuiAIMvuConfig() {
 // MVU一键最优配置 → 弹窗选模式
 mvuOptimizeBtn.addEventListener('click', () => {
   let _selectedMode = null;
+  let confirmedFlashModel = '';
   const cardStyle = 'padding:16px 14px;border-radius:10px;cursor:pointer;text-align:center;font-size:15px;font-weight:600;border:2px solid rgba(0,0,0,0.1);background:#faf7f0;color:#6a5a48;transition:all 0.2s;letter-spacing:1px;flex:1;min-width:120px;';
   const cardHover = 'border-color:#b8956a;color:#3a2a18';
   const cardActive = 'border-color:#b8956a;color:#8b5a2b;background:rgba(184,149,106,0.08);box-shadow:0 0 16px rgba(184,149,106,0.15)';
@@ -2365,8 +2540,8 @@ mvuOptimizeBtn.addEventListener('click', () => {
   jmzqConfirmBody.style.display = '';
   jmzqConfirmBody.innerHTML = '<div style=\"font-size:14px;color:#3a2a18;text-align:center;margin-bottom:12px;letter-spacing:1px;\">请选择MVU更新模式</div>'
     + '<div style=\"display:flex;gap:10px;justify-content:center;flex-wrap:wrap;\">'
-    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-extra-card\" style=\"' + cardStyle + '\" data-mode=\"extra\">额外模型解析<div style=\"' + hintGold + '\">推荐首选 · 效果最优</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得关闭预设中的<br>变量更新提醒</div></div>'
-    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-sui-card\" style=\"' + cardStyle + '\" data-mode=\"sui\">随AI输出<div style=\"' + hintGray + '\">仅限高注意力模型<br>如 Claude / DeepSeek 系列</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得打开预设中的<br>变量更新提醒</div></div>'
+    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-extra-card\" style=\"' + cardStyle + '\" data-mode=\"extra\">额外模型解析<div style=\"' + hintGold + '\">推荐首选<br>' + EXTRA_MODEL_RECOMMENDATION + '</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得关闭预设中的<br>变量更新提醒</div></div>'
+    + '<div class=\"jmzq-dlg-mode-card\" id=\"jmzq-dlg-sui-card\" style=\"' + cardStyle + '\" data-mode=\"sui\">随AI输出<div style=\"' + hintGray + '\">推荐开启：Claude 系、DeepSeek 系<br>Gemini 3.8F、Gemini 4 Argon</div><div style=\"font-size:10px;color:#8a7060;margin-top:4px;line-height:1.4;\">记得打开预设中的<br>变量更新提醒</div></div>'
     + '</div>';
   jmzqConfirmOk.textContent = '确认配置';
   jmzqConfirmOk.style.display = '';
@@ -2417,18 +2592,15 @@ mvuOptimizeBtn.addEventListener('click', () => {
           const dlgModel = p.document.getElementById('jmzq-dlg-model-name');
           if (!dlgUrl || !dlgUrl.value.trim()) { showToast('请填写API地址'); return; }
           if (!dlgModel || !dlgModel.value) { showToast('请获取并选择模型'); return; }
-          const modelName = (dlgModel.value || '').toLowerCase();
-          const isFlash = /flash/.test(modelName) && !/3\.5/.test(modelName);
-          if (isFlash && jmzqConfirmOk.textContent !== '确认使用Flash') {
-            jmzqConfirmMsg.textContent = '检测到Flash系列模型，除3.5 Flash外Flash模型智商不足，建议更换。是否确认使用？';
+          if (shouldWarnFlashModel(dlgModel.value) && confirmedFlashModel !== dlgModel.value) {
+            confirmedFlashModel = dlgModel.value;
+            jmzqConfirmMsg.textContent = '检测到 Gemini 3 Flash。建议使用 ' + EXTRA_MODEL_RECOMMENDATION + ' 级别的模型。是否确认使用？';
             jmzqConfirmOk.textContent = '确认使用Flash';
             return;
           }
           mvuApiUrl.value = dlgUrl.value;
           mvuApiKey.value = dlgKey ? dlgKey.value : '';
-          if (dlgModel.options.length > 1) {
-            mvuModelName.innerHTML = [...dlgModel.options].map(o => '<option value=\"' + o.value + '\">' + o.textContent + '</option>').join('');
-          }
+          fillExtraModelOptions(mvuModelName, [...dlgModel.options].map(option => option.value));
           mvuModelName.value = dlgModel.value;
           jmzqConfirmOverlay.style.display = 'none';
           jmzqConfirmBody.style.display = 'none';
@@ -2436,10 +2608,20 @@ mvuOptimizeBtn.addEventListener('click', () => {
           applyOptimalMvuConfig();
         };
       } else {
-        jmzqConfirmOverlay.style.display = 'none';
-        jmzqConfirmBody.style.display = 'none';
-        jmzqConfirmOk.textContent = '确认';
-        applyOptimalMvuConfig();
+        const apply = () => {
+          jmzqConfirmOverlay.style.display = 'none';
+          jmzqConfirmBody.style.display = 'none';
+          jmzqConfirmOk.textContent = '确认';
+          applyOptimalMvuConfig();
+        };
+        if (shouldWarnFlashModel(mvuModelName.value)) {
+          jmzqConfirmBody.style.display = 'none';
+          jmzqConfirmMsg.textContent = '检测到 Gemini 3 Flash。建议使用 ' + EXTRA_MODEL_RECOMMENDATION + ' 级别的模型。是否确认应用？';
+          jmzqConfirmOk.textContent = '确认使用Flash';
+          jmzqConfirmOk.onclick = apply;
+          return;
+        }
+        apply();
       }
     };
   }, 0);
@@ -5951,6 +6133,7 @@ mvuPresetName.addEventListener('change', () => {
 mvuRequestMode.addEventListener('change', onMvuFieldChange);
 mvuRequestCount.addEventListener('input', onMvuFieldChange);
 mvuAutoRequest.addEventListener('change', onMvuFieldChange);
+mvuMinRequestLength.addEventListener('change', onMvuFieldChange);
 mvuApiUrl.addEventListener('input', onMvuFieldChange);
 mvuApiKey.addEventListener('input', onMvuFieldChange);
 mvuFetchModelsBtn.addEventListener('click', fetchModels);
@@ -6012,6 +6195,7 @@ async function applyMvuConfigFromForm() {
     em.请求方式 = mvuRequestMode.value;
     em.请求次数 = parseInt(mvuRequestCount.value) || 1;
     em.启用自动请求 = mvuAutoRequest.checked;
+    if (supportsMvuMinRequestLength(em)) em.最小请求字数 = Math.max(0, Math.floor(Number(mvuMinRequestLength.value) || 0));
     em.api地址 = mvuApiUrl.value;
     em.密钥 = mvuApiKey.value;
     em.模型名称 = mvuModelName.value;
@@ -6045,7 +6229,11 @@ async function applyMvuConfigFromForm() {
 
     syncMvuToForm(cfg);
     const live = await mvuLiveApply(cfg).catch(() => ({ ok: false }));
-    if (live && live.ok) {
+    if (live?.ok && live.overridden) {
+      mvuStatus.textContent = '全局配置已保存，当前角色卡覆盖了更新方式或自动请求设置';
+      showToast(mvuStatus.textContent);
+      checkConfig();
+    } else if (live?.ok) {
       mvuStatus.textContent = '配置已保存，无感生效';
       showToast('配置已无感应用（未刷新页面）');
       checkConfig();
@@ -6060,11 +6248,8 @@ async function applyMvuConfigFromForm() {
 }
 
 mvuApplyBtn.addEventListener('click', async () => {
-  const modelName = (mvuModelName.value || '').toLowerCase();
-  const isFlash = /flash/.test(modelName) && !/3\.5/.test(modelName);
-
-  if (isFlash) {
-    jmzqConfirmMsg.textContent = '检测到Flash系列模型，除3.5 Flash外Flash模型智商不足，建议更换。是否确认应用？';
+  if (shouldWarnFlashModel(mvuModelName.value)) {
+    jmzqConfirmMsg.textContent = '检测到 Gemini 3 Flash。建议使用 ' + EXTRA_MODEL_RECOMMENDATION + ' 级别的模型。是否确认使用？';
     jmzqConfirmOk.onclick = async () => {
       jmzqConfirmOverlay.style.display = 'none';
       await applyMvuConfigFromForm();
