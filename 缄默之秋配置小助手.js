@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.9';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.9';
+const JMZQ_VERSION = '3.3.10';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.10';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
@@ -1950,20 +1950,36 @@ async function mvuLiveApply(cfg) {
   })()`, 5000);
 }
 
-// 无感应用：ST-Prompt-Template 暴露 setFeatures 时直接同步内存设置。
+// 应用后读回提示词模板的运行配置，再决定是否需要刷新。
 async function ejsLiveApply(features) {
-  const json = JSON.stringify(features || {});
+  const featJson = JSON.stringify(features || EJS_OPTIMAL);
   return runInParent(`(async () => {
     try {
-      var feat = JSON.parse(${JSON.stringify(json)});
-      if (window.EjsTemplate && typeof window.EjsTemplate.setFeatures === 'function') {
-        window.EjsTemplate.setFeatures(feat);
-        if (window.SillyTavern && typeof window.SillyTavern.saveSettingsDebounced === 'function') window.SillyTavern.saveSettingsDebounced();
-        return { ok: true };
+      var feat = JSON.parse(${JSON.stringify(featJson)});
+      var host = window.SillyTavern;
+      var context = host?.getContext?.() || host;
+      var extensionSettings = context?.extensionSettings || host?.extensionSettings;
+      var save = () => {
+        if (typeof context?.saveSettingsDebounced === 'function') context.saveSettingsDebounced();
+        else host?.saveSettingsDebounced?.();
+      };
+      // 首选：EjsTemplate.setFeatures 能同步插件内存 settings（handler 直接读取）+ DOM，真正无感
+      if (feat && window.EjsTemplate && typeof window.EjsTemplate.setFeatures === 'function') {
+        await window.EjsTemplate.setFeatures(feat);
+        var actual = window.EjsTemplate.getFeatures?.();
+        save();
+        return { ok: !!actual && Object.entries(feat).every(([key, value]) => actual[key] === value) };
+      }
+      // 兜底：直接写 extension_settings.EjsTemplate（内存对象被 handler 引用，仍需刷新才可靠）
+      if (extensionSettings) {
+        extensionSettings.EjsTemplate ||= {};
+        Object.assign(extensionSettings.EjsTemplate, feat);
+        save();
+        return { ok: false }; // 直接改内存 extension_settings 无法保证 handler 引用同步，回退刷新
       }
       return { ok: false };
     } catch (e) { return { ok: false }; }
-  })()`);
+  })()`, 5000);
 }
 
 // ── 预设列表：从父页面 DOM 读取可用预设 ──
@@ -2283,13 +2299,15 @@ function onMvuFieldChange() {
   _mvuSaveTimer = setTimeout(() => saveMvuConfig(), 600);
 }
 
+// ST-Prompt-Template 的默认设置（src/modules/ui.ts）。
 const EJS_OPTIMAL = {
   enabled: true, generate_enabled: true, generate_loader_enabled: true,
   render_enabled: true, render_loader_enabled: true, with_context_disabled: false,
   debug_enabled: false, autosave_enabled: false, preload_worldinfo_enabled: true,
-  code_blocks_enabled: true, raw_message_evaluation_enabled: true, filter_message_enabled: true,
+  code_blocks_enabled: false, raw_message_evaluation_enabled: true, filter_message_enabled: true,
   inject_loader_enabled: false, invert_enabled: true, depth_limit: -1,
-  compile_workers: false, sandbox: false
+  compile_workers: false, sandbox: false, code_editor: false, preload_only: true,
+  cache_enabled: 0, cache_size: 64, cache_hasher: 'h32ToString'
 };
 function checkEjsTemplate() {
   try {
@@ -2323,12 +2341,11 @@ async function applyOptimalEjs() {
       return;
     }
     Object.assign(ejs, EJS_OPTIMAL);
-    saveSettings();
-    checkEjsTemplate();
+    await saveSettings();
     const live = await ejsLiveApply(EJS_OPTIMAL).catch(() => ({ ok: false }));
-    if (live && live.ok) {
+    checkEjsTemplate();
+    if (live?.ok) {
       showToast('提示词模板已无感应用（未刷新页面）');
-      checkEjsTemplate();
     } else {
       showToast('提示词模板已设为最优配置，2秒后刷新页面...');
       setTimeout(() => { window.parent.location.reload(); }, 2000);
