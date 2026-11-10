@@ -1,4 +1,4 @@
-// 缄默之秋 MVU 状态投影 v1.0.0
+// 缄默之秋 MVU 状态投影 v1.0.1
 // 从即将发送的正文状态块生成摘要。适用角色卡 3.2 / 3.5。
 (() => {
   'use strict';
@@ -10,6 +10,8 @@
   const PERSON_LIMITS = {
     appearance: 64, personality: 64, background: 96, thoughts: 64, detail: 110,
   };
+  const ITEM_DETAIL_LIMIT = 96;
+  const ITEM_DETAIL_PROTECTED = /[\d０-９]|剂量|药效|用法|用量|效果|使用限制|禁忌|副作用|触发|概率|冷却|伤害|恢复|感染|抗性|防护|兼容|专用|钥匙|任务|线索|通行|密码|唯一|不可替代|蓝图|配方/;
   const HELPER_TIMEOUT = 120_000;
   const helpers = new Map();
   const diagnosticAttempts = new Set();
@@ -45,6 +47,19 @@
       entry[key] = prefix + '…';
       shortened++;
     }
+    function shortenItems(items) {
+      if (!isRecord(items)) return;
+      for (const [name, item] of Object.entries(items)) {
+        if (!isRecord(item) || !['普通', '精良'].includes(item.quality) ||
+            item.category === '医疗药品' || mentioned([name, item.name]) ||
+            typeof item.detail !== 'string' || ITEM_DETAIL_PROTECTED.test(item.detail)) continue;
+        shorten(item, 'detail', ITEM_DETAIL_LIMIT);
+      }
+    }
+    function shortenInventory(items) {
+      shortenItems(items);
+      shortenItems(items?.载具配件);
+    }
     for (const [group, multiplier] of [['NPC', 1], ['队友', 2]]) {
       if (!isRecord(state[group])) continue;
       for (const [name, person] of Object.entries(state[group])) {
@@ -68,6 +83,13 @@
           if (isRecord(message)) shorten(message, 'content', 96);
         }
       }
+    }
+    shortenInventory(state.物品);
+    shortenInventory(state.营地?.物资);
+    for (const shelter of Object.values(state.建筑 ?? {})) shortenInventory(shelter?.storage);
+    for (const vehicle of Object.values(state.载具 ?? {})) {
+      shortenInventory(vehicle?.storage);
+      shortenItems(vehicle?.配件);
     }
     return shortened;
   }
@@ -104,7 +126,7 @@
     if (!project(state, recentText)) return;
     const projected = YAML.stringify(state, { blockQuote: 'literal' }).trimEnd();
     const replacement = open + projected + close +
-      '\n（状态投影：部分历史描写与通讯仅列摘要。「…」表示文本省略；更新变量时保留未变化的原字段。）';
+      '\n（状态投影：「…」表示描述或通讯有省略；更新变量时保留未变化的原字段。）';
     if (replacement.length >= block.length) return;
     target.content = target.content.replace(STATUS, () => replacement);
     nativeTurn.savings = { before: block.length, after: replacement.length };
