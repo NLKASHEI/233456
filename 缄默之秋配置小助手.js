@@ -1,22 +1,23 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
+//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.10';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.10';
+const JMZQ_VERSION = '3.5.0';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.5.0';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
-const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
+const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  'https://raw.githubusercontent.com/NLKASHEI/233456/open/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/FINA/缄默之秋配置小助手.min.js',
   JMZQ_CDN_URL,
-  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js',
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js',
 ];
-const WORLDBOOK_NAME = '缄默之秋3.2';
+const WORLDBOOK_NAME = '缄默之秋3.5';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋3.2',
   '缄默之秋-3.2-世界书',
   '缄默之秋3.2世界书',
   '缄默之秋-3.2',
@@ -776,7 +777,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
-        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @open 重新拉取并刷新页面">拉取</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @FINA 重新拉取并刷新页面">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -6148,7 +6149,7 @@ async function pullLatestHelper() {
   _jmzqPullingLatest = true;
   pullLatestBtn.disabled = true;
   pullLatestBtn.textContent = '拉取中';
-  showToast('正在清理缓存并拉取 @open 最新公开版…');
+  showToast('正在清理缓存并拉取 @FINA 最新公开版…');
   let lastError = null;
   try {
     const trees = await api_getScriptTrees();
@@ -6160,7 +6161,7 @@ async function pullLatestHelper() {
         node.name === '缄默之秋配置小助手' || /233456@[^\s'"`]+\/缄默之秋配置小助手(?:\.min)?\.js/.test(node.content || ''))) matches.push(node);
     });
     walk(trees);
-    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @open 导入代码');
+    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @FINA 导入代码');
 
     // 删除 Cache Storage 中所有旧分支版本；普通 HTTP 缓存再由 no-store 与随机参数双重绕过。
     try {
@@ -6185,7 +6186,7 @@ async function pullLatestHelper() {
         const source = await response.text();
         if (!source.includes('jmzq-panel') || /^\s*</.test(source)) throw new Error('CDN 返回的内容不是小助手脚本');
         remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
-        if (!remoteMarker) throw new Error('@open 未发现版本标记');
+        if (!remoteMarker) throw new Error('@FINA 未发现版本标记');
         break;
       } catch (error) { lastError = error; }
     }
@@ -6194,9 +6195,9 @@ async function pullLatestHelper() {
     const remote = parts(remoteMarker[1]);
     const current = parts(JMZQ_VERSION);
     const compare = remote.findIndex((value, index) => value !== current[index]);
-    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@open 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@FINA 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
 
-    // 使用不可变版本标签加载实际脚本。这样即使 @open 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
+    // 使用不可变版本标签加载实际脚本。这样即使 @FINA 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
     const releaseUrl = JMZQ_RELEASE_CDN_ROOT + 'v' + remoteMarker[1] + '/缄默之秋配置小助手.min.js';
     const releaseOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
     if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') releaseOptions.signal = AbortSignal.timeout(30000);
