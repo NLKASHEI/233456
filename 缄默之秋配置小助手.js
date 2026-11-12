@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.10';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.10';
+const JMZQ_VERSION = '3.3.11';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.11';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
@@ -2206,6 +2206,28 @@ function ewcInjectFetchHook() {
   p._jmzqFetchHook = fetchHook;
   p.fetch = fetchHook;
 }
+// 酒馆助手的非流式后台生成会临时修改全局开关。等它同步取完本次请求的 stream 后立即恢复预设。
+function installStreamPreferenceSync() {
+  const context = p.SillyTavern?.getContext?.() || SillyTavern;
+  const emitter = context?.eventSource;
+  if (!emitter?.on || !emitter.removeListener) return;
+  const event = 'js_generation_started';
+  let active = true;
+  const restorePreference = () => {
+    queueMicrotask(() => {
+      if (!active || p.document.getElementById('stream_toggle')?.checked !== true) return;
+      const settings = context.chatCompletionSettings;
+      if (settings?.stream_openai === false) settings.stream_openai = true;
+    });
+  };
+  if (typeof emitter.makeFirst === 'function') emitter.makeFirst(event, restorePreference);
+  else emitter.on(event, restorePreference);
+  return () => {
+    active = false;
+    emitter.removeListener(event, restorePreference);
+  };
+}
+
 function ewcRestoreFetchHook() {
   try {
     if (p._jmzqFetchHook && p.fetch === p._jmzqFetchHook && typeof p._jmzqFetchOriginal === 'function') {
@@ -6472,6 +6494,7 @@ if (jmzqConfirmDragHandle && jmzqConfirmDialog) {
 
 // --- 初始化 ---
 // 1. 注入fetch劫持（拦截黑名单模型的聊天补全请求）
+const removeStreamPreferenceSync = installStreamPreferenceSync();
 ewcInjectFetchHook();
 
 // 2. 从 _ewcYH 恢复被MVU初始化抹掉的值
@@ -6545,6 +6568,7 @@ p._jmzqCleanup = function() {
   clearTimeout(_postUpdateTimer);
   clearInterval(configPollTimer);
   clearInterval(statPollTimer);
+  removeStreamPreferenceSync?.();
   ewcRestoreFetchHook();
   p.document.removeEventListener('mousedown', onOutsidePanelPress);
   p.document.removeEventListener('touchstart', onOutsidePanelPress);
