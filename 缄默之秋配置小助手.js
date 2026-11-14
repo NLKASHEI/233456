@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.11';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.11';
+const JMZQ_VERSION = '3.3.12';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.12';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
@@ -1162,7 +1162,6 @@ function getMvuExtraConfigIssues(em) {
     if (em.应答格式 !== '聊天消息') issues.push('Gemini 应使用聊天消息');
   } else if (/deepseek/i.test(name)) {
     if (em.随机头部 !== false) issues.push('DeepSeek 应关闭随机头部');
-    if (em.应答格式 !== '格式化输出(v4兼容)') issues.push('DeepSeek 应使用 V4 兼容格式化输出');
     if (em.top_p !== 0.95) issues.push('DeepSeek top_p 应为 0.95');
   } else if (name && em.随机头部 !== false) {
     issues.push('非 Gemini 应关闭随机头部');
@@ -2379,6 +2378,12 @@ async function applyOptimalEjs() {
 ejsOptimizeBtn.addEventListener('click', applyOptimalEjs);
 
 // 刷新配置状态
+function deepSeekFormatAdvice(em) {
+  if (!/deepseek/i.test(String(em.模型名称 || '')) ||
+      (em.应答格式 === '格式化输出(v4兼容)' && em.关闭thinking === true)) return '';
+  return '<div style="font-size:11px;color:#d4af37;">建议：DeepSeek 使用格式化输出（V4 兼容）并关闭思考</div>';
+}
+
 function refreshMvuConfigStatus() {
   try {
     const cfg = getMvuCfg();
@@ -2392,7 +2397,8 @@ function refreshMvuConfigStatus() {
       (notifOk ? '🟢' : '🔴') + ' 四项通知: ' + (notifOk ? '全部开启' : '未全部开启') +
       (mode === '额外模型解析'
         ? getMvuExtraConfigIssues(cfg.额外模型解析配置 || {}).map(issue => '<br>🔴 ' + issue).join('')
-        : '');
+        : '') +
+      (mode === '额外模型解析' ? deepSeekFormatAdvice(cfg.额外模型解析配置 || {}) : '');
   } catch (e) {
     mvuStatus.textContent = '读取MVU配置出错';
   }
@@ -2400,7 +2406,7 @@ function refreshMvuConfigStatus() {
 
 // 按模型类型自动适配 MVU 额外解析参数。
 // 仅调整解析配置，不触碰世界书中的变量控制条目。
-function adaptExtraModelConfig(em) {
+function adaptExtraModelConfig(em, applyOptimal = false) {
   if (!em) return { isGemini: false, isDeepSeek: false };
   const name = String(em.模型名称 || '').toLowerCase();
   const isGemini = /gemini/.test(name);
@@ -2413,9 +2419,11 @@ function adaptExtraModelConfig(em) {
     em.关闭thinking = false;
   } else if (isDeepSeek) {
     em.随机头部 = false;
-    em.应答格式 = '格式化输出(v4兼容)';
     em.top_p = 0.95;
-    if (em.关闭thinking === undefined) em.关闭thinking = true;
+    if (applyOptimal) {
+      em.应答格式 = '格式化输出(v4兼容)';
+      em.关闭thinking = true;
+    }
   } else {
     em.随机头部 = false;
     em.应答格式 = '聊天消息';
@@ -2495,7 +2503,7 @@ async function applyOptimalMvuConfig() {
     em.密钥 = mvuApiKey.value;
     em.模型名称 = mvuModelName.value;
     em.兼容假流式 = /假流/i.test(mvuModelName.value);
-    const _adp = adaptExtraModelConfig(em);
+    const _adp = adaptExtraModelConfig(em, true);
     saveOptimalMvuProfile(em);
 
     cfg.自动清理变量 = cfg.自动清理变量 || {};
