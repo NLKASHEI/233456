@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.10';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.10';
+const JMZQ_VERSION = '3.2.11';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.11';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
@@ -1532,7 +1532,7 @@ function syncMvuToForm(cfg) {
   mvuJailbreak.value = em.破限方案 || bu.破限方案 || '使用内置破限';
   mvuPresetRow.style.display = (mvuJailbreak.value === '使用其他预设') ? '' : 'none';
   if (mvuJailbreak.value === '使用其他预设') {
-    const savedPreset = em.预设名称 || bu.预设名称 || '';
+    const savedPreset = em.其他预设名称 || em.预设名称 || bu.预设名称 || '';
     populatePresets(savedPreset);
   }
   mvuRespFormat.value = em.应答格式 || bu.应答格式 || '聊天消息';
@@ -1593,8 +1593,9 @@ function writeMvuConfig() {
   const em = cfg.额外模型解析配置;
   em.破限方案 = mvuJailbreak.value;
   if (mvuJailbreak.value === '使用其他预设' && mvuPresetName) {
-    em.预设名称 = mvuPresetName.value;
+    em.其他预设名称 = em.预设名称 = mvuPresetName.value;
   } else {
+    delete em.其他预设名称;
     delete em.预设名称;
   }
   em.应答格式 = mvuRespFormat.value;
@@ -1642,7 +1643,7 @@ function ewcBackupToEwcYH() {
   bu.更新方式 = cfg.更新方式;
   const em = cfg.额外模型解析配置 || {};
   bu.破限方案 = em.破限方案;
-  bu.预设名称 = em.预设名称;
+  bu.预设名称 = em.其他预设名称 || em.预设名称;
   bu.应答格式 = em.应答格式;
   bu.兼容假流式 = em.兼容假流式;
   bu.请求方式 = em.请求方式;
@@ -1676,7 +1677,7 @@ function ewcRestoreFromEwcYH() {
   if (!cfg.额外模型解析配置) cfg.额外模型解析配置 = {};
   const em = cfg.额外模型解析配置;
   if (!em.破限方案 && bu.破限方案) em.破限方案 = bu.破限方案;
-  if (!em.预设名称 && bu.预设名称) em.预设名称 = bu.预设名称;
+  if (!em.其他预设名称 && !em.预设名称 && bu.预设名称) em.其他预设名称 = bu.预设名称;
   if (!em.应答格式 && bu.应答格式) em.应答格式 = bu.应答格式;
   if (em.兼容假流式 === undefined && bu.兼容假流式 !== undefined) em.兼容假流式 = bu.兼容假流式;
   if (!em.请求方式 && bu.请求方式) em.请求方式 = bu.请求方式;
@@ -1932,7 +1933,9 @@ async function mvuLiveApply(cfg) {
       if (!st || st.更新方式 !== cfg.更新方式
         || (typeof st.兼容性?.额外模型解析非阻塞 === 'boolean'
           && !matches(compatCfg, st.兼容性, ['额外模型解析非阻塞']))
-        || !matches(emCfg, st.额外模型解析配置, ['模型来源', '模型名称', '启用自动请求', '随机头部', '应答格式', 'top_p'])
+        || !matches(emCfg, st.额外模型解析配置, ['模型来源', '模型名称', '破限方案', '启用自动请求', '随机头部', '应答格式', 'top_p'])
+        || (emCfg.破限方案 === '使用其他预设' && (emCfg.其他预设名称 || emCfg.预设名称) &&
+          (st.额外模型解析配置?.其他预设名称 || st.额外模型解析配置?.预设名称) !== (emCfg.其他预设名称 || emCfg.预设名称))
         || (typeof st.额外模型解析配置?.触发标签 === 'string'
           && !matches(emCfg, st.额外模型解析配置, ['最小请求字数']))) return { ok: false };
       var effective = store.effective_settings || st;
@@ -2005,20 +2008,32 @@ async function loadPresetList() {
 }
 
 function populatePresets(selectedValue) {
-  const sel = mvuPresetName;
-  if (!sel) return;
-  sel.innerHTML = '<option value="">-- 加载中... --</option>';
+  const select = mvuPresetName;
+  if (!select) return;
+  const addOption = (value, label) => {
+    const option = select.ownerDocument.createElement('option');
+    option.value = value;
+    option.textContent = label;
+    select.add(option);
+  };
+  const showPending = label => {
+    select.replaceChildren();
+    addOption('', label);
+    if (selectedValue) addOption(selectedValue, selectedValue);
+    select.value = selectedValue || '';
+  };
+  showPending('-- 加载中... --');
+  const pendingOption = select.options[0];
   loadPresetList().then(list => {
-    if (!list || !list.length) {
-      sel.innerHTML = '<option value="">-- 未找到预设 --</option>';
-      return;
-    }
-    sel.innerHTML = list.map(name => '<option value="' + name.replace(/"/g, '&quot;') + '">' + name + '</option>').join('');
-    if (selectedValue && [...sel.options].some(o => o.value === selectedValue)) {
-      sel.value = selectedValue;
-    }
+    if (select.options[0] !== pendingOption) return;
+    const selected = select.value;
+    select.replaceChildren();
+    addOption('', list?.length ? '-- 请选择预设 --' : '-- 未找到预设 --');
+    for (const name of list || []) addOption(name, name);
+    if (selected && !list?.includes(selected)) addOption(selected, selected + '（列表中未找到）');
+    select.value = selected;
   }).catch(() => {
-    sel.innerHTML = '<option value="">-- 加载失败 --</option>';
+    if (select.options[0] === pendingOption) pendingOption.textContent = '-- 加载失败 --';
   });
 }
 
@@ -2450,7 +2465,10 @@ async function applyOptimalMvuConfig() {
 
     cfg.额外模型解析配置 = cfg.额外模型解析配置 || {};
     const em = cfg.额外模型解析配置;
-    em.破限方案 = '使用内置破限';
+    em.破限方案 = mvuJailbreak.value || em.破限方案 || '使用内置破限';
+    if (em.破限方案 === '使用其他预设') {
+      em.其他预设名称 = em.预设名称 = mvuPresetName.value || em.其他预设名称 || em.预设名称 || '';
+    }
     em.应答格式 = '聊天消息';
     em.请求方式 = '依次请求，失败后重试';
     em.请求次数 = 1;
@@ -6233,8 +6251,9 @@ async function applyMvuConfigFromForm() {
     em.模型来源 = mvuModelSource.value;
     em.破限方案 = mvuJailbreak.value;
     if (mvuJailbreak.value === '使用其他预设' && mvuPresetName) {
-      em.预设名称 = mvuPresetName.value;
+      em.其他预设名称 = em.预设名称 = mvuPresetName.value;
     } else {
+      delete em.其他预设名称;
       delete em.预设名称;
     }
     em.应答格式 = mvuRespFormat.value;
@@ -6372,8 +6391,9 @@ ewcSyncMvuDom().catch(() => {});
   const cfg = getMvuCfg();
   const em = cfg && cfg.额外模型解析配置;
   if (bu.预设名称 && em && em.破限方案 === '使用其他预设') {
-    em.预设名称 = bu.预设名称;
-    syncMvuNativePreset(bu.预设名称);
+    const preset = em.其他预设名称 || em.预设名称 || bu.预设名称;
+    em.其他预设名称 = em.预设名称 = preset;
+    syncMvuNativePreset(preset);
   }
 })();
 
