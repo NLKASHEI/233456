@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.11';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.11';
+const JMZQ_VERSION = '3.2.12';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.12';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@master/缄默之秋配置小助手.min.js',
@@ -1153,7 +1153,6 @@ function supportsMvuMinRequestLength(settings) {
 function getMvuExtraConfigIssues(em) {
   const issues = [];
   if (em.启用自动请求 !== true) issues.push('自动请求未开启');
-  if (supportsMvuMinRequestLength(em) && em.最小请求字数 !== 50) issues.push('最小请求字数应为 50');
   const name = String(em.模型名称 || '');
   if (/gemini/i.test(name)) {
     if (em.随机头部 !== true) issues.push('Gemini 应开启随机头部');
@@ -1935,15 +1934,11 @@ async function mvuLiveApply(cfg) {
           && !matches(compatCfg, st.兼容性, ['额外模型解析非阻塞']))
         || !matches(emCfg, st.额外模型解析配置, ['模型来源', '模型名称', '破限方案', '启用自动请求', '随机头部', '应答格式', 'top_p'])
         || (emCfg.破限方案 === '使用其他预设' && (emCfg.其他预设名称 || emCfg.预设名称) &&
-          (st.额外模型解析配置?.其他预设名称 || st.额外模型解析配置?.预设名称) !== (emCfg.其他预设名称 || emCfg.预设名称))
-        || (typeof st.额外模型解析配置?.触发标签 === 'string'
-          && !matches(emCfg, st.额外模型解析配置, ['最小请求字数']))) return { ok: false };
+          (st.额外模型解析配置?.其他预设名称 || st.额外模型解析配置?.预设名称) !== (emCfg.其他预设名称 || emCfg.预设名称))) return { ok: false };
       var effective = store.effective_settings || st;
       var overridden = effective.更新方式 !== st.更新方式
         || (cfg.更新方式 === '额外模型解析' && (
           !matches(emCfg, effective.额外模型解析配置, ['启用自动请求'])
-          || (typeof st.额外模型解析配置?.触发标签 === 'string'
-            && !matches(emCfg, effective.额外模型解析配置, ['最小请求字数']))
         ));
       return { ok: true, overridden: overridden };
     } catch (e) { return { ok: false }; }
@@ -2473,7 +2468,7 @@ async function applyOptimalMvuConfig() {
     em.请求方式 = '依次请求，失败后重试';
     em.请求次数 = 1;
     em.启用自动请求 = true;
-    if (supportsMvuMinRequestLength(em)) em.最小请求字数 = 50;
+    if (supportsMvuMinRequestLength(em)) em.最小请求字数 ??= 50;
     em.最大回复token数 = 65535;
     em.温度 = 1;
     em.频率惩罚 = 0;
