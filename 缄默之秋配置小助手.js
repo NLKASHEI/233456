@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.14';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.14';
+const JMZQ_VERSION = '3.3.15';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.15';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
@@ -1109,7 +1109,7 @@ function showToast(msg) {
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
 const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'apihub.veletis.com', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai', 'nonbiri.sweet-home.io'];
-const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novai','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','api.leostudio.cc','aiwangyou','xindu.xyz','blacknoir','aigcbest'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novai','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','api.leostudio.cc','aiwangyou','xindu.xyz','blacknoir','aigcbest','xfxaigc','9527.codes'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
   const value = String(url || '').toLowerCase();
@@ -1458,17 +1458,52 @@ function encryptPayload(payload) {
   return desEcbPkcs7EncryptBase64(payload, _BK);
 }
 
+const backendCallLogKey = 'jmzq-call-log-v1';
+let backendCallLog = [];
+try {
+  const saved = JSON.parse(p.localStorage?.getItem(backendCallLogKey) || '[]');
+  if (Array.isArray(saved)) backendCallLog = saved.filter(row => row && ['P', 'U', 'M'].includes(row.v)).slice(-3);
+} catch (e) {}
+
+function backendLogAddress(value, hostOnly = false) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return hostOnly ? url.origin : url.origin + url.pathname;
+  } catch (e) { return ''; }
+}
+
+function recordBackendCall(meta, reason) {
+  backendCallLog = [...backendCallLog, {
+    t: Math.floor(Date.now() / 1000),
+    v: reason === 'url' ? 'U' : reason === 'model' ? 'M' : 'P',
+    m: String(meta.model || '').slice(0, 80),
+    s: String(meta.source || '').slice(0, 40),
+    u: backendLogAddress(meta.apiUrl, true).slice(0, 200),
+  }].slice(-3);
+  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (e) {}
+  updateBackendCode();
+}
+
 function updateBackendCode() {
   try {
-    const model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
-    const source = getCurrentSource();
+    let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
+    let source = getCurrentSource();
     // 插头URL：反代 > 官方映射 > CM profile
     const proxyUrl = getReverseProxyUrl();
-    const plugUrl = proxyUrl || SOURCE_URL[source] || getMainApiUrl() || '';
+    let plugUrl = proxyUrl || SOURCE_URL[source] || getMainApiUrl() || '';
     const localHref = (p && p.location && p.location.href) || '';
-    const payload = model + '|' + (source || '') + '|' + (SOURCE_LABEL[source] || '') + '|' + plugUrl + '|' + localHref;
+    const latest = backendCallLog[backendCallLog.length - 1];
+    if (latest) {
+      model = latest.m || model;
+      source = latest.s || source;
+      plugUrl = latest.u || plugUrl;
+    }
+    const fields = [model, source || '', SOURCE_LABEL[source] || '', backendLogAddress(plugUrl), backendLogAddress(localHref),
+      latest?.t || 0, latest?.v || '-', 'json:' + encodeURIComponent(JSON.stringify(backendCallLog.map(({ t, v, u }) => ({ t, v, u }))))];
+    const payload = fields.map(value => String(value).replaceAll('|', '%7C')).join('|');
     const encrypted = encryptPayload(payload);
-    backendCode.innerHTML = '<span style="font-size:10px;color:#a09080;">后台配置码</span> <code style="font-size:10px;font-family:Consolas,Monaco,monospace;background:rgba(0,0,0,0.04);color:#5a4030;padding:3px 8px;border:1px solid rgba(0,0,0,0.08);white-space:nowrap;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:pointer;" title="点击复制" onclick="navigator.clipboard.writeText(this.textContent);var b=this.nextElementSibling;b.textContent=\'已复制\';setTimeout(()=>b.textContent=\'复制\',1500);">' + encrypted + '</code> <button class="jmzq-btn xs" style="vertical-align:middle;" onclick="navigator.clipboard.writeText(\'' + encrypted + '\');this.textContent=\'已复制\';setTimeout(()=>this.textContent=\'复制\',1500);">复制</button>';
+    backendCode.innerHTML = '<span style="font-size:10px;color:#a09080;">后台配置码（含最近 3 次请求结果）</span> <code style="font-size:10px;font-family:Consolas,Monaco,monospace;background:rgba(0,0,0,0.04);color:#5a4030;padding:3px 8px;border:1px solid rgba(0,0,0,0.08);white-space:nowrap;max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;vertical-align:middle;cursor:pointer;" title="点击复制" onclick="navigator.clipboard.writeText(this.textContent);var b=this.nextElementSibling;b.textContent=\'已复制\';setTimeout(()=>b.textContent=\'复制\',1500);">' + encrypted + '</code> <button class="jmzq-btn xs" style="vertical-align:middle;" onclick="navigator.clipboard.writeText(\'' + encrypted + '\');this.textContent=\'已复制\';setTimeout(()=>this.textContent=\'复制\',1500);">复制</button>';
   } catch (e) {
     backendCode.innerHTML = '';
   }
@@ -2133,10 +2168,11 @@ function makeFakeCompletion(init) {
 }
 
 function ewcReadRequestMeta(init) {
-  const result = { model: '', apiUrl: '' };
+  const result = { model: '', apiUrl: '', source: '' };
   try {
     if (!init || typeof init.body !== 'string' || !init.body.trim()) return result;
     const body = JSON.parse(init.body);
+    result.source = String(body?.chat_completion_source || body?.source || body?.api_type || '').trim().toLowerCase();
     const readText = key => typeof body?.[key] === 'string' ? body[key].trim() : '';
     const source = String(body?.chat_completion_source || body?.source || body?.api_type || '').trim().toLowerCase();
     const sourceModelKeys = {
@@ -2207,6 +2243,10 @@ function ewcInjectFetchHook() {
 
       const requestMeta = ewcReadRequestMeta(init);
       const blockReason = ewcRequestBlockReason(requestMeta);
+      const mvu = p.Mvu || globalThis.Mvu;
+      if ((requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
+        recordBackendCall(requestMeta, blockReason);
+      }
       return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
     } catch(e) {}
     return originalFetch(input, init);
