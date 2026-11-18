@@ -3,8 +3,8 @@
 //   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.13';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.13';
+const JMZQ_VERSION = '3.2.14';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.14';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_LATEST_SCRIPT_URLS = [
   'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
@@ -198,6 +198,10 @@ function _jmzqOnWbNotFound() {
   if (bubble) bubble.classList.add('warn');
 }
 
+function isTavernDBEntry(entry) {
+  return [entry?.name, entry?.comment, entry?.title].some(name => /TavernDB/i.test(String(name || '')));
+}
+
 async function api_getWorldbook(name) {
   if (typeof TavernHelper === 'undefined' || typeof TavernHelper.getWorldbook !== 'function') {
     throw new Error('TavernHelper 世界书接口不可用');
@@ -210,7 +214,7 @@ async function api_getWorldbook(name) {
 async function api_replaceWorldbook(name, entriesModifier) {
   if (typeof entriesModifier !== 'function') throw new TypeError('世界书修改器必须是函数');
   const entries = await api_getWorldbook(name);
-  await entriesModifier(entries);
+  await entriesModifier(entries.filter(entry => !isTavernDBEntry(entry)));
   await TavernHelper.replaceWorldbook(name, entries);
   return await api_getWorldbook(name);
 }
@@ -5620,6 +5624,7 @@ function worldbookOverridesKey(wbName) {
 function snapshotWorldbookEnabled(entries) {
   const snapshot = {};
   for (const entry of entries || []) {
+    if (isTavernDBEntry(entry)) continue;
     const name = entry.comment || entry.name || entry.title || '';
     if (!name) continue;
     snapshot[name] = entry.enabled === true || entry.disable === false;
@@ -5655,7 +5660,7 @@ function loadWorldbookOverrides(wbName) {
   return {};
 }
 function saveWorldbookOverrides(wbName, overrides) {
-  const clean = { ...overrides };
+  const clean = Object.fromEntries(Object.entries(overrides).filter(([name]) => !/TavernDB/i.test(name)));
   _worldbookManualOverrides.set(wbName, clean);
   try { p.localStorage?.setItem(worldbookOverridesKey(wbName), JSON.stringify(clean)); } catch (_) {}
   return clean;
@@ -5664,7 +5669,7 @@ function findWorldbookDrift(entries, baseline) {
   if (!baseline) return [];
   const current = snapshotWorldbookEnabled(entries);
   const names = new Set([...Object.keys(baseline), ...Object.keys(current)]);
-  return [...names].filter(name => current[name] !== baseline[name]);
+  return [...names].filter(name => !/TavernDB/i.test(name) && current[name] !== baseline[name]);
 }
 
 async function checkWorldbookDrift() {
@@ -5698,7 +5703,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
   const currentSnapshot = snapshotWorldbookEnabled(entries);
   const externalDrift = findWorldbookDrift(entries, baseline);
   const storedOverrides = loadWorldbookOverrides(wbName);
-  let manualOverrides = forcePreset ? {} : storedOverrides;
+  let manualOverrides = forcePreset ? {} : Object.fromEntries(Object.entries(storedOverrides).filter(([name]) => !/TavernDB/i.test(name)));
   if (!forcePreset) {
     for (const name of externalDrift) {
       const previous = manualOverrides[name];
@@ -5714,6 +5719,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
   if (forcePreset && baseline) {
     const restoreNames = new Set([...Object.keys(storedOverrides), ...externalDrift]);
     for (const entry of entries) {
+    if (isTavernDBEntry(entry)) continue;
       const name = entry.comment || entry.name || entry.title || '';
       if (!name || !restoreNames.has(name)) continue;
       const stored = storedOverrides[name];
@@ -5744,6 +5750,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
   const supportedCountries = new Set(['华国', '美利坚国', '法国', '大毛国', '日本国', '巴西国', '北非']);
 
   for (const entry of entries) {
+    if (isTavernDBEntry(entry)) continue;
     const entryName = entry.comment || entry.name || entry.title || '';
     if (entryName === '[mvu_update]变量输出格式强化') {
       const shouldEnable = preserveManualState(entryName, getMvuCfg()?.更新方式 === '随AI输出');
@@ -5824,6 +5831,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
 
   // 人物详情由原生绿灯关键词触发；这里只隔离国籍，不在运行时拼接正则脚本。
   for (const entry of entries) {
+    if (isTavernDBEntry(entry)) continue;
     const detailName = entry.comment || entry.name || entry.title || '';
     const parts = detailName.split('/');
     const isCharacterDetail = parts.length === 4 &&
@@ -5855,7 +5863,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
   const manualEntries = Object.keys(manualOverrides);
 
   const activeEntries = entries
-    .filter(entry => (entry.enabled === true || entry.disable === false) && String(entry.content || '').trim().length > 0)
+    .filter(entry => !isTavernDBEntry(entry) && (entry.enabled === true || entry.disable === false) && String(entry.content || '').trim().length > 0)
     .map(entry => entry.comment || entry.name || entry.title || '')
     .filter(Boolean);
 
@@ -5863,7 +5871,7 @@ async function applyToWorldbook(enableSet, wbName, nat, sd, forcePreset = false)
     totalChanged: enabledList.length + disabledList.length,
     log: changed ? [{ wbName, enabled: enabledList, disabled: disabledList }] : [],
     wbNames: [wbName],
-    totalEntries: entries.length,
+    totalEntries: entries.filter(entry => !isTavernDBEntry(entry)).length,
     activeEntries,
     preservedManualChanges: manualEntries.length > 0,
     driftEntries: manualEntries,
@@ -6129,9 +6137,10 @@ async function checkWorldbookCount() {
     if (!Array.isArray(entries)) return;
     // 当前可导入的缄默之秋3.2世界书由组装脚本生成，共 585 条（含锚点）。
     // 目录条目属于超事件扩展，默认关闭；数量校验只核对完整性，不代表启用状态。
+    const count = entries.filter(entry => !isTavernDBEntry(entry)).length;
     const expected = 585;
-    statusText.textContent = `${wbName} · ${entries.length} 条${entries.length === expected ? '' : `（应为 ${expected}）`}`;
-    statusText.style.color = entries.length === expected ? '#4ade80' : '#e74c3c';
+    statusText.textContent = `${wbName} · ${count} 条${count === expected ? '' : `（应为 ${expected}）`}`;
+    statusText.style.color = count === expected ? '#4ade80' : '#e74c3c';
   } catch (e) {
     statusText.textContent = `世界书读取失败：${e.message || e}`;
     statusText.style.color = '#e74c3c';
