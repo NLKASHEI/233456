@@ -1,22 +1,23 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js?t=' + Date.now())
+//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.3.17';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.3.17';
+const JMZQ_VERSION = '3.5.8';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.5.8';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
-const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js';
+const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  'https://raw.githubusercontent.com/NLKASHEI/233456/open/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/FINA/缄默之秋配置小助手.min.js',
   JMZQ_CDN_URL,
-  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@open/缄默之秋配置小助手.min.js',
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js',
 ];
-const WORLDBOOK_NAME = '缄默之秋3.2';
+const WORLDBOOK_NAME = '缄默之秋3.5';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋3.2',
   '缄默之秋-3.2-世界书',
   '缄默之秋3.2世界书',
   '缄默之秋-3.2',
@@ -780,7 +781,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
-        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @open 重新拉取并刷新页面">拉取</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @FINA 重新拉取并刷新页面">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -1463,12 +1464,46 @@ function encryptPayload(payload) {
 }
 
 const backendCallLogKey = 'jmzq-call-log-v1';
+const backendBackupNamespace = 'jmzqHelper';
 let backendCallLog = [];
-try {
-  const saved = JSON.parse(p.localStorage?.getItem(backendCallLogKey) || '[]');
-  if (Array.isArray(saved)) backendCallLog = saved.filter(row => row && ['P', 'U', 'M'].includes(row.v)).slice(-3);
-} catch (e) {}
-
+function normalizeBackendCallLog(rows) {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Set();
+  return rows.filter(row => row && (row.v === 'U' || row.v === 'M'))
+    .map(row => ({ t: Math.floor(Number(row.t)), v: row.v, m: String(row.m || '').slice(0, 80), s: String(row.s || '').slice(0, 40), u: String(row.u || '').slice(0, 200) }))
+    .filter(row => Number.isFinite(row.t) && row.t > 0)
+    .sort((a, b) => a.t - b.t)
+    .filter(row => { const id = JSON.stringify(row); if (seen.has(id)) return false; seen.add(id); return true; })
+    .slice(-3);
+}
+function getBackendSettingsContext() {
+  try { return p.SillyTavern?.getContext?.() || SillyTavern?.getContext?.() || null; } catch (_) { return null; }
+}
+function saveBackendSettingsBackup() {
+  if (!backendCallLog.length) return;
+  try {
+    const ctx = getBackendSettingsContext();
+    if (!ctx?.extensionSettings || typeof ctx.saveSettingsDebounced !== 'function') return;
+    let holder = ctx.extensionSettings[backendBackupNamespace];
+    if (!holder || typeof holder !== 'object' || Array.isArray(holder)) holder = ctx.extensionSettings[backendBackupNamespace] = {};
+    if (JSON.stringify(normalizeBackendCallLog(holder.blockHistory)) === JSON.stringify(backendCallLog)) return;
+    holder.blockHistory = backendCallLog.map(row => ({ ...row }));
+    const pending = ctx.saveSettingsDebounced();
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch (_) {}
+}
+function restoreBackendCallLog() {
+  let raw = null, localRows = [], backupRows = [];
+  try { raw = p.localStorage?.getItem(backendCallLogKey) || null; if (raw) localRows = JSON.parse(raw); } catch (_) {}
+  try { backupRows = getBackendSettingsContext()?.extensionSettings?.[backendBackupNamespace]?.blockHistory || []; } catch (_) {}
+  const normalizedLocal = normalizeBackendCallLog(localRows);
+  const normalizedBackup = normalizeBackendCallLog(backupRows);
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, ...normalizedLocal, ...normalizedBackup]);
+  const serialized = JSON.stringify(backendCallLog);
+  if (raw !== serialized) try { p.localStorage?.setItem(backendCallLogKey, serialized); } catch (_) {}
+  if (backendCallLog.length && JSON.stringify(normalizedBackup) !== serialized) saveBackendSettingsBackup();
+}
+restoreBackendCallLog();
 function backendLogAddress(value, hostOnly = false) {
   try {
     const url = new URL(value);
@@ -1478,18 +1513,22 @@ function backendLogAddress(value, hostOnly = false) {
 }
 
 function recordBackendCall(meta, reason) {
-  backendCallLog = [...backendCallLog, {
+  if (reason !== 'url' && reason !== 'model') return;
+  restoreBackendCallLog();
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, {
     t: Math.floor(Date.now() / 1000),
-    v: reason === 'url' ? 'U' : reason === 'model' ? 'M' : 'P',
+    v: reason === 'url' ? 'U' : 'M',
     m: String(meta.model || '').slice(0, 80),
     s: String(meta.source || '').slice(0, 40),
     u: backendLogAddress(meta.apiUrl, true).slice(0, 200),
-  }].slice(-3);
-  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (e) {}
+  }]);
+  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (_) {}
+  saveBackendSettingsBackup();
   updateBackendCode();
 }
 
 function updateBackendCode() {
+  restoreBackendCallLog();
   try {
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     let source = getCurrentSource();
@@ -2248,7 +2287,7 @@ function ewcInjectFetchHook() {
       const requestMeta = ewcReadRequestMeta(init);
       const blockReason = ewcRequestBlockReason(requestMeta);
       const mvu = p.Mvu || globalThis.Mvu;
-      if ((requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
+      if (blockReason && (requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
         recordBackendCall(requestMeta, blockReason);
       }
       return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
@@ -6240,7 +6279,7 @@ async function pullLatestHelper() {
   _jmzqPullingLatest = true;
   pullLatestBtn.disabled = true;
   pullLatestBtn.textContent = '拉取中';
-  showToast('正在清理缓存并拉取 @open 最新公开版…');
+  showToast('正在清理缓存并拉取 @FINA 最新公开版…');
   let lastError = null;
   try {
     const trees = await api_getScriptTrees();
@@ -6252,7 +6291,7 @@ async function pullLatestHelper() {
         node.name === '缄默之秋配置小助手' || /233456@[^\s'"`]+\/缄默之秋配置小助手(?:\.min)?\.js/.test(node.content || ''))) matches.push(node);
     });
     walk(trees);
-    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @open 导入代码');
+    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @FINA 导入代码');
 
     // 删除 Cache Storage 中所有旧分支版本；普通 HTTP 缓存再由 no-store 与随机参数双重绕过。
     try {
@@ -6277,7 +6316,7 @@ async function pullLatestHelper() {
         const source = await response.text();
         if (!source.includes('jmzq-panel') || /^\s*</.test(source)) throw new Error('CDN 返回的内容不是小助手脚本');
         remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
-        if (!remoteMarker) throw new Error('@open 未发现版本标记');
+        if (!remoteMarker) throw new Error('@FINA 未发现版本标记');
         break;
       } catch (error) { lastError = error; }
     }
@@ -6286,9 +6325,9 @@ async function pullLatestHelper() {
     const remote = parts(remoteMarker[1]);
     const current = parts(JMZQ_VERSION);
     const compare = remote.findIndex((value, index) => value !== current[index]);
-    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@open 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@FINA 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
 
-    // 使用不可变版本标签加载实际脚本。这样即使 @open 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
+    // 使用不可变版本标签加载实际脚本。这样即使 @FINA 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
     const releaseUrl = JMZQ_RELEASE_CDN_ROOT + 'v' + remoteMarker[1] + '/缄默之秋配置小助手.min.js';
     const releaseOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
     if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') releaseOptions.signal = AbortSignal.timeout(30000);
