@@ -3,8 +3,8 @@
 //   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.5.7';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.5.7';
+const JMZQ_VERSION = '3.5.8';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.5.8';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
 const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js';
 const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
@@ -1464,12 +1464,46 @@ function encryptPayload(payload) {
 }
 
 const backendCallLogKey = 'jmzq-call-log-v1';
+const backendBackupNamespace = 'jmzqHelper';
 let backendCallLog = [];
-try {
-  const saved = JSON.parse(p.localStorage?.getItem(backendCallLogKey) || '[]');
-  if (Array.isArray(saved)) backendCallLog = saved.filter(row => row && ['P', 'U', 'M'].includes(row.v)).slice(-3);
-} catch (e) {}
-
+function normalizeBackendCallLog(rows) {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Set();
+  return rows.filter(row => row && (row.v === 'U' || row.v === 'M'))
+    .map(row => ({ t: Math.floor(Number(row.t)), v: row.v, m: String(row.m || '').slice(0, 80), s: String(row.s || '').slice(0, 40), u: String(row.u || '').slice(0, 200) }))
+    .filter(row => Number.isFinite(row.t) && row.t > 0)
+    .sort((a, b) => a.t - b.t)
+    .filter(row => { const id = JSON.stringify(row); if (seen.has(id)) return false; seen.add(id); return true; })
+    .slice(-3);
+}
+function getBackendSettingsContext() {
+  try { return p.SillyTavern?.getContext?.() || SillyTavern?.getContext?.() || null; } catch (_) { return null; }
+}
+function saveBackendSettingsBackup() {
+  if (!backendCallLog.length) return;
+  try {
+    const ctx = getBackendSettingsContext();
+    if (!ctx?.extensionSettings || typeof ctx.saveSettingsDebounced !== 'function') return;
+    let holder = ctx.extensionSettings[backendBackupNamespace];
+    if (!holder || typeof holder !== 'object' || Array.isArray(holder)) holder = ctx.extensionSettings[backendBackupNamespace] = {};
+    if (JSON.stringify(normalizeBackendCallLog(holder.blockHistory)) === JSON.stringify(backendCallLog)) return;
+    holder.blockHistory = backendCallLog.map(row => ({ ...row }));
+    const pending = ctx.saveSettingsDebounced();
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch (_) {}
+}
+function restoreBackendCallLog() {
+  let raw = null, localRows = [], backupRows = [];
+  try { raw = p.localStorage?.getItem(backendCallLogKey) || null; if (raw) localRows = JSON.parse(raw); } catch (_) {}
+  try { backupRows = getBackendSettingsContext()?.extensionSettings?.[backendBackupNamespace]?.blockHistory || []; } catch (_) {}
+  const normalizedLocal = normalizeBackendCallLog(localRows);
+  const normalizedBackup = normalizeBackendCallLog(backupRows);
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, ...normalizedLocal, ...normalizedBackup]);
+  const serialized = JSON.stringify(backendCallLog);
+  if (raw !== serialized) try { p.localStorage?.setItem(backendCallLogKey, serialized); } catch (_) {}
+  if (backendCallLog.length && JSON.stringify(normalizedBackup) !== serialized) saveBackendSettingsBackup();
+}
+restoreBackendCallLog();
 function backendLogAddress(value, hostOnly = false) {
   try {
     const url = new URL(value);
@@ -1479,18 +1513,22 @@ function backendLogAddress(value, hostOnly = false) {
 }
 
 function recordBackendCall(meta, reason) {
-  backendCallLog = [...backendCallLog, {
+  if (reason !== 'url' && reason !== 'model') return;
+  restoreBackendCallLog();
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, {
     t: Math.floor(Date.now() / 1000),
-    v: reason === 'url' ? 'U' : reason === 'model' ? 'M' : 'P',
+    v: reason === 'url' ? 'U' : 'M',
     m: String(meta.model || '').slice(0, 80),
     s: String(meta.source || '').slice(0, 40),
     u: backendLogAddress(meta.apiUrl, true).slice(0, 200),
-  }].slice(-3);
-  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (e) {}
+  }]);
+  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (_) {}
+  saveBackendSettingsBackup();
   updateBackendCode();
 }
 
 function updateBackendCode() {
+  restoreBackendCallLog();
   try {
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     let source = getCurrentSource();
@@ -2249,7 +2287,7 @@ function ewcInjectFetchHook() {
       const requestMeta = ewcReadRequestMeta(init);
       const blockReason = ewcRequestBlockReason(requestMeta);
       const mvu = p.Mvu || globalThis.Mvu;
-      if ((requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
+      if (blockReason && (requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
         recordBackendCall(requestMeta, blockReason);
       }
       return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
