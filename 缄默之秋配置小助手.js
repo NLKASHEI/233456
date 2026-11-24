@@ -1,20 +1,23 @@
 // ═══════════════ 缄默之秋小助手 ═══════════════
 // 酒馆助手中粘贴以下一行即可：
-//   import 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js'
+//   await import('https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js?t=' + Date.now())
 // ═══════════════════════════════════════════════════════════
 
-const JMZQ_VERSION = '3.2.15';
-const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.2.15';
+const JMZQ_VERSION = '3.5.8';
+const JMZQ_RELEASE_MARKER = 'JMZQ_RELEASE:3.5.8';
 const EXTRA_MODEL_RECOMMENDATION = 'Gemini 3.8F / Doubao Seed 2.1 Lite / GLM 5.3F';
+const JMZQ_CDN_URL = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js';
+const JMZQ_RELEASE_CDN_ROOT = 'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@';
 const JMZQ_LATEST_SCRIPT_URLS = [
-  'https://cdn.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
-  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@main/缄默之秋配置小助手.min.js',
-  'https://raw.githubusercontent.com/NLKASHEI/233456/main/缄默之秋配置小助手.min.js',
+  'https://raw.githubusercontent.com/NLKASHEI/233456/FINA/缄默之秋配置小助手.min.js',
+  JMZQ_CDN_URL,
+  'https://testingcf.jsdelivr.net/gh/NLKASHEI/233456@FINA/缄默之秋配置小助手.min.js',
 ];
-const WORLDBOOK_NAME = '缄默之秋3.2';
+const WORLDBOOK_NAME = '缄默之秋3.5';
 // 首选新名称，同时兼容已经导入过的旧名称，避免助手把实际世界书误判为“未选择”。
 const WORLDBOOK_ALIASES = [
   WORLDBOOK_NAME,
+  '缄默之秋3.2',
   '缄默之秋-3.2-世界书',
   '缄默之秋3.2世界书',
   '缄默之秋-3.2',
@@ -778,7 +781,7 @@ p.document.body.insertAdjacentHTML('beforeend', `
       <span class="jmzq-header-title">缄默之秋配置小助手</span>
       <div style="display:flex;align-items:center;gap:4px;">
         <button class="jmzq-btn xs" id="jmzq-theme-toggle" title="切换主题">墨</button>
-        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="绕过缓存拉取 @main 最新版">拉取</button>
+        <button class="jmzq-btn xs" id="jmzq-pull-latest" title="清理小助手缓存，从 @FINA 重新拉取并刷新页面">拉取</button>
         <button class="jmzq-btn xs" id="jmzq-refresh" title="刷新">刷新</button>
         <button class="jmzq-btn xs" id="jmzq-close" title="关闭" style="font-size:14px;padding:4px 8px !important;">✕</button>
       </div>
@@ -1110,8 +1113,8 @@ function showToast(msg) {
 
 // --- 配置检测：检查模型名称 ---
 const CONFIG_BLACKLIST = ['次','血','特','惠','福','利','鹿','量','plus','Plus','PLUS','转','官','0.','auto','AUTO','Auto','+','逆'];
-const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai'];
-const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novaiapi','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','xfxaigc','9527.codes'];
+const CONFIG_URL_WHITELIST = ['siliconflow', 'openrouter', 'ark.cn-beijing.volces', 'ark.cn', 'edgefn', 'qnaigc', 'nvidia', 'baidubce', 'ananbdhdh', 'ai21', 'aimlapi', 'anthropic', 'apihub.veletis.com', 'bigmodel', 'chutes', 'cohere', 'cometapi', 'dashscope', 'deepseek', 'electronhub', 'fireworks', 'gcli.ggchan.dev', 'googleapis', 'groq', 'lingyiwanwu', 'magicv4', 'minimax', 'mistral', 'momotale', 'moonshot', 'moyii', 'nanogpt', 'novita', 'opencode', 'openai', 'api.longcat.chat', 'api.pioneer.ai', 'perplexity', 'pollinations', 'primavera64', 'stepfun', 'sukaka', 'together', 'x.ai', 'z.ai', 'nonbiri.sweet-home.io'];
+const CONFIG_URL_BLACKLIST = ['gemai','cc.cwapi.vip','sta1n','iisbo','xqiqix','chatnewai','qingjiu','lemonapi','novai','vectorengine','api.gpt.ge','sllt','beijixingxing','qinyan','jiemomo','meow61','aiopus','api-666','ekan8','nova.cervus','api.laozhang','ashesb','ai.sikong','agent.aiflow','api552','api520','wamwuai','kongyang','api.ytai.site','api.hhentaii','nvewvip.preview.tencent-zeabur','ai.ttk.homes','cwapi','api.xixixi.cloud','api.goodsupport.top','api.lrca.cn','bnwum','love.qiyu221','api.akane.win','new.xfxai.top','dianhuomao','taicu','api.leostudio.cc','aiwangyou','xindu.xyz','blacknoir','aigcbest','xfxaigc','9527.codes'];
 const CONFIG_URL_BLACKLIST_PATTERNS = [/chr\d+/i];
 function isConfigUrlBlacklisted(url) {
   const value = String(url || '').toLowerCase();
@@ -1461,12 +1464,46 @@ function encryptPayload(payload) {
 }
 
 const backendCallLogKey = 'jmzq-call-log-v1';
+const backendBackupNamespace = 'jmzqHelper';
 let backendCallLog = [];
-try {
-  const saved = JSON.parse(p.localStorage?.getItem(backendCallLogKey) || '[]');
-  if (Array.isArray(saved)) backendCallLog = saved.filter(row => row && ['P', 'U', 'M'].includes(row.v)).slice(-3);
-} catch (e) {}
-
+function normalizeBackendCallLog(rows) {
+  if (!Array.isArray(rows)) return [];
+  const seen = new Set();
+  return rows.filter(row => row && (row.v === 'U' || row.v === 'M'))
+    .map(row => ({ t: Math.floor(Number(row.t)), v: row.v, m: String(row.m || '').slice(0, 80), s: String(row.s || '').slice(0, 40), u: String(row.u || '').slice(0, 200) }))
+    .filter(row => Number.isFinite(row.t) && row.t > 0)
+    .sort((a, b) => a.t - b.t)
+    .filter(row => { const id = JSON.stringify(row); if (seen.has(id)) return false; seen.add(id); return true; })
+    .slice(-3);
+}
+function getBackendSettingsContext() {
+  try { return p.SillyTavern?.getContext?.() || SillyTavern?.getContext?.() || null; } catch (_) { return null; }
+}
+function saveBackendSettingsBackup() {
+  if (!backendCallLog.length) return;
+  try {
+    const ctx = getBackendSettingsContext();
+    if (!ctx?.extensionSettings || typeof ctx.saveSettingsDebounced !== 'function') return;
+    let holder = ctx.extensionSettings[backendBackupNamespace];
+    if (!holder || typeof holder !== 'object' || Array.isArray(holder)) holder = ctx.extensionSettings[backendBackupNamespace] = {};
+    if (JSON.stringify(normalizeBackendCallLog(holder.blockHistory)) === JSON.stringify(backendCallLog)) return;
+    holder.blockHistory = backendCallLog.map(row => ({ ...row }));
+    const pending = ctx.saveSettingsDebounced();
+    if (pending && typeof pending.catch === 'function') pending.catch(() => {});
+  } catch (_) {}
+}
+function restoreBackendCallLog() {
+  let raw = null, localRows = [], backupRows = [];
+  try { raw = p.localStorage?.getItem(backendCallLogKey) || null; if (raw) localRows = JSON.parse(raw); } catch (_) {}
+  try { backupRows = getBackendSettingsContext()?.extensionSettings?.[backendBackupNamespace]?.blockHistory || []; } catch (_) {}
+  const normalizedLocal = normalizeBackendCallLog(localRows);
+  const normalizedBackup = normalizeBackendCallLog(backupRows);
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, ...normalizedLocal, ...normalizedBackup]);
+  const serialized = JSON.stringify(backendCallLog);
+  if (raw !== serialized) try { p.localStorage?.setItem(backendCallLogKey, serialized); } catch (_) {}
+  if (backendCallLog.length && JSON.stringify(normalizedBackup) !== serialized) saveBackendSettingsBackup();
+}
+restoreBackendCallLog();
 function backendLogAddress(value, hostOnly = false) {
   try {
     const url = new URL(value);
@@ -1476,18 +1513,22 @@ function backendLogAddress(value, hostOnly = false) {
 }
 
 function recordBackendCall(meta, reason) {
-  backendCallLog = [...backendCallLog, {
+  if (reason !== 'url' && reason !== 'model') return;
+  restoreBackendCallLog();
+  backendCallLog = normalizeBackendCallLog([...backendCallLog, {
     t: Math.floor(Date.now() / 1000),
-    v: reason === 'url' ? 'U' : reason === 'model' ? 'M' : 'P',
+    v: reason === 'url' ? 'U' : 'M',
     m: String(meta.model || '').slice(0, 80),
     s: String(meta.source || '').slice(0, 40),
     u: backendLogAddress(meta.apiUrl, true).slice(0, 200),
-  }].slice(-3);
-  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (e) {}
+  }]);
+  try { p.localStorage?.setItem(backendCallLogKey, JSON.stringify(backendCallLog)); } catch (_) {}
+  saveBackendSettingsBackup();
   updateBackendCode();
 }
 
 function updateBackendCode() {
+  restoreBackendCallLog();
   try {
     let model = (SillyTavern.getChatCompletionModel && SillyTavern.getChatCompletionModel()) || '';
     let source = getCurrentSource();
@@ -2129,6 +2170,11 @@ function syncMvuNativePreset(presetName) {
   })()`).catch(() => {});
 }
 
+// ── 请求截断说明 / 中转站掺水与模型伪装 ──
+// 截断名单依据维护者收集的多方反馈及复核结果整理，涵盖相关中转站地址、关键词及惯用名。
+// 拦截针对的是偷换模型、掺水路由及在用户不知情时向请求注入系统提示词等做法。
+// 挂着高规格模型的招牌，后台却调用其他模型，还让模型伪装身份，用户花的钱和得到的服务根本对不上。
+// 仓库 README 附有模型重定向与系统提示词注入的截图及中转服务选择建议。
 // ── 静默截断兼容响应 ──
 function makeFakeCompletion(init) {
   var isStream = true;
@@ -2170,18 +2216,48 @@ function ewcReadRequestMeta(init) {
     if (!init || typeof init.body !== 'string' || !init.body.trim()) return result;
     const body = JSON.parse(init.body);
     result.source = String(body?.chat_completion_source || body?.source || body?.api_type || '').trim().toLowerCase();
-    const modelKeys = ['model', 'chat_completion_model', 'custom_model', 'openai_model', 'claude_model'];
-    const urlKeys = ['reverse_proxy', 'server_url', 'custom_url', 'api_url', 'base_url'];
-    for (const key of modelKeys) {
-      if (typeof body?.[key] === 'string' && body[key].trim()) { result.model = body[key].trim(); break; }
+    const readText = key => typeof body?.[key] === 'string' ? body[key].trim() : '';
+    const source = String(body?.chat_completion_source || body?.source || body?.api_type || '').trim().toLowerCase();
+    const sourceModelKeys = {
+      claude: 'claude_model', openai: 'openai_model', makersuite: 'google_model',
+      google: 'google_model', vertexai: 'vertexai_model', openrouter: 'openrouter_model',
+      ai21: 'ai21_model', mistralai: 'mistralai_model', custom: 'custom_model',
+      cohere: 'cohere_model', perplexity: 'perplexity_model', groq: 'groq_model',
+      siliconflow: 'siliconflow_model', electronhub: 'electronhub_model', chutes: 'chutes_model',
+      nanogpt: 'nanogpt_model', deepseek: 'deepseek_model', aimlapi: 'aimlapi_model',
+      xai: 'xai_model', pollinations: 'pollinations_model', cometapi: 'cometapi_model',
+      moonshot: 'moonshot_model', fireworks: 'fireworks_model', azure_openai: 'azure_openai_model',
+      zai: 'zai_model'
+    };
+
+    // model 是后端请求直接提交的模型；否则优先读取当前来源对应字段。
+    // chat_completion_model 只作当前来源字段缺失时的兼容回退，避免把通用保存字段当成当前模型。
+    result.model = readText('model');
+    if (!result.model && sourceModelKeys[source]) result.model = readText(sourceModelKeys[source]);
+    if (!result.model) result.model = readText('chat_completion_model');
+    if (!result.model && !source) {
+      const candidates = [...new Set(Object.values(sourceModelKeys).map(readText).filter(Boolean))];
+      if (candidates.length === 1) result.model = candidates[0];
     }
-    for (const key of urlKeys) {
-      if (typeof body?.[key] === 'string' && body[key].trim()) { result.apiUrl = body[key].trim(); break; }
+
+    const sourceUrlKeys = source === 'custom'
+      ? ['reverse_proxy', 'custom_url', 'server_url', 'api_url', 'base_url']
+      : ['reverse_proxy', 'server_url', 'api_url', 'base_url'];
+    for (const key of sourceUrlKeys) {
+      const value = readText(key);
+      if (value) { result.apiUrl = value; break; }
+    }
+    if (!result.apiUrl && !source) {
+      const candidates = [...new Set(['reverse_proxy', 'custom_url', 'server_url', 'api_url', 'base_url'].map(readText).filter(Boolean))];
+      if (candidates.length === 1) result.apiUrl = candidates[0];
     }
   } catch (e) {}
   return result;
 }
 
+// 中转服务风险提示：部分第三方中转可能存在模型重定向、路由不透明或额外系统提示词注入等问题。
+// 建议能够查看 GitHub 源码的使用者主动核验路由、模型标识和服务说明，不要仅依赖显示名称判断实际模型。
+// 截图见仓库 docs/screenshots/；仅用于展示风险形式，不代表已独立证实某个具体服务存在上述行为。
 function ewcRequestBlockReason(requestMeta) {
   // 只检查这一次请求体明确携带的目标URL。不得回退扫描酒馆设置、
   // Connection Manager配置或历史保存的API，否则未启用连接也会误判。
@@ -2211,7 +2287,7 @@ function ewcInjectFetchHook() {
       const requestMeta = ewcReadRequestMeta(init);
       const blockReason = ewcRequestBlockReason(requestMeta);
       const mvu = p.Mvu || globalThis.Mvu;
-      if ((requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
+      if (blockReason && (requestMeta.model || requestMeta.apiUrl) && !mvu?.isDuringExtraAnalysis?.()) {
         recordBackendCall(requestMeta, blockReason);
       }
       return blockReason ? makeFakeCompletion(init) : originalFetch(input, init);
@@ -3337,9 +3413,8 @@ function contestValidatePayload(raw) {
 }
 function contestBodyText(text) {
   // 仅排除有明确边界的隐藏内容，不根据“后面还有文字”猜测标签来自推理。
-  return String(text ?? '')
+  return directorStripBlocks(text)
     .replace(/<(think|thinking|analysis|reasoning|logic_check)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '')
-    .replace(/<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi, '')
     .replace(/<(UpdateVariable|UpdateVariables)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '');
 }
 function contestScanTags(body) {
@@ -3360,13 +3435,16 @@ function contestScanTags(body) {
 }
 function contestCurrentSwipe(message) {
   const swipeId = Number.isInteger(message?.swipe_id) ? message.swipe_id : 0;
-  const text = Array.isArray(message?.swipes) ? message.swipes[swipeId] : message?.message;
+  // 当前正文可能经过插图/编辑，不能用尚未同步的 swipe 反向覆盖它；空正文也有效。
+  const text = typeof message?.message === 'string' ? message.message
+    : typeof message?.mes === 'string' ? message.mes
+      : Array.isArray(message?.swipes) ? message.swipes[swipeId] : '';
   return { swipeId, text: String(text ?? '') };
 }
 function contestListMessages() {
   const api = contestApi();
   if (typeof api?.getChatMessages === 'function') {
-    try { return api.getChatMessages('0-{{lastMessageId}}', { include_swipes: true }) || []; } catch (e) {}
+    try { return api.getChatMessages('0-{{lastMessageId}}', { include_swipes: false }) || []; } catch (e) {}
   }
   const chat = contestContext()?.chat;
   return Array.isArray(chat) ? chat.map((item, index) => ({
@@ -3651,7 +3729,11 @@ p._jmzqContestDebug = {
 // 由显示正则隐藏，下一轮模型随聊天上下文读取，不占用扩展提示缓存。
 const DIRECTOR_PROMPT_ID = 'jmzq-hidden-narrative-director';
 const DIRECTOR_TAG = 'JMZQ_DIRECTOR';
-const DIRECTOR_TAG_RE = /<JMZQ_DIRECTOR(?:\s[^>]*)?>[\s\S]*?<\/JMZQ_DIRECTOR\s*>/gi;
+const DIRECTOR_TAG_RE = /(^[ \t]*(`{3,}|~{3,})[^\r\n]*\r?\n[\s\S]*?(?:^[ \t]*\2[ \t]*(?=\r?$)|(?![\s\S]))|^[ \t]*<JMZQ_DIRECTOR(?:[ \t]+[^<>\r\n]*)?>[ \t]*\r?\n(?:(?!<\/?JMZQ_DIRECTOR\b)[\s\S])*?<JMZQ_DIRECTOR\b[\s\S]*$)|^[ \t]*<JMZQ_DIRECTOR(?:[ \t]+[^<>\r\n]*)?>[ \t]*\r?\n(?:(?!<\/?JMZQ_DIRECTOR\b)[\s\S])*?^[ \t]*<\/JMZQ_DIRECTOR[ \t]*>[ \t]*(?=\r?$)/gim;
+const _directorOwnedTargets = new Map();
+function directorStripBlocks(text) {
+  return String(text ?? '').replace(DIRECTOR_TAG_RE, '$1');
+}
 const DIRECTOR_CONFIG_KEY = 'jmzq-director-config-v1';
 const DIRECTOR_STORE_VERSION = 1;
 const DIRECTOR_DEFAULT_CONFIG = Object.freeze({
@@ -3835,7 +3917,7 @@ function directorStateFingerprint(sd) {
   })).toString(36);
 }
 function directorSourceText(text) {
-  return String(text || '').replace(DIRECTOR_TAG_RE, '')
+  return directorStripBlocks(text)
     .replace(CONTEST_RESULT_RE, '').replace(CONTEST_ERROR_RE, '').replace(/<!--DY_CONTEST_DONE:[a-z0-9_]+-->/g, '').trimEnd();
 }
 function directorSourceKey(sd, source) {
@@ -4528,35 +4610,55 @@ async function directorWritePlanToMessageNow(plan) {
   directorClearPrompt();
   const api = contestApi();
   if (typeof api?.setChatMessages !== 'function') throw new Error('聊天消息写回接口不可用');
-  const messages = contestListMessages().filter(message => message?.role === 'assistant' || message?.is_user === false);
-  const sourceId = Number(plan?.sourceMessageId);
-  const sourceFloor = Number(plan?.sourceFloor);
-  if (plan && (!Number.isInteger(sourceFloor) || !directorPlanMatchesCurrentLayer(plan))) {
+  const chatId = contestChatId();
+  if (plan && (!Number.isInteger(Number(plan.sourceFloor)) || !directorPlanMatchesCurrentLayer(plan))) {
     throw new Error('导演来源楼层、swipe或正文已变化，拒绝写入旧计划');
   }
-  const updates = [];
-  for (const [floor, message] of messages.entries()) {
+  // 只处理本次计划来源和本运行周期实际写过且未被改动的消息，不清洗全部历史。
+  const targets = new Map();
+  for (const [key, owned] of _directorOwnedTargets) {
+    if (owned.chatId === chatId) targets.set(owned.messageId, { key, owned });
+  }
+  if (plan) targets.set(Number(plan.sourceMessageId), {
+    ...targets.get(Number(plan.sourceMessageId)), isSource: true,
+  });
+  const pending = [];
+  for (const [messageId, target] of targets) {
+    const message = contestListMessages().find(item => Number(item.message_id) === messageId);
+    if (!message || !(message.role === 'assistant' || message.is_user === false)) continue;
     const current = contestCurrentSwipe(message);
-    DIRECTOR_TAG_RE.lastIndex = 0;
-    const cleaned = current.text.replace(DIRECTOR_TAG_RE, '').replace(/\n{3,}$/g, '\n\n').trimEnd();
-    const isSource = !!plan && floor === sourceFloor && Number(message.message_id) === sourceId;
-    const next = isSource
-      ? `${cleaned}${cleaned ? '\n' : ''}${directorPromptContent(plan)}`
-      : cleaned;
-    if (next !== current.text) updates.push({ message_id: message.message_id, message: next });
+    const owned = target.owned;
+    const unchangedOwned = owned && owned.swipeId === current.swipeId && owned.text === current.text;
+    // 图片、人工编辑或 swipe 已变化时，不再撤销旧写入，更不使用缓存正文覆盖。
+    if (!target.isSource && !unchangedOwned) {
+      _directorOwnedTargets.delete(target.key);
+      continue;
+    }
+    const cleaned = unchangedOwned ? owned.base : directorStripBlocks(current.text);
+    const block = target.isSource ? directorPromptContent(plan) : '';
+    const next = target.isSource ? cleaned + (cleaned && !cleaned.endsWith('\n') ? '\n' : '') + block : cleaned;
+    if (next !== current.text) pending.push({ messageId, current, next, base: cleaned, isSource: target.isSource, key: target.key });
   }
-  if (plan && !messages.some((message, floor) => floor === sourceFloor && Number(message.message_id) === sourceId)) {
-    throw new Error(`未找到导演来源消息 ${sourceId}`);
+  // 在紧邻写入处重读；队列等待期间的正文、楼层或 swipe 改动不能被旧快照覆盖。
+  if (contestChatId() !== chatId || (plan && !directorPlanMatchesCurrentLayer(plan))) return false;
+  for (const item of pending) {
+    const latest = contestListMessages().find(message => Number(message.message_id) === item.messageId);
+    if (!latest || !(latest.role === 'assistant' || latest.is_user === false)) return false;
+    const current = contestCurrentSwipe(latest);
+    if (current.swipeId !== item.current.swipeId || current.text !== item.current.text) return false;
   }
-  if (!updates.length) {
-    directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
-    return true;
-  }
-  _directorWritingMessage = true;
-  try {
-    await api.setChatMessages(updates, { refresh: 'affected' });
-  } finally {
-    _directorWritingMessage = false;
+  if (pending.length) {
+    _directorWritingMessage = true;
+    try {
+      await api.setChatMessages(pending.map(item => ({ message_id: item.messageId, message: item.next })), { refresh: 'affected' });
+    } finally { _directorWritingMessage = false; }
+    for (const item of pending) {
+      if (item.key) _directorOwnedTargets.delete(item.key);
+      if (item.isSource) {
+        const key = JSON.stringify([chatId, item.messageId, item.current.swipeId]);
+        _directorOwnedTargets.set(key, { chatId, messageId: item.messageId, swipeId: item.current.swipeId, text: item.next, base: item.base });
+      }
+    }
   }
   p._jmzqInjectedDirector = plan || null;
   directorUpdateStatus(plan, plan ? '已写入当前正文尾部' : '静默待机');
@@ -5261,7 +5363,30 @@ function readRecentTriggerText() {
   }
 }
 
+// 世界书按阶段变量或游戏时间任一已达到的阶段切换；只计算路由，不改写 MVU。
+function resolveWorldbookPhase(sd) {
+  const phases = ['秩序期', '爆发期', '末世期'];
+  const variableRank = Math.max(0, phases.indexOf(sd?.世界阶段));
+  const timeText = String(sd?.环境?.时间 || '');
+  const parts = timeText.match(/(20\d{2})\D+(\d{1,2})\D+(\d{1,2})(?:\D+(\d{1,2})(?:\D+(\d{1,2}))?)?/);
+  const stamp = readGameTimestamp(timeText);
+  let timeRank = 0;
+  if (parts && stamp != null) {
+    const date = new Date(stamp);
+    const expected = [Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), Number(parts[4] || 0), Number(parts[5] || 0)];
+    const actual = [date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours(), date.getUTCMinutes()];
+    // Date.UTC 会自动归一化不存在的日期，不能让错误时间误触发阶段切换。
+    if (actual.every((value, index) => value === expected[index])) {
+      if (stamp >= Date.UTC(2030, 7, 26, 12, 0)) timeRank = 2;
+      else if (stamp >= Date.UTC(2030, 7, 24, 12, 0)) timeRank = 1;
+    }
+  }
+  return phases[Math.max(variableRank, timeRank)];
+}
+
 function buildEnableSet(sd, triggerText = '') {
+  // 后续阶段条目、国家/NPC/感染者分支及导演补充条目共用同一有效阶段。
+  sd = { ...sd, 世界阶段: resolveWorldbookPhase(sd) };
   const enable = new Set();
   const nat           = readNationality(sd);
   const phase         = sd?.世界阶段 ?? '秩序期';
@@ -5925,7 +6050,7 @@ async function autoSwitch(options = {}) {
       p._jmzqLastResult = {
         time: Date.now(), ok: true,
         stat: {
-          phase:  sd.世界阶段,
+          phase:  resolveWorldbookPhase(sd),
           叙事模式: sd.叙事模式,
           nat:    nationality,
           感染者: sd.感染者行为模式,
@@ -6154,30 +6279,89 @@ async function pullLatestHelper() {
   _jmzqPullingLatest = true;
   pullLatestBtn.disabled = true;
   pullLatestBtn.textContent = '拉取中';
-  showToast('正在绕过缓存拉取 @main 最新版…');
+  showToast('正在清理缓存并拉取 @FINA 最新公开版…');
   let lastError = null;
-  for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
-    const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now();
+  try {
+    const trees = await api_getScriptTrees();
+    const matches = [];
+    const ownId = typeof getScriptId === 'function' ? getScriptId() : null;
+    const walk = nodes => nodes.forEach(node => {
+      if (node.type === 'folder') walk(node.scripts || []);
+      else if (node.type === 'script' && (ownId ? node.id === ownId :
+        node.name === '缄默之秋配置小助手' || /233456@[^\s'"`]+\/缄默之秋配置小助手(?:\.min)?\.js/.test(node.content || ''))) matches.push(node);
+    });
+    walk(trees);
+    if (matches.length !== 1) throw new Error('无法唯一定位当前小助手脚本，请改用文件顶部的 @FINA 导入代码');
+
+    // 删除 Cache Storage 中所有旧分支版本；普通 HTTP 缓存再由 no-store 与随机参数双重绕过。
     try {
-      const response = await fetch(url, { cache: 'no-store' });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const source = await response.text();
-      const remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
-      if (!remoteMarker) throw new Error('@main 仍是旧版，未发现版本标记');
-      const parts = version => version.split('.').map(value => Number(value) || 0);
-      const remote = parts(remoteMarker[1]);
-      const current = parts(JMZQ_VERSION);
-      const remoteIsOlder = remote.some((value, index) => value !== current[index] && value < current[index]
-        && remote.slice(0, index).every((prefix, prefixIndex) => prefix === current[prefixIndex]));
-      if (remoteIsOlder) throw new Error(`@main 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
-      // 保留当前实例直至新模块真正开始执行；新版启动后会自行回收旧 DOM、定时器与监听器。
-      delete p._jmzqLoaded;
-      await import(url + '&jmzq_module=1');
-      return;
-    } catch (error) {
-      lastError = error;
-      p._jmzqLoaded = true;
+      const storage = p.caches || window.caches;
+      if (storage) for (const key of await storage.keys()) {
+        const cache = await storage.open(key);
+        for (const request of await cache.keys()) {
+          const cachedUrl = decodeURI(request.url);
+          if (/^https:\/\/[^/]*jsdelivr\.net\/gh\/NLKASHEI\/233456@[^/]+\/缄默之秋配置小助手(?:\.min)?\.js(?:\?|$)/.test(cachedUrl)) await cache.delete(request);
+        }
+      }
+    } catch (error) { console.warn('[缄默之秋] 缓存不可访问，将直接绕过缓存重新拉取', error); }
+
+    let remoteMarker = null;
+    for (const sourceUrl of JMZQ_LATEST_SCRIPT_URLS) {
+      const url = sourceUrl + (sourceUrl.includes('?') ? '&' : '?') + 'jmzq_reload=' + Date.now() + '_' + Math.random().toString(36).slice(2);
+      try {
+        const fetchOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
+        if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') fetchOptions.signal = AbortSignal.timeout(30000);
+        const response = await fetch(url, fetchOptions);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const source = await response.text();
+        if (!source.includes('jmzq-panel') || /^\s*</.test(source)) throw new Error('CDN 返回的内容不是小助手脚本');
+        remoteMarker = source.match(/JMZQ_RELEASE:(\d+\.\d+\.\d+)/);
+        if (!remoteMarker) throw new Error('@FINA 未发现版本标记');
+        break;
+      } catch (error) { lastError = error; }
     }
+    if (!remoteMarker) throw lastError || new Error('所有下载地址均不可用');
+    const parts = version => version.split('.').map(value => Number(value) || 0);
+    const remote = parts(remoteMarker[1]);
+    const current = parts(JMZQ_VERSION);
+    const compare = remote.findIndex((value, index) => value !== current[index]);
+    if (compare >= 0 && remote[compare] < current[compare]) throw new Error(`@FINA 为 v${remoteMarker[1]}，当前为 v${JMZQ_VERSION}，已阻止降级`);
+
+    // 使用不可变版本标签加载实际脚本。这样即使 @FINA 的 CDN 分支缓存尚未刷新，仍会得到刚验证的版本。
+    const releaseUrl = JMZQ_RELEASE_CDN_ROOT + 'v' + remoteMarker[1] + '/缄默之秋配置小助手.min.js';
+    const releaseOptions = { cache: 'no-store', headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' } };
+    if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') releaseOptions.signal = AbortSignal.timeout(30000);
+    const releaseResponse = await fetch(releaseUrl + '?jmzq_verify=' + Date.now(), releaseOptions);
+    if (!releaseResponse.ok) throw new Error(`版本文件返回 HTTP ${releaseResponse.status}`);
+    const releaseSource = await releaseResponse.text();
+    if (!releaseSource.includes(`JMZQ_RELEASE:${remoteMarker[1]}`)) throw new Error(`版本标签 v${remoteMarker[1]} 尚未同步，请稍后重试`);
+    const loader = 'await import(' + JSON.stringify(releaseUrl + '?t=') + ' + Date.now());';
+    // 改写当前角色脚本为永久防缓存加载器；修改自身会销毁 iframe，因此由父页面延迟保存并刷新。
+    await runInParent(`(() => {
+      setTimeout(async () => {
+        try {
+          await TavernHelper.updateScriptTreesWith(trees => {
+            let found = false;
+            function walk(nodes) { for (const node of nodes) {
+              if (node.type === 'folder') walk(node.scripts || []);
+              else if (node.id === ${JSON.stringify(matches[0].id)}) { node.content = ${JSON.stringify(loader)}; found = true; }
+            } }
+            walk(trees);
+            if (!found) throw new Error('当前角色已变化，请重新打开小助手');
+            return trees;
+          }, { type: 'character' });
+          location.reload();
+        } catch (error) {
+          const button = document.getElementById('jmzq-pull-latest');
+          if (button) { button.disabled = false; button.textContent = '拉取'; }
+          alert('小助手拉取失败：' + (error.message || error));
+        }
+      }, 100);
+      return true;
+    })()`);
+    return;
+  } catch (error) {
+    lastError = error;
   }
   _jmzqPullingLatest = false;
   pullLatestBtn.disabled = false;
